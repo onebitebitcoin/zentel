@@ -1,28 +1,11 @@
 /**
  * 인증 상태 관리 Context
  */
-import {
-  createContext,
-  useEffect,
-  useState,
-  useCallback,
-  type ReactNode,
-} from 'react';
+import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { User, UserLogin, UserRegister } from '../types/auth';
 import { authService } from '../api/auth';
 import { tokenStorage } from '../utils/token';
-
-export interface AuthContextType {
-  user: User | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  login: (data: UserLogin) => Promise<void>;
-  register: (data: UserRegister) => Promise<void>;
-  logout: () => Promise<void>;
-  checkAuth: () => Promise<void>;
-}
-
-export const AuthContext = createContext<AuthContextType | null>(null);
+import { AuthContext } from './AuthContextValue';
 
 interface AuthProviderProps {
   children: ReactNode;
