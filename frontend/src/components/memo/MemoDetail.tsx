@@ -24,7 +24,7 @@ export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
   const visibleFacts = factsExpanded
     ? facts
     : facts.map((fact) =>
-        fact.length > maxFactLength ? fact.slice(0, maxFactLength) : fact,
+        fact.length > maxFactLength ? `${fact.slice(0, maxFactLength)}...` : fact,
       );
 
   const handleCopy = async () => {
