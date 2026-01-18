@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, Index, String
+from sqlalchemy import JSON, Boolean, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 from ulid import ULID
 
@@ -32,6 +32,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(128), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    interests: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[str] = mapped_column(String(64), nullable=False, default=now_iso)
     updated_at: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 

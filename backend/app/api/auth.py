@@ -15,12 +15,14 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.auth import (
     MessageResponse,
+    PasswordChange,
     RefreshTokenRequest,
     TokenResponse,
     UserLogin,
     UsernameCheckResponse,
     UserOut,
     UserRegister,
+    UserUpdate,
 )
 
 logger = logging.getLogger(__name__)
@@ -233,3 +235,53 @@ def check_username(username: str, db: Session = Depends(get_db)):
         available=True,
         message="사용 가능한 사용자 이름입니다",
     )
+
+
+@router.put("/password", response_model=MessageResponse)
+def change_password(
+    data: PasswordChange,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """비밀번호 변경"""
+    logger.info(f"Password change attempt: {current_user.id}")
+
+    # 현재 비밀번호 검증
+    if not verify_password(data.current_password, current_user.hashed_password):
+        logger.warning(f"Invalid current password for user: {current_user.id}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 비밀번호가 올바르지 않습니다",
+        )
+
+    # 새 비밀번호 해시
+    current_user.hashed_password = get_password_hash(data.new_password)
+    from datetime import datetime, timezone
+    current_user.updated_at = datetime.now(timezone.utc).isoformat()
+
+    db.commit()
+
+    logger.info(f"Password changed successfully: {current_user.id}")
+    return MessageResponse(message="비밀번호가 변경되었습니다")
+
+
+@router.put("/profile", response_model=UserOut)
+def update_profile(
+    data: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """프로필(관심사) 업데이트"""
+    logger.info(f"Profile update: {current_user.id}")
+
+    if data.interests is not None:
+        current_user.interests = data.interests
+
+    from datetime import datetime, timezone
+    current_user.updated_at = datetime.now(timezone.utc).isoformat()
+
+    db.commit()
+    db.refresh(current_user)
+
+    logger.info(f"Profile updated: {current_user.id}")
+    return current_user

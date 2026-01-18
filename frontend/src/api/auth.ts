@@ -8,6 +8,8 @@ import type {
   UserLogin,
   TokenResponse,
   UsernameCheckResponse,
+  PasswordChange,
+  UserUpdate,
 } from '../types/auth';
 import { tokenStorage } from '../utils/token';
 
@@ -101,6 +103,28 @@ export const authService = {
     const response = await authApi.get<UsernameCheckResponse>(
       `/auth/check-username?username=${encodeURIComponent(username)}`
     );
+    return response.data;
+  },
+
+  /**
+   * 비밀번호 변경
+   */
+  changePassword: async (data: PasswordChange): Promise<{ message: string }> => {
+    const token = tokenStorage.getAccessToken();
+    const response = await authApi.put<{ message: string }>('/auth/password', data, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  },
+
+  /**
+   * 프로필 업데이트
+   */
+  updateProfile: async (data: UserUpdate): Promise<User> => {
+    const token = tokenStorage.getAccessToken();
+    const response = await authApi.put<User>('/auth/profile', data, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     return response.data;
   },
 };

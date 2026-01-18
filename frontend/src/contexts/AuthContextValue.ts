@@ -12,6 +12,7 @@ export interface AuthContextType {
   register: (data: UserRegister) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  setUser: (user: User) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);

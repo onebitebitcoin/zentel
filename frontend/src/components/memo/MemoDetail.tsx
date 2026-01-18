@@ -3,6 +3,7 @@ import { X, Check, ExternalLink, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemo, MemoType } from '../../types/memo';
 import { MemoTypeChips } from './MemoTypeChips';
+import { CommentList } from './CommentList';
 import { formatDateTime } from '../../utils/date';
 
 interface MemoDetailProps {
@@ -116,51 +117,37 @@ export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
             </div>
           )}
 
-          {/* 외부 링크 프리뷰 */}
+          {/* 외부 링크 */}
           {memo.source_url && (
             <a
               href={memo.source_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded-xl overflow-hidden border border-gray-200 hover:border-gray-300 transition-colors"
+              className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors"
             >
-              {memo.og_image ? (
-                <div className="flex flex-col">
-                  <div className="w-full h-32 bg-gray-100">
-                    <img
-                      src={memo.og_image}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  </div>
-                  <div className="p-3">
-                    <p className="text-sm font-medium text-gray-800 line-clamp-2">
-                      {memo.og_title || memo.source_url}
-                    </p>
-                    <p className="text-xs text-gray-400 truncate mt-1">
-                      {new URL(memo.source_url).hostname}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 p-3">
-                  <ExternalLink size={18} className="text-teal-600 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-teal-600 truncate">
-                      {memo.og_title || memo.source_url}
-                    </p>
-                  </div>
-                </div>
-              )}
+              <ExternalLink size={18} className="text-teal-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-teal-600 truncate">
+                  {memo.og_title || memo.source_url}
+                </p>
+                <p className="text-xs text-gray-400 truncate mt-1">
+                  {new URL(memo.source_url).hostname}
+                </p>
+              </div>
             </a>
           )}
 
           <div className="text-xs text-gray-400">
             <p>생성: {formatDateTime(memo.created_at)}</p>
             {memo.updated_at && <p>수정: {formatDateTime(memo.updated_at)}</p>}
+          </div>
+
+          {/* 댓글 섹션 */}
+          <div className="border-t border-gray-100 pt-4">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">
+              댓글 ({memo.comment_count || 0})
+            </h3>
+            <CommentList memoId={memo.id} />
           </div>
         </div>
       </div>

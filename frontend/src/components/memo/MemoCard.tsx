@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil, Trash2, ExternalLink, Copy } from 'lucide-react';
+import { Pencil, Trash2, ExternalLink, Copy, MessageCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemo } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
@@ -91,46 +91,46 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
         </div>
       )}
 
-      {/* 외부 링크 프리뷰 */}
+      {/* 외부 링크 */}
       {memo.source_url && (
         <a
           href={memo.source_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="block rounded-lg overflow-hidden border border-gray-100 hover:border-gray-200 transition-colors"
+          className="flex items-center gap-2 p-2 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors"
         >
-          {memo.og_image ? (
-            <div className="flex">
-              <div className="w-20 h-20 flex-shrink-0 bg-gray-100">
-                <img
-                  src={memo.og_image}
-                  alt=""
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-              </div>
-              <div className="flex-1 min-w-0 p-2 flex flex-col justify-center">
-                <p className="text-xs font-medium text-gray-800 line-clamp-2">
-                  {memo.og_title || memo.source_url}
-                </p>
-                <p className="text-[10px] text-gray-400 truncate mt-1">
-                  {new URL(memo.source_url).hostname}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 p-2">
-              <ExternalLink size={14} className="text-teal-600 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-teal-600 truncate">
-                  {memo.og_title || memo.source_url}
-                </p>
-              </div>
-            </div>
-          )}
+          <ExternalLink size={14} className="text-teal-600 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-teal-600 truncate">
+              {memo.og_title || memo.source_url}
+            </p>
+            <p className="text-[10px] text-gray-400 truncate">
+              {new URL(memo.source_url).hostname}
+            </p>
+          </div>
         </a>
+      )}
+
+      {/* 최신 댓글 */}
+      {memo.latest_comment && (
+        <div
+          onClick={() => onEdit(memo)}
+          className="p-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+        >
+          <p className="text-xs text-gray-600 line-clamp-2">
+            {memo.latest_comment.content}
+          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-[10px] text-gray-400">
+              {getRelativeTime(memo.latest_comment.created_at)}
+            </span>
+            {memo.comment_count > 1 && (
+              <span className="text-[10px] text-primary">
+                + {memo.comment_count - 1}개 더보기
+              </span>
+            )}
+          </div>
+        </div>
       )}
 
       {/* 메타 정보 */}
@@ -142,6 +142,13 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
           >
             <Copy size={14} />
             <span>복사</span>
+          </button>
+          <button
+            onClick={() => onEdit(memo)}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-primary"
+          >
+            <MessageCircle size={14} />
+            <span>{memo.comment_count || 0}</span>
           </button>
           <button
             onClick={() => onEdit(memo)}

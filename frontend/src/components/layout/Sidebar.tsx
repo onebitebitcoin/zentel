@@ -109,8 +109,12 @@ export function Sidebar({ className = '' }: SidebarProps) {
       {/* 설정 & 휴지통 */}
       <div className="px-4 py-3 space-y-1">
         <button
-          disabled
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 cursor-not-allowed"
+          onClick={() => navigate('/settings')}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+            location.pathname === '/settings'
+              ? 'bg-primary/10 text-primary font-medium'
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
         >
           <Settings size={18} />
           설정

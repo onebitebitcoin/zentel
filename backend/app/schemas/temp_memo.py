@@ -36,6 +36,14 @@ class TempMemoUpdate(BaseModel):
     content: Optional[str] = Field(default=None, min_length=1, max_length=10000)
 
 
+class MemoCommentSummary(BaseModel):
+    """메모의 최신 댓글 요약"""
+
+    id: str
+    content: str
+    created_at: str
+
+
 class TempMemoOut(BaseModel):
     """임시 메모 응답 스키마"""
 
@@ -49,6 +57,8 @@ class TempMemoOut(BaseModel):
     og_image: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None
+    comment_count: int = 0
+    latest_comment: Optional[MemoCommentSummary] = None
 
     model_config = {"from_attributes": True}
 

@@ -3,7 +3,7 @@
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -36,6 +36,7 @@ class UserOut(BaseModel):
     id: str
     username: str
     is_active: bool
+    interests: Optional[List[str]] = None
     created_at: str
     updated_at: Optional[str] = None
 
@@ -67,3 +68,16 @@ class MessageResponse(BaseModel):
     """일반 메시지 응답"""
 
     message: str
+
+
+class PasswordChange(BaseModel):
+    """비밀번호 변경 요청 스키마"""
+
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=100)
+
+
+class UserUpdate(BaseModel):
+    """사용자 프로필 업데이트 스키마"""
+
+    interests: Optional[List[str]] = None

@@ -6,6 +6,7 @@ export interface User {
   id: string;
   username: string;
   is_active: boolean;
+  interests: string[] | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -35,4 +36,13 @@ export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+}
+
+export interface PasswordChange {
+  current_password: string;
+  new_password: string;
+}
+
+export interface UserUpdate {
+  interests?: string[];
 }

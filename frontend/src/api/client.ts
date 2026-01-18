@@ -6,6 +6,12 @@ import type {
   TempMemoUpdate,
   MemoType,
 } from '../types/memo';
+import type {
+  MemoComment,
+  MemoCommentCreate,
+  MemoCommentUpdate,
+  MemoCommentListResponse,
+} from '../types/comment';
 import { tokenStorage } from '../utils/token';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
@@ -120,5 +126,45 @@ export const tempMemoApi = {
    */
   delete: async (id: string): Promise<void> => {
     await api.delete(`/temp-memos/${id}`);
+  },
+};
+
+export const commentApi = {
+  /**
+   * 댓글 생성
+   */
+  create: async (memoId: string, data: MemoCommentCreate): Promise<MemoComment> => {
+    const response = await api.post<MemoComment>(`/temp-memos/${memoId}/comments`, data);
+    return response.data;
+  },
+
+  /**
+   * 댓글 목록 조회
+   */
+  list: async (memoId: string): Promise<MemoCommentListResponse> => {
+    const response = await api.get<MemoCommentListResponse>(`/temp-memos/${memoId}/comments`);
+    return response.data;
+  },
+
+  /**
+   * 댓글 수정
+   */
+  update: async (
+    memoId: string,
+    commentId: string,
+    data: MemoCommentUpdate
+  ): Promise<MemoComment> => {
+    const response = await api.patch<MemoComment>(
+      `/temp-memos/${memoId}/comments/${commentId}`,
+      data
+    );
+    return response.data;
+  },
+
+  /**
+   * 댓글 삭제
+   */
+  delete: async (memoId: string, commentId: string): Promise<void> => {
+    await api.delete(`/temp-memos/${memoId}/comments/${commentId}`);
   },
 };

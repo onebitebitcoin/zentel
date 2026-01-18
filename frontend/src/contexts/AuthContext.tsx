@@ -82,6 +82,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         register,
         logout,
         checkAuth,
+        setUser,
       }}
     >
       {children}

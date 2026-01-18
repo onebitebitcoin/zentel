@@ -12,7 +12,7 @@ const navItems: NavItem[] = [
   { path: '/inbox', label: '임시 메모', icon: <FileEdit size={20} /> },
   { path: '#', label: '영구 메모', icon: <BookOpen size={20} /> },
   { path: '#', label: '결과물', icon: <Package size={20} /> },
-  { path: '#', label: '설정', icon: <Settings size={20} /> },
+  { path: '/settings', label: '설정', icon: <Settings size={20} /> },
 ];
 
 interface BottomNavProps {

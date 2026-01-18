@@ -7,6 +7,12 @@ export type MemoType =
   | 'UNRESOLVED_PROBLEM'
   | 'EMOTION';
 
+export interface MemoCommentSummary {
+  id: string;
+  content: string;
+  created_at: string;
+}
+
 export interface TempMemo {
   id: string;
   memo_type: MemoType;
@@ -18,6 +24,8 @@ export interface TempMemo {
   og_image: string | null;
   created_at: string;
   updated_at: string | null;
+  comment_count: number;
+  latest_comment: MemoCommentSummary | null;
 }
 
 export interface TempMemoCreate {

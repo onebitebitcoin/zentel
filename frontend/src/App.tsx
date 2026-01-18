@@ -7,6 +7,7 @@ import { BottomNav } from './components/layout/BottomNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { QuickCapture } from './pages/QuickCapture';
 import { Inbox } from './pages/Inbox';
+import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 
@@ -56,6 +57,16 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <Inbox />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <Settings />
                 </AppLayout>
               </ProtectedRoute>
             }

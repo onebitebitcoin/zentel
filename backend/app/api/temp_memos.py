@@ -9,12 +9,14 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.memo_comment import MemoComment
 from app.models.temp_memo import TempMemo
 from app.schemas.temp_memo import (
+    MemoCommentSummary,
     MemoType,
     TempMemoCreate,
     TempMemoListResponse,
@@ -32,6 +34,44 @@ URL_PATTERN = re.compile(
 )
 
 router = APIRouter(prefix="/temp-memos", tags=["temp-memos"])
+
+
+def get_memo_comment_info(db: Session, memo_id: str) -> tuple[int, MemoComment | None]:
+    """메모의 댓글 개수와 최신 댓글 반환"""
+    count = db.query(func.count(MemoComment.id)).filter(MemoComment.memo_id == memo_id).scalar()
+    latest = (
+        db.query(MemoComment)
+        .filter(MemoComment.memo_id == memo_id)
+        .order_by(desc(MemoComment.created_at))
+        .first()
+    )
+    return count, latest
+
+
+def memo_to_out(db: Session, memo: TempMemo) -> TempMemoOut:
+    """TempMemo를 TempMemoOut으로 변환 (댓글 정보 포함)"""
+    count, latest = get_memo_comment_info(db, memo.id)
+    latest_summary = None
+    if latest:
+        latest_summary = MemoCommentSummary(
+            id=latest.id,
+            content=latest.content,
+            created_at=latest.created_at,
+        )
+    return TempMemoOut(
+        id=memo.id,
+        memo_type=memo.memo_type,
+        content=memo.content,
+        context=memo.context,
+        facts=memo.facts,
+        source_url=memo.source_url,
+        og_title=memo.og_title,
+        og_image=memo.og_image,
+        created_at=memo.created_at,
+        updated_at=memo.updated_at,
+        comment_count=count,
+        latest_comment=latest_summary,
+    )
 
 
 @router.post("", response_model=TempMemoOut, status_code=201)
@@ -85,7 +125,7 @@ async def create_temp_memo(
     db.refresh(db_memo)
 
     logger.info(f"Created temp memo: id={db_memo.id}")
-    return db_memo
+    return memo_to_out(db, db_memo)
 
 
 @router.get("", response_model=TempMemoListResponse)
@@ -104,9 +144,12 @@ def list_temp_memos(
         query = query.filter(TempMemo.memo_type == type.value)
 
     total = query.count()
-    items = query.order_by(desc(TempMemo.created_at)).offset(offset).limit(limit).all()
+    db_items = query.order_by(desc(TempMemo.created_at)).offset(offset).limit(limit).all()
 
     next_offset = offset + limit if offset + limit < total else None
+
+    # 댓글 정보 포함하여 변환
+    items = [memo_to_out(db, memo) for memo in db_items]
 
     logger.info(f"Found {len(items)} memos (total: {total})")
     return TempMemoListResponse(items=items, total=total, next_offset=next_offset)
@@ -125,7 +168,7 @@ def get_temp_memo(
         logger.warning(f"Temp memo not found: id={memo_id}")
         raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다.")
 
-    return db_memo
+    return memo_to_out(db, db_memo)
 
 
 @router.patch("/{memo_id}", response_model=TempMemoOut)
@@ -153,7 +196,7 @@ def update_temp_memo(
     db.refresh(db_memo)
 
     logger.info(f"Updated temp memo: id={memo_id}")
-    return db_memo
+    return memo_to_out(db, db_memo)
 
 
 @router.delete("/{memo_id}", status_code=204)
