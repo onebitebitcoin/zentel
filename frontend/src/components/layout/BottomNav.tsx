@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { PenLine, List, BookOpen, BarChart3 } from 'lucide-react';
+import { PenLine, FileEdit, BookOpen, Package, Settings } from 'lucide-react';
 
 interface NavItem {
   path: string;
@@ -9,9 +9,10 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: '/', label: '작성', icon: <PenLine size={20} /> },
-  { path: '/inbox', label: '임시 메모', icon: <BookOpen size={20} /> },
-  { path: '#', label: '출력', icon: <List size={20} /> },
-  { path: '#', label: '통계', icon: <BarChart3 size={20} /> },
+  { path: '/inbox', label: '임시 메모', icon: <FileEdit size={20} /> },
+  { path: '#', label: '영구 메모', icon: <BookOpen size={20} /> },
+  { path: '#', label: '결과물', icon: <Package size={20} /> },
+  { path: '#', label: '설정', icon: <Settings size={20} /> },
 ];
 
 interface BottomNavProps {
@@ -34,7 +35,7 @@ export function BottomNav({ className = '' }: BottomNavProps) {
               key={item.label}
               onClick={() => !isDisabled && navigate(item.path)}
               disabled={isDisabled}
-              className={`flex flex-col items-center justify-center gap-1 min-w-[64px] py-2 ${
+              className={`flex flex-col items-center justify-center gap-1 min-w-[56px] py-2 ${
                 isActive
                   ? 'text-primary'
                   : isDisabled
