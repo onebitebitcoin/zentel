@@ -6,6 +6,7 @@ pydantic-settings==2.5.2
 
 # Database
 sqlalchemy==2.0.35
+psycopg2-binary==2.9.9  # PostgreSQL driver for Railway
 
 # ULID
 python-ulid==2.7.0
