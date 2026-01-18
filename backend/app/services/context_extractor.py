@@ -314,6 +314,84 @@ class ContextExtractor:
         """
         return f"다음 내용의 핵심 context를 10단어 이내로 표현해주세요:\n\n{text}"
 
+    async def match_interests(
+        self,
+        content: str,
+        user_interests: list[str],
+    ) -> list[str]:
+        """
+        메모 내용과 사용자 관심사 매핑
+
+        Args:
+            content: 메모 내용
+            user_interests: 사용자 관심사 목록
+
+        Returns:
+            매핑된 관심사 배열
+        """
+        if not self.client:
+            logger.warning("OpenAI API key not configured, skipping interest matching")
+            return []
+
+        if not user_interests:
+            logger.info("No user interests to match")
+            return []
+
+        try:
+            interests_str = ", ".join(user_interests)
+
+            response = self.client.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "당신은 텍스트 분류 전문가입니다. "
+                            "주어진 메모 내용이 어떤 관심사와 관련이 있는지 판단합니다. "
+                            "반드시 제공된 관심사 목록에서만 선택해야 합니다. "
+                            "관련 없으면 빈 응답을 반환하세요. "
+                            "관련 있는 관심사만 쉼표로 구분하여 응답하세요. "
+                            "마크다운이나 다른 형식 없이 관심사 이름만 반환하세요."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"관심사 목록: {interests_str}\n\n"
+                            f"메모 내용:\n{content}\n\n"
+                            "관련된 관심사를 쉼표로 구분하여 반환하세요. "
+                            "관련 없으면 빈 응답을 반환하세요."
+                        ),
+                    },
+                ],
+                max_tokens=100,
+                temperature=0.2,
+            )
+
+            raw = response.choices[0].message.content or ""
+            raw = raw.strip()
+
+            if not raw:
+                logger.info("No matching interests found")
+                return []
+
+            # LLM 환각 방지: 실제 관심사 목록에 있는 것만 필터링
+            matched = []
+            candidates = [item.strip() for item in raw.split(",")]
+            user_interests_lower = {i.lower(): i for i in user_interests}
+
+            for candidate in candidates:
+                candidate_lower = candidate.lower()
+                if candidate_lower in user_interests_lower:
+                    matched.append(user_interests_lower[candidate_lower])
+
+            logger.info(f"Matched interests: {matched}")
+            return matched
+
+        except Exception as e:
+            logger.error(f"Interest matching failed: {e}", exc_info=True)
+            return []
+
 
 # 싱글톤 인스턴스
 context_extractor = ContextExtractor()

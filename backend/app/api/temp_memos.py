@@ -12,9 +12,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
+from app.core.deps import get_current_user_optional
 from app.database import get_db
 from app.models.memo_comment import MemoComment
 from app.models.temp_memo import TempMemo
+from app.models.user import User
 from app.schemas.temp_memo import (
     MemoCommentSummary,
     MemoType,
@@ -64,6 +66,7 @@ def memo_to_out(db: Session, memo: TempMemo) -> TempMemoOut:
         content=memo.content,
         context=memo.context,
         facts=memo.facts,
+        interests=memo.interests,
         source_url=memo.source_url,
         og_title=memo.og_title,
         og_image=memo.og_image,
@@ -78,6 +81,7 @@ def memo_to_out(db: Session, memo: TempMemo) -> TempMemoOut:
 async def create_temp_memo(
     memo: TempMemoCreate,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """임시 메모 생성 (LLM context 추출 포함)"""
     # EXTERNAL_SOURCE 타입이면 content에서 URL 자동 추출
@@ -111,11 +115,25 @@ async def create_temp_memo(
     if facts:
         logger.info(f"Facts extracted: {len(facts)} items")
 
+    # 로그인 사용자의 관심사 매핑
+    interests: Optional[list[str]] = None
+    if current_user and current_user.interests:
+        logger.info(f"Matching interests for user: {current_user.id}")
+        interests = await context_extractor.match_interests(
+            content=memo.content,
+            user_interests=current_user.interests,
+        )
+        if interests:
+            logger.info(f"Matched interests: {interests}")
+        else:
+            logger.info("No interests matched")
+
     db_memo = TempMemo(
         memo_type=memo.memo_type.value,
         content=memo.content,
         context=context,
         facts=facts,
+        interests=interests if interests else None,
         source_url=source_url,
         og_title=og_metadata.title if og_metadata else None,
         og_image=og_metadata.image if og_metadata else None,

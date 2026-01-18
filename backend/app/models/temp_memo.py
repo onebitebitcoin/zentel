@@ -33,6 +33,7 @@ class TempMemo(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     facts: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+    interests: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
     source_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     og_title: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     og_image: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)

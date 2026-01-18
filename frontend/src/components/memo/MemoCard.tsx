@@ -91,6 +91,20 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
         </div>
       )}
 
+      {/* 관심사 태그 */}
+      {memo.interests && memo.interests.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {memo.interests.map((interest) => (
+            <span
+              key={`${memo.id}-interest-${interest}`}
+              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"
+            >
+              {interest}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* 외부 링크 */}
       {memo.source_url && (
         <a
