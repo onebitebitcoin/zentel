@@ -73,11 +73,11 @@ export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
           {memo.memo_type === 'EXTERNAL_SOURCE' && memo.facts && memo.facts.length > 0 && (
             <div className="border-t border-gray-100 pt-3 space-y-2">
               <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Facts</span>
-              <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1">
+              <div className="text-sm text-gray-700 space-y-1">
                 {memo.facts.slice(0, 3).map((fact, index) => (
-                  <li key={`${memo.id}-fact-${index}`}>{fact}</li>
+                  <p key={`${memo.id}-fact-${index}`}>- {fact}</p>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
 

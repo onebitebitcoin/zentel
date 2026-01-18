@@ -52,13 +52,13 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
       {memo.memo_type === 'EXTERNAL_SOURCE' && memo.facts && memo.facts.length > 0 && (
         <div className="border-t border-gray-100 pt-2">
           <span className="text-[10px] text-gray-400 uppercase tracking-wide">Facts</span>
-          <ul className="mt-1 text-xs text-gray-700 list-disc pl-4 space-y-1">
+          <div className="mt-1 text-xs text-gray-700 space-y-1">
             {memo.facts.slice(0, 3).map((fact, index) => (
-              <li key={`${memo.id}-fact-${index}`} className="line-clamp-2">
-                {fact}
-              </li>
+              <p key={`${memo.id}-fact-${index}`} className="line-clamp-2">
+                - {fact}
+              </p>
             ))}
-          </ul>
+          </div>
         </div>
       )}
 
