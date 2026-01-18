@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Check } from 'lucide-react';
+import { X, Check, Sparkles, ExternalLink } from 'lucide-react';
 import type { TempMemo, MemoType } from '../../types/memo';
 import { MemoTypeChips } from './MemoTypeChips';
 import { formatDateTime } from '../../utils/date';
@@ -60,6 +60,30 @@ export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
             onChange={(e) => setContent(e.target.value)}
             className="w-full h-48 p-4 text-base text-gray-800 bg-gray-50 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
+
+          {/* AI Context */}
+          {memo.context && (
+            <div className="p-4 bg-blue-50 rounded-xl space-y-2">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-blue-500" />
+                <span className="text-sm font-medium text-blue-700">AI 분석</span>
+              </div>
+              <p className="text-sm text-blue-800 whitespace-pre-wrap">{memo.context}</p>
+            </div>
+          )}
+
+          {/* 외부 링크 */}
+          {memo.source_url && (
+            <a
+              href={memo.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 p-3 bg-teal-50 rounded-xl text-teal-700 hover:bg-teal-100 transition-colors"
+            >
+              <ExternalLink size={16} />
+              <span className="text-sm truncate">{memo.source_url}</span>
+            </a>
+          )}
 
           <div className="text-xs text-gray-400">
             <p>생성: {formatDateTime(memo.created_at)}</p>

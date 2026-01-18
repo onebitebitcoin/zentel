@@ -10,8 +10,9 @@ from pydantic import BaseModel, Field
 
 
 class MemoType(str, Enum):
-    """메모 타입 (6종)"""
+    """메모 타입 (7종)"""
 
+    EXTERNAL_SOURCE = "EXTERNAL_SOURCE"
     NEW_IDEA = "NEW_IDEA"
     NEW_GOAL = "NEW_GOAL"
     EVOLVED_THOUGHT = "EVOLVED_THOUGHT"
@@ -25,6 +26,7 @@ class TempMemoCreate(BaseModel):
 
     memo_type: MemoType
     content: str = Field(min_length=1, max_length=10000)
+    source_url: Optional[str] = Field(default=None, max_length=2048)
 
 
 class TempMemoUpdate(BaseModel):
@@ -40,6 +42,8 @@ class TempMemoOut(BaseModel):
     id: str
     memo_type: MemoType
     content: str
+    context: Optional[str] = None
+    source_url: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None
 

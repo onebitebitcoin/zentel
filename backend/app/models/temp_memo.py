@@ -31,6 +31,8 @@ class TempMemo(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=generate_ulid)
     memo_type: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     created_at: Mapped[str] = mapped_column(String(64), nullable=False, default=now_iso)
     updated_at: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 

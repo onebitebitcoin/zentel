@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, Sparkles, ExternalLink } from 'lucide-react';
 import type { TempMemo } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
 import { getRelativeTime } from '../../utils/date';
@@ -38,6 +38,27 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
         <p className="text-sm text-gray-600 line-clamp-3 md:line-clamp-4 whitespace-pre-wrap">
           {body}
         </p>
+      )}
+
+      {/* AI Context */}
+      {memo.context && (
+        <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg">
+          <Sparkles size={14} className="text-blue-500 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-blue-700 line-clamp-2">{memo.context}</p>
+        </div>
+      )}
+
+      {/* 외부 링크 */}
+      {memo.source_url && (
+        <a
+          href={memo.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 hover:underline"
+        >
+          <ExternalLink size={12} />
+          <span className="truncate max-w-[200px]">{memo.source_url}</span>
+        </a>
       )}
 
       {/* 메타 정보 */}

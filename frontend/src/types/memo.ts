@@ -11,6 +11,8 @@ export interface TempMemo {
   id: string;
   memo_type: MemoType;
   content: string;
+  context: string | null;
+  source_url: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -18,6 +20,7 @@ export interface TempMemo {
 export interface TempMemoCreate {
   memo_type: MemoType;
   content: string;
+  source_url?: string;
 }
 
 export interface TempMemoUpdate {

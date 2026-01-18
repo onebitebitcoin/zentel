@@ -20,6 +20,7 @@ from app.schemas.temp_memo import (
     TempMemoOut,
     TempMemoUpdate,
 )
+from app.services.context_extractor import context_extractor
 
 logger = logging.getLogger(__name__)
 
@@ -27,16 +28,33 @@ router = APIRouter(prefix="/temp-memos", tags=["temp-memos"])
 
 
 @router.post("", response_model=TempMemoOut, status_code=201)
-def create_temp_memo(
+async def create_temp_memo(
     memo: TempMemoCreate,
     db: Session = Depends(get_db),
 ):
-    """임시 메모 생성"""
-    logger.info(f"Creating temp memo: type={memo.memo_type}, content_length={len(memo.content)}")
+    """임시 메모 생성 (LLM context 추출 포함)"""
+    logger.info(
+        f"Creating temp memo: type={memo.memo_type}, "
+        f"content_length={len(memo.content)}, source_url={memo.source_url}"
+    )
+
+    # LLM으로 context 추출
+    context = await context_extractor.extract_context(
+        content=memo.content,
+        memo_type=memo.memo_type.value,
+        source_url=memo.source_url,
+    )
+
+    if context:
+        logger.info(f"Context extracted: {len(context)} chars")
+    else:
+        logger.info("No context extracted")
 
     db_memo = TempMemo(
         memo_type=memo.memo_type.value,
         content=memo.content,
+        context=context,
+        source_url=memo.source_url,
     )
     db.add(db_memo)
     db.commit()

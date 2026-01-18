@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Loader2, Link as LinkIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MemoTypeChips } from '../components/memo/MemoTypeChips';
 import { MemoInput } from '../components/memo/MemoInput';
@@ -15,6 +15,7 @@ export function QuickCapture() {
     return (saved as MemoType) || 'NEW_IDEA';
   });
   const [content, setContent] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -26,9 +27,19 @@ export function QuickCapture() {
 
     setSaving(true);
     try {
-      await createMemo({ memo_type: memoType, content: content.trim() });
+      const payload: { memo_type: MemoType; content: string; source_url?: string } = {
+        memo_type: memoType,
+        content: content.trim(),
+      };
+
+      if (memoType === 'EXTERNAL_SOURCE' && sourceUrl.trim()) {
+        payload.source_url = sourceUrl.trim();
+      }
+
+      await createMemo(payload);
       toast.success('임시 메모가 저장되었습니다.');
       setContent('');
+      setSourceUrl('');
     } catch {
       toast.error('저장에 실패했습니다.');
     } finally {
@@ -37,6 +48,7 @@ export function QuickCapture() {
   };
 
   const canSave = content.trim().length > 0 && !saving;
+  const isExternalSource = memoType === 'EXTERNAL_SOURCE';
 
   return (
     <div className="flex flex-col h-full">
@@ -50,6 +62,23 @@ export function QuickCapture() {
       <div className="flex-1 overflow-auto px-4 md:px-6 py-4 md:py-6 space-y-6 pb-24 md:pb-6">
         <div className="md:max-w-2xl md:mx-auto space-y-6">
           <MemoInput value={content} onChange={setContent} />
+
+          {/* 외부 자료 타입일 때 URL 입력 */}
+          {isExternalSource && (
+            <div className="relative">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                <LinkIcon size={18} />
+              </div>
+              <input
+                type="url"
+                value={sourceUrl}
+                onChange={(e) => setSourceUrl(e.target.value)}
+                placeholder="URL을 입력하세요 (선택)"
+                className="w-full pl-11 pr-4 py-3 text-base bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              />
+            </div>
+          )}
+
           <MemoTypeChips selectedType={memoType} onSelect={setMemoType} />
 
           {/* PC: 저장 버튼 (인라인) */}
@@ -63,8 +92,17 @@ export function QuickCapture() {
                   : 'bg-gray-300'
               }`}
             >
-              <Check size={20} />
-              <span>저장하기</span>
+              {saving ? (
+                <>
+                  <Loader2 size={20} className="animate-spin" />
+                  <span>AI 분석 중...</span>
+                </>
+              ) : (
+                <>
+                  <Check size={20} />
+                  <span>저장하기</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -81,8 +119,17 @@ export function QuickCapture() {
               : 'bg-gray-300'
           }`}
         >
-          <Check size={20} />
-          <span>저장하기</span>
+          {saving ? (
+            <>
+              <Loader2 size={20} className="animate-spin" />
+              <span>AI 분석 중...</span>
+            </>
+          ) : (
+            <>
+              <Check size={20} />
+              <span>저장하기</span>
+            </>
+          )}
         </button>
       </div>
     </div>
