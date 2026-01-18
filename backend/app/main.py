@@ -3,6 +3,7 @@ Zentel - FastAPI 메인 애플리케이션
 """
 
 import logging
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -22,20 +23,47 @@ STATIC_DIR = Path(__file__).parent.parent.parent / "static"
 BACKEND_DIR = Path(__file__).parent.parent
 LOG_FILE = BACKEND_DIR / "debug.log"
 
-# 로그 파일 초기화 (핫리로드 시)
-if LOG_FILE.exists():
-    LOG_FILE.unlink()
 
-# 로깅 설정
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL),
-    format="[%(asctime)s] [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
-        logging.StreamHandler(),
-    ],
-)
+def setup_logging():
+    """환경에 따른 로깅 설정"""
+    log_level = getattr(logging, settings.LOG_LEVEL)
+    handlers = []
 
+    if settings.ENVIRONMENT == "production":
+        # 운영환경: stdout만 (Railway/Docker가 수집)
+        # JSON 형식으로 구조화된 로그 출력
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(
+            logging.Formatter(
+                '{"time":"%(asctime)s","level":"%(levelname)s","file":"%(filename)s:%(lineno)d","message":"%(message)s"}'
+            )
+        )
+        handlers.append(handler)
+    else:
+        # 개발환경: 파일 + stdout
+        # 기존 로그 파일 초기화 (핫리로드 시)
+        if LOG_FILE.exists():
+            LOG_FILE.unlink()
+
+        # 파일 핸들러
+        file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+        file_handler.setFormatter(
+            logging.Formatter("[%(asctime)s] [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s")
+        )
+        handlers.append(file_handler)
+
+        # 콘솔 핸들러
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(
+            logging.Formatter("[%(asctime)s] [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s")
+        )
+        handlers.append(console_handler)
+
+    logging.basicConfig(level=log_level, handlers=handlers)
+
+
+# 로깅 설정 적용
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
