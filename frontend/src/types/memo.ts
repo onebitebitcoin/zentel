@@ -13,6 +13,8 @@ export interface TempMemo {
   content: string;
   context: string | null;
   source_url: string | null;
+  og_title: string | null;
+  og_image: string | null;
   created_at: string;
   updated_at: string | null;
 }

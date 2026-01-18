@@ -40,24 +40,56 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
         </p>
       )}
 
-      {/* AI Context */}
+      {/* Context */}
       {memo.context && (
-        <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg">
-          <Sparkles size={14} className="text-blue-500 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-blue-700 line-clamp-2">{memo.context}</p>
+        <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg">
+          <Sparkles size={14} className="text-gray-500 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-[10px] text-gray-400 uppercase tracking-wide">Context</span>
+            <p className="text-xs text-gray-700 line-clamp-2">{memo.context}</p>
+          </div>
         </div>
       )}
 
-      {/* 외부 링크 */}
+      {/* 외부 링크 프리뷰 */}
       {memo.source_url && (
         <a
           href={memo.source_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 hover:underline"
+          className="block rounded-lg overflow-hidden border border-gray-100 hover:border-gray-200 transition-colors"
         >
-          <ExternalLink size={12} />
-          <span className="truncate max-w-[200px]">{memo.source_url}</span>
+          {memo.og_image ? (
+            <div className="flex">
+              <div className="w-20 h-20 flex-shrink-0 bg-gray-100">
+                <img
+                  src={memo.og_image}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </div>
+              <div className="flex-1 min-w-0 p-2 flex flex-col justify-center">
+                <p className="text-xs font-medium text-gray-800 line-clamp-2">
+                  {memo.og_title || memo.source_url}
+                </p>
+                <p className="text-[10px] text-gray-400 truncate mt-1">
+                  {new URL(memo.source_url).hostname}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 p-2">
+              <ExternalLink size={14} className="text-teal-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-teal-600 truncate">
+                  {memo.og_title || memo.source_url}
+                </p>
+              </div>
+            </div>
+          )}
         </a>
       )}
 

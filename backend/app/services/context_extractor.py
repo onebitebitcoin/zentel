@@ -9,6 +9,8 @@ LLM Context 추출 서비스
 from __future__ import annotations
 
 import logging
+import re
+from dataclasses import dataclass
 from typing import Optional
 
 import httpx
@@ -17,6 +19,15 @@ from openai import OpenAI
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class OGMetadata:
+    """Open Graph 메타데이터"""
+
+    title: Optional[str] = None
+    image: Optional[str] = None
+    description: Optional[str] = None
 
 
 class ContextExtractor:
@@ -37,7 +48,7 @@ class ContextExtractor:
         content: str,
         memo_type: str,
         source_url: Optional[str] = None,
-    ) -> Optional[str]:
+    ) -> tuple[Optional[str], Optional[OGMetadata]]:
         """
         메모에서 context 추출
 
@@ -47,37 +58,44 @@ class ContextExtractor:
             source_url: 외부 URL (EXTERNAL_SOURCE 타입일 때)
 
         Returns:
-            추출된 context 또는 None
+            (추출된 context, OG 메타데이터) 튜플
         """
+        og_metadata: Optional[OGMetadata] = None
+
         if not self.client:
             logger.warning("OpenAI API key not configured, skipping context extraction")
-            return None
+            # API 키가 없어도 OG 메타데이터는 추출 시도
+            if memo_type == "EXTERNAL_SOURCE" and source_url:
+                _, og_metadata = await self._fetch_url_content(source_url)
+            return None, og_metadata
 
         try:
             # EXTERNAL_SOURCE 타입이고 URL이 있으면 URL 컨텐츠 가져오기
             text_to_analyze = content
             if memo_type == "EXTERNAL_SOURCE" and source_url:
-                fetched_content = await self._fetch_url_content(source_url)
+                fetched_content, og_metadata = await self._fetch_url_content(source_url)
                 if fetched_content:
                     text_to_analyze = f"URL: {source_url}\n\n{fetched_content}"
 
             # LLM 호출
             context = await self._call_llm(text_to_analyze, memo_type)
-            return context
+            return context, og_metadata
 
         except Exception as e:
             logger.error(f"Failed to extract context: {e}", exc_info=True)
-            return None
+            return None, og_metadata
 
-    async def _fetch_url_content(self, url: str) -> Optional[str]:
+    async def _fetch_url_content(
+        self, url: str
+    ) -> tuple[Optional[str], Optional[OGMetadata]]:
         """
-        URL에서 컨텐츠 가져오기
+        URL에서 컨텐츠와 OG 메타데이터 가져오기
 
         Args:
             url: 대상 URL
 
         Returns:
-            추출된 텍스트 컨텐츠 또는 None
+            (추출된 텍스트 컨텐츠, OG 메타데이터) 튜플
         """
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -88,19 +106,91 @@ class ContextExtractor:
                 )
                 response.raise_for_status()
 
-                # HTML에서 텍스트만 추출 (간단 처리)
-                content = response.text
+                html = response.text
+
+                # OG 메타데이터 추출
+                og_metadata = self._extract_og_metadata(html, url)
+
                 # 너무 긴 컨텐츠는 잘라내기
                 max_length = 10000
+                content = html
                 if len(content) > max_length:
                     content = content[:max_length] + "..."
 
-                logger.info(f"Fetched URL content: {url}, length={len(content)}")
-                return content
+                logger.info(
+                    f"Fetched URL content: {url}, length={len(content)}, "
+                    f"og_title={og_metadata.title if og_metadata else None}"
+                )
+                return content, og_metadata
 
         except Exception as e:
             logger.error(f"Failed to fetch URL content: {url}, error={e}")
+            return None, None
+
+    def _extract_og_metadata(self, html: str, base_url: str) -> Optional[OGMetadata]:
+        """
+        HTML에서 OG 메타데이터 추출
+
+        Args:
+            html: HTML 문자열
+            base_url: 기본 URL (상대 경로 해석용)
+
+        Returns:
+            OGMetadata 또는 None
+        """
+        try:
+            og_title = self._extract_meta_content(html, "og:title")
+            og_image = self._extract_meta_content(html, "og:image")
+            og_description = self._extract_meta_content(html, "og:description")
+
+            # og:title이 없으면 <title> 태그에서 추출
+            if not og_title:
+                title_match = re.search(
+                    r"<title[^>]*>([^<]+)</title>", html, re.IGNORECASE
+                )
+                if title_match:
+                    og_title = title_match.group(1).strip()
+
+            # og:image 상대 경로 처리
+            if og_image and not og_image.startswith(("http://", "https://")):
+                from urllib.parse import urljoin
+
+                og_image = urljoin(base_url, og_image)
+
+            if og_title or og_image:
+                return OGMetadata(
+                    title=og_title, image=og_image, description=og_description
+                )
+
             return None
+
+        except Exception as e:
+            logger.error(f"Failed to extract OG metadata: {e}")
+            return None
+
+    def _extract_meta_content(self, html: str, property_name: str) -> Optional[str]:
+        """
+        메타 태그에서 content 추출
+
+        Args:
+            html: HTML 문자열
+            property_name: property 속성 값
+
+        Returns:
+            content 값 또는 None
+        """
+        # property="og:..." 또는 name="og:..." 형태 모두 처리
+        patterns = [
+            rf'<meta[^>]+property=["\']?{re.escape(property_name)}["\']?[^>]+content=["\']([^"\']+)["\']',
+            rf'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']?{re.escape(property_name)}["\']?',
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, html, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+
+        return None
 
     async def _call_llm(self, text: str, memo_type: str) -> Optional[str]:
         """
@@ -125,15 +215,13 @@ class ContextExtractor:
                     {
                         "role": "system",
                         "content": (
-                            "당신은 메모 내용을 분석하여 핵심 컨텍스트를 추출하는 어시스턴트입니다. "
-                            "간결하고 명확하게 핵심 내용을 요약해주세요. "
-                            "한국어로 응답하세요. "
-                            "마크다운 형식(**, ##, - 등)을 사용하지 말고 순수한 텍스트로만 응답하세요."
+                            "10단어 이내의 짧은 문구로 이 메모의 핵심 맥락(context)을 한 줄로 표현하세요. "
+                            "마크다운 형식 없이 순수한 텍스트로만 응답하세요."
                         ),
                     },
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=settings.CONTEXT_MAX_LENGTH,
+                max_tokens=50,
                 temperature=0.3,
             )
 
@@ -160,40 +248,7 @@ class ContextExtractor:
         Returns:
             프롬프트 문자열
         """
-        type_prompts = {
-            "EXTERNAL_SOURCE": (
-                "다음 외부 자료의 핵심 내용을 3-5문장으로 요약해주세요. "
-                "주요 인사이트나 중요한 정보를 포함해주세요."
-            ),
-            "NEW_IDEA": (
-                "다음 아이디어의 핵심을 파악하고, "
-                "실현 가능성과 발전 방향을 간략히 제시해주세요."
-            ),
-            "NEW_GOAL": (
-                "다음 목표의 핵심을 정리하고, "
-                "달성을 위한 첫 단계를 제안해주세요."
-            ),
-            "EVOLVED_THOUGHT": (
-                "다음 생각의 발전 과정을 정리하고, "
-                "더 깊이 탐구할 수 있는 방향을 제시해주세요."
-            ),
-            "CURIOSITY": (
-                "다음 호기심/궁금증의 핵심 질문을 정리하고, "
-                "탐구 방향을 제안해주세요."
-            ),
-            "UNRESOLVED_PROBLEM": (
-                "다음 문제의 핵심을 파악하고, "
-                "가능한 해결 접근법을 간략히 제시해주세요."
-            ),
-            "EMOTION": (
-                "다음 감정 기록의 핵심을 파악하고, "
-                "그 감정이 전달하는 메시지를 간략히 정리해주세요."
-            ),
-        }
-
-        type_prompt = type_prompts.get(memo_type, "다음 내용의 핵심을 요약해주세요.")
-
-        return f"{type_prompt}\n\n---\n{text}\n---"
+        return f"다음 내용의 핵심 context를 10단어 이내로 표현해주세요:\n\n{text}"
 
 
 # 싱글톤 인스턴스

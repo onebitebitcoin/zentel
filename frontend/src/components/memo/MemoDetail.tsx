@@ -61,27 +61,56 @@ export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
             className="w-full h-48 p-4 text-base text-gray-800 bg-gray-50 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
 
-          {/* AI Context */}
+          {/* Context */}
           {memo.context && (
-            <div className="p-4 bg-blue-50 rounded-xl space-y-2">
+            <div className="p-4 bg-gray-50 rounded-xl space-y-1">
               <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-blue-500" />
-                <span className="text-sm font-medium text-blue-700">AI 분석</span>
+                <Sparkles size={14} className="text-gray-500" />
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Context</span>
               </div>
-              <p className="text-sm text-blue-800 whitespace-pre-wrap">{memo.context}</p>
+              <p className="text-sm text-gray-700">{memo.context}</p>
             </div>
           )}
 
-          {/* 외부 링크 */}
+          {/* 외부 링크 프리뷰 */}
           {memo.source_url && (
             <a
               href={memo.source_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 p-3 bg-teal-50 rounded-xl text-teal-700 hover:bg-teal-100 transition-colors"
+              className="block rounded-xl overflow-hidden border border-gray-200 hover:border-gray-300 transition-colors"
             >
-              <ExternalLink size={16} />
-              <span className="text-sm truncate">{memo.source_url}</span>
+              {memo.og_image ? (
+                <div className="flex flex-col">
+                  <div className="w-full h-32 bg-gray-100">
+                    <img
+                      src={memo.og_image}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                  <div className="p-3">
+                    <p className="text-sm font-medium text-gray-800 line-clamp-2">
+                      {memo.og_title || memo.source_url}
+                    </p>
+                    <p className="text-xs text-gray-400 truncate mt-1">
+                      {new URL(memo.source_url).hostname}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 p-3">
+                  <ExternalLink size={18} className="text-teal-600 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-teal-600 truncate">
+                      {memo.og_title || memo.source_url}
+                    </p>
+                  </div>
+                </div>
+              )}
             </a>
           )}
 

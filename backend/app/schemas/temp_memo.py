@@ -44,6 +44,8 @@ class TempMemoOut(BaseModel):
     content: str
     context: Optional[str] = None
     source_url: Optional[str] = None
+    og_title: Optional[str] = None
+    og_image: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None
 
