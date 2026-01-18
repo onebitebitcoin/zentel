@@ -148,7 +148,7 @@ class TestRefreshToken:
     """토큰 갱신 테스트"""
 
     def test_refresh_token_success(self, client):
-        """토큰 갱신 성공"""
+        """토큰 갱신 성공 - 쿠키로 refresh_token 전송"""
         # 사용자 등록 및 로그인
         client.post(
             "/api/v1/auth/register",
@@ -159,24 +159,22 @@ class TestRefreshToken:
             json={"username": "testuser", "password": "password123"},
         )
 
-        # 쿠키에서 refresh_token 가져오기
-        refresh_token = login_response.cookies.get("refresh_token")
-
-        # 토큰 갱신
-        response = client.post(
-            "/api/v1/auth/refresh",
-            json={"refresh_token": refresh_token},
-        )
+        # 로그인 응답의 쿠키가 자동으로 클라이언트에 설정됨
+        # 토큰 갱신 (쿠키 자동 전송)
+        response = client.post("/api/v1/auth/refresh")
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
 
-    def test_refresh_token_invalid(self, client):
-        """잘못된 refresh token으로 갱신 실패"""
-        response = client.post(
-            "/api/v1/auth/refresh",
-            json={"refresh_token": "invalid_refresh_token"},
-        )
+    def test_refresh_token_no_cookie(self, client):
+        """쿠키 없이 토큰 갱신 실패"""
+        response = client.post("/api/v1/auth/refresh")
+        assert response.status_code == 401
+
+    def test_refresh_token_invalid_cookie(self, client):
+        """잘못된 refresh_token 쿠키로 갱신 실패"""
+        client.cookies.set("refresh_token", "invalid_refresh_token")
+        response = client.post("/api/v1/auth/refresh")
         assert response.status_code == 401
 
 

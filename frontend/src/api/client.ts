@@ -50,29 +50,22 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      // Refresh Token으로 토큰 갱신 시도
-      const refreshToken = tokenStorage.getRefreshToken();
-      if (refreshToken) {
-        try {
-          const response = await axios.post(
-            `${API_BASE_URL}/auth/refresh`,
-            { refresh_token: refreshToken },
-            { withCredentials: true }
-          );
+      // Refresh Token으로 토큰 갱신 시도 (쿠키 자동 전송)
+      try {
+        const response = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          {}, // body 없음 - refresh_token은 httpOnly 쿠키로 자동 전송
+          { withCredentials: true }
+        );
 
-          const { access_token } = response.data;
-          tokenStorage.setAccessToken(access_token);
+        const { access_token } = response.data;
+        tokenStorage.setAccessToken(access_token);
 
-          // 원래 요청 재시도
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
-          return api(originalRequest);
-        } catch {
-          // 토큰 갱신 실패 - 로그아웃 처리
-          tokenStorage.clearTokens();
-          window.location.href = '/login';
-        }
-      } else {
-        // Refresh Token 없음 - 로그인 페이지로 이동
+        // 원래 요청 재시도
+        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        return api(originalRequest);
+      } catch {
+        // 토큰 갱신 실패 - 로그아웃 처리
         tokenStorage.clearTokens();
         window.location.href = '/login';
       }

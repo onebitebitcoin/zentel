@@ -82,12 +82,11 @@ export const authService = {
   },
 
   /**
-   * 토큰 갱신
+   * 토큰 갱신 (httpOnly 쿠키의 refresh_token 사용)
    */
-  refreshToken: async (refreshToken: string): Promise<TokenResponse> => {
-    const response = await authApi.post<TokenResponse>('/auth/refresh', {
-      refresh_token: refreshToken,
-    });
+  refreshToken: async (): Promise<TokenResponse> => {
+    // body 없음 - refresh_token은 httpOnly 쿠키로 자동 전송
+    const response = await authApi.post<TokenResponse>('/auth/refresh', {});
     const tokenData = response.data;
 
     // 새 Access Token 저장

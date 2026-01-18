@@ -4,7 +4,9 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from typing import Optional
+
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -112,15 +114,23 @@ def login(data: UserLogin, response: Response, db: Session = Depends(get_db)):
 
 @router.post("/refresh", response_model=TokenResponse)
 def refresh_token(
-    data: RefreshTokenRequest,
     response: Response,
     db: Session = Depends(get_db),
+    refresh_token: Optional[str] = Cookie(default=None),
 ):
-    """토큰 갱신"""
+    """토큰 갱신 - httpOnly 쿠키에서 refresh_token을 읽음"""
     logger.info("Token refresh attempt")
 
+    # 쿠키에서 Refresh Token 확인
+    if not refresh_token:
+        logger.warning("No refresh token in cookie")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token이 없습니다. 다시 로그인해주세요.",
+        )
+
     # Refresh Token 검증
-    payload = decode_token(data.refresh_token)
+    payload = decode_token(refresh_token)
     if payload is None:
         logger.warning("Invalid refresh token")
         raise HTTPException(
