@@ -70,7 +70,7 @@ def login(data: UserLogin, response: Response, db: Session = Depends(get_db)):
         logger.warning(f"User not found: {data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="사용자 이름 또는 비밀번호가 올바르지 않습니다",
+            detail="존재하지 않는 사용자입니다",
         )
 
     # 비밀번호 검증
@@ -78,7 +78,7 @@ def login(data: UserLogin, response: Response, db: Session = Depends(get_db)):
         logger.warning(f"Invalid password for user: {data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="사용자 이름 또는 비밀번호가 올바르지 않습니다",
+            detail="비밀번호가 올바르지 않습니다",
         )
 
     # 비활성 사용자 체크
