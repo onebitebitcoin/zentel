@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Inbox, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 interface HeaderProps {
   className?: string;
@@ -28,15 +28,7 @@ export function Header({ className = '' }: HeaderProps) {
           {isInbox ? '임시 메모 목록' : '새 메모 작성'}
         </h1>
 
-        {!isInbox && (
-          <button
-            onClick={() => navigate('/inbox')}
-            className="p-2 text-gray-600 hover:text-primary rounded-lg"
-          >
-            <Inbox size={22} />
-          </button>
-        )}
-        {isInbox && <div className="w-8" />}
+        <div className="w-8" />
       </div>
     </header>
   );
