@@ -19,7 +19,7 @@ export function Settings() {
   // 관심사 상태
   const [interests, setInterests] = useState<string[]>(user?.interests || []);
   const [newInterest, setNewInterest] = useState('');
-  const [savingInterests, setSavingInterests] = useState(false);
+  const [savingInterest, setSavingInterest] = useState(false);
 
   const handlePasswordChange = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -59,31 +59,42 @@ export function Settings() {
     }
   };
 
-  const handleAddInterest = () => {
+  const handleAddInterest = async () => {
     const trimmed = newInterest.trim();
     if (!trimmed) return;
     if (interests.includes(trimmed)) {
       toast.error('이미 추가된 관심사입니다.');
       return;
     }
-    setInterests([...interests, trimmed]);
+    const newInterests = [...interests, trimmed];
+    setInterests(newInterests);
     setNewInterest('');
-  };
-
-  const handleRemoveInterest = (interest: string) => {
-    setInterests(interests.filter((i) => i !== interest));
-  };
-
-  const handleSaveInterests = async () => {
-    setSavingInterests(true);
+    setSavingInterest(true);
     try {
-      const updatedUser = await authService.updateProfile({ interests });
+      const updatedUser = await authService.updateProfile({ interests: newInterests });
       setUser(updatedUser);
-      toast.success('관심사가 저장되었습니다.');
+      toast.success('관심사가 추가되었습니다.');
     } catch {
-      toast.error('관심사 저장에 실패했습니다.');
+      setInterests(interests);
+      toast.error('관심사 추가에 실패했습니다.');
     } finally {
-      setSavingInterests(false);
+      setSavingInterest(false);
+    }
+  };
+
+  const handleRemoveInterest = async (interest: string) => {
+    const newInterests = interests.filter((i) => i !== interest);
+    setInterests(newInterests);
+    setSavingInterest(true);
+    try {
+      const updatedUser = await authService.updateProfile({ interests: newInterests });
+      setUser(updatedUser);
+      toast.success('관심사가 삭제되었습니다.');
+    } catch {
+      setInterests(interests);
+      toast.error('관심사 삭제에 실패했습니다.');
+    } finally {
+      setSavingInterest(false);
     }
   };
 
@@ -91,9 +102,6 @@ export function Settings() {
     await logout();
     navigate('/login');
   };
-
-  const hasInterestsChanged =
-    JSON.stringify(interests) !== JSON.stringify(user?.interests || []);
 
   return (
     <div className="flex flex-col h-full">
@@ -141,7 +149,8 @@ export function Settings() {
                   {interest}
                   <button
                     onClick={() => handleRemoveInterest(interest)}
-                    className="text-gray-400 hover:text-gray-600"
+                    disabled={savingInterest}
+                    className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
                   >
                     <X size={14} />
                   </button>
@@ -167,26 +176,17 @@ export function Settings() {
                     handleAddInterest();
                   }
                 }}
-                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+                disabled={savingInterest}
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary disabled:opacity-50"
               />
               <button
                 onClick={handleAddInterest}
-                className="px-3 py-2 text-primary border border-primary rounded-lg hover:bg-primary/5"
+                disabled={savingInterest || !newInterest.trim()}
+                className="px-3 py-2 text-primary border border-primary rounded-lg hover:bg-primary/5 disabled:opacity-50"
               >
                 <Plus size={18} />
               </button>
             </div>
-
-            {/* 저장 버튼 */}
-            {hasInterestsChanged && (
-              <button
-                onClick={handleSaveInterests}
-                disabled={savingInterests}
-                className="w-full py-2.5 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-600 disabled:opacity-50"
-              >
-                {savingInterests ? '저장 중...' : '관심사 저장'}
-              </button>
-            )}
           </div>
         </section>
 

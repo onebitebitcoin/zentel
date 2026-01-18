@@ -109,6 +109,20 @@ export function Login() {
               </div>
             </div>
 
+            {/* 로그인 버튼 */}
+            <button
+              type="submit"
+              disabled={!canSubmit || isLoading}
+              className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-semibold text-white transition-all ${
+                canSubmit && !isLoading
+                  ? 'bg-primary hover:bg-primary-600 active:scale-[0.98]'
+                  : 'bg-gray-300'
+              }`}
+            >
+              <LogIn size={20} />
+              <span>{isLoading ? '로그인 중...' : '로그인'}</span>
+            </button>
+
             {/* 회원가입 링크 */}
             <div className="text-center pt-4">
               <span className="text-gray-500">계정이 없으신가요? </span>
@@ -117,24 +131,6 @@ export function Login() {
               </Link>
             </div>
           </form>
-        </div>
-      </div>
-
-      {/* 로그인 버튼 (하단 고정) */}
-      <div className="sticky bottom-0 left-0 right-0 px-4 pb-4 pt-4 bg-gradient-to-t from-gray-50 to-transparent safe-bottom">
-        <div className="max-w-sm mx-auto">
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit || isLoading}
-            className={`w-full flex items-center justify-center gap-2 py-4 rounded-xl font-semibold text-white transition-all ${
-              canSubmit && !isLoading
-                ? 'bg-primary hover:bg-primary-600 active:scale-[0.98]'
-                : 'bg-gray-300'
-            }`}
-          >
-            <LogIn size={20} />
-            <span>{isLoading ? '로그인 중...' : '로그인'}</span>
-          </button>
         </div>
       </div>
     </div>
