@@ -1,14 +1,11 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Sprout,
   FileEdit,
   BookOpen,
   Settings,
   Trash2,
   Plus,
-  Hash,
 } from 'lucide-react';
-import { MEMO_TYPES } from '../../types/memo';
 
 interface SidebarProps {
   className?: string;
@@ -27,12 +24,6 @@ export function Sidebar({ className = '' }: SidebarProps) {
   const navigate = useNavigate();
 
   const lifecycleItems: NavItem[] = [
-    {
-      path: '#',
-      label: '외부 자료',
-      icon: <Sprout size={18} />,
-      disabled: true,
-    },
     {
       path: '/inbox',
       label: '임시 메모',
@@ -110,29 +101,6 @@ export function Sidebar({ className = '' }: SidebarProps) {
             );
           })}
         </nav>
-      </div>
-
-      {/* 태그 섹션 */}
-      <div className="px-4 py-3">
-        <div className="flex items-center justify-between px-2 mb-2">
-          <span className="text-xs font-medium text-gray-400 tracking-wider">
-            태그
-          </span>
-          <button className="text-gray-300 hover:text-gray-400">
-            <Plus size={14} />
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2 px-2">
-          {MEMO_TYPES.slice(0, 3).map((type) => (
-            <span
-              key={type.type}
-              className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 text-gray-500 rounded-md text-xs"
-            >
-              <Hash size={12} />
-              {type.label.toLowerCase().replace(/\s+/g, '-')}
-            </span>
-          ))}
-        </div>
       </div>
 
       {/* Spacer */}

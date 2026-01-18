@@ -1,4 +1,5 @@
 export type MemoType =
+  | 'EXTERNAL_SOURCE'
   | 'NEW_IDEA'
   | 'NEW_GOAL'
   | 'EVOLVED_THOUGHT'
@@ -39,6 +40,13 @@ export interface MemoTypeInfo {
 }
 
 export const MEMO_TYPES: MemoTypeInfo[] = [
+  {
+    type: 'EXTERNAL_SOURCE',
+    label: '외부 자료',
+    color: 'text-teal-700',
+    bgColor: 'bg-teal-100',
+    icon: 'Sprout',
+  },
   {
     type: 'NEW_IDEA',
     label: '새로운 아이디어',

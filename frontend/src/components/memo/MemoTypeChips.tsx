@@ -1,4 +1,5 @@
 import {
+  Sprout,
   Lightbulb,
   Target,
   TrendingUp,
@@ -15,6 +16,7 @@ interface MemoTypeChipsProps {
 }
 
 const iconMap: Record<string, React.ReactNode> = {
+  Sprout: <Sprout size={18} />,
   Lightbulb: <Lightbulb size={18} />,
   Target: <Target size={18} />,
   TrendingUp: <TrendingUp size={18} />,
