@@ -57,10 +57,10 @@ export function Inbox() {
       <div className="hidden md:flex items-center justify-between px-6 py-5 bg-white border-b border-gray-100">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-gray-800">
-            Temporary Notes
+            임시 메모
           </h1>
           <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded">
-            {memos.length} TOTAL
+            총 {memos.length}개
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -71,7 +71,7 @@ export function Inbox() {
             />
             <input
               type="text"
-              placeholder="Search knowledge base..."
+              placeholder="메모 검색..."
               className="w-64 pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary"
               disabled
             />
@@ -81,7 +81,7 @@ export function Inbox() {
             className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-400"
           >
             <SlidersHorizontal size={16} />
-            Filter
+            필터
           </button>
         </div>
       </div>

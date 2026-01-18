@@ -52,7 +52,7 @@ function MemoTypeChip({
 export function MemoTypeChips({ selectedType, onSelect }: MemoTypeChipsProps) {
   return (
     <div className="space-y-2">
-      <p className="text-sm text-gray-500 px-1">SELECT NOTE TYPE</p>
+      <p className="text-sm text-gray-500 px-1">메모 유형 선택</p>
       <div className="grid grid-cols-2 gap-2">
         {MEMO_TYPES.map((info) => (
           <MemoTypeChip

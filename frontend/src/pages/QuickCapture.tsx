@@ -43,7 +43,7 @@ export function QuickCapture() {
       {/* PC: 상단 헤더 */}
       <div className="hidden md:flex items-center px-6 py-5 bg-white border-b border-gray-100">
         <h1 className="text-xl font-semibold text-gray-800">
-          New Temporary Note
+          새 메모 작성
         </h1>
       </div>
 
@@ -64,7 +64,7 @@ export function QuickCapture() {
               }`}
             >
               <Check size={20} />
-              <span>SAVE NOTE</span>
+              <span>저장하기</span>
             </button>
           </div>
         </div>
@@ -82,7 +82,7 @@ export function QuickCapture() {
           }`}
         >
           <Check size={20} />
-          <span>SAVE NOTE</span>
+          <span>저장하기</span>
         </button>
       </div>
     </div>

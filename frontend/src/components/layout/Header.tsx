@@ -25,7 +25,7 @@ export function Header({ className = '' }: HeaderProps) {
         )}
 
         <h1 className="absolute left-1/2 transform -translate-x-1/2 text-base font-medium text-gray-700">
-          {isInbox ? 'Temporary Note Feed' : 'NEW TEMPORARY NOTE'}
+          {isInbox ? '임시 메모 목록' : '새 메모 작성'}
         </h1>
 
         {!isInbox && (

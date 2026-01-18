@@ -29,18 +29,18 @@ export function Sidebar({ className = '' }: SidebarProps) {
   const lifecycleItems: NavItem[] = [
     {
       path: '#',
-      label: 'Fertilizer (External)',
+      label: '외부 자료',
       icon: <Sprout size={18} />,
       disabled: true,
     },
     {
       path: '/inbox',
-      label: 'Temporary Note',
+      label: '임시 메모',
       icon: <FileEdit size={18} />,
     },
     {
       path: '#',
-      label: 'Permanent Note',
+      label: '영구 메모',
       icon: <BookOpen size={18} />,
       disabled: true,
     },
@@ -69,16 +69,16 @@ export function Sidebar({ className = '' }: SidebarProps) {
           <div>
             <div className="font-semibold text-gray-800">Zentel</div>
             <div className="text-xs text-gray-400 tracking-wider">
-              ZETTELKASTEN
+              메모 시스템
             </div>
           </div>
         </div>
       </div>
 
-      {/* LIFECYCLE Section */}
+      {/* 단계 섹션 */}
       <div className="px-4 py-3">
         <div className="text-xs font-medium text-gray-400 tracking-wider px-2 mb-2">
-          LIFECYCLE
+          단계
         </div>
         <nav className="space-y-1">
           {lifecycleItems.map((item) => {
@@ -109,11 +109,11 @@ export function Sidebar({ className = '' }: SidebarProps) {
         </nav>
       </div>
 
-      {/* TAGS Section */}
+      {/* 태그 섹션 */}
       <div className="px-4 py-3">
         <div className="flex items-center justify-between px-2 mb-2">
           <span className="text-xs font-medium text-gray-400 tracking-wider">
-            TAGS
+            태그
           </span>
           <button className="text-gray-300 hover:text-gray-400">
             <Plus size={14} />
@@ -135,32 +135,32 @@ export function Sidebar({ className = '' }: SidebarProps) {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Settings & Trash */}
+      {/* 설정 & 휴지통 */}
       <div className="px-4 py-3 space-y-1">
         <button
           disabled
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 cursor-not-allowed"
         >
           <Settings size={18} />
-          Settings
+          설정
         </button>
         <button
           disabled
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 cursor-not-allowed"
         >
           <Trash2 size={18} />
-          Trash
+          휴지통
         </button>
       </div>
 
-      {/* CTA Button */}
+      {/* 새 메모 버튼 */}
       <div className="px-4 py-4">
         <button
           onClick={() => navigate('/')}
           className="w-full flex items-center justify-center gap-2 py-3 bg-primary hover:bg-primary-600 text-white rounded-lg font-medium transition-colors"
         >
           <Plus size={18} />
-          New Temporary Note
+          새 메모 작성
         </button>
       </div>
     </aside>

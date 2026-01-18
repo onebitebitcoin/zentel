@@ -20,7 +20,7 @@ export function MemoInput({ value, onChange, maxLength = 10000 }: MemoInputProps
         ref={textareaRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Capture this thought before it wilts..."
+        placeholder="떠오른 생각을 바로 기록하세요..."
         maxLength={maxLength}
         className="w-full h-40 p-4 text-base text-gray-800 placeholder-gray-400 bg-gray-50 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
       />

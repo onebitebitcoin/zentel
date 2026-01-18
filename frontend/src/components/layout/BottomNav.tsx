@@ -8,10 +8,10 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/', label: 'WRITE', icon: <PenLine size={20} /> },
-  { path: '/inbox', label: 'PERMANENT', icon: <BookOpen size={20} /> },
-  { path: '#', label: 'OUTPUT', icon: <List size={20} /> },
-  { path: '#', label: 'STATS', icon: <BarChart3 size={20} /> },
+  { path: '/', label: '작성', icon: <PenLine size={20} /> },
+  { path: '/inbox', label: '보관함', icon: <BookOpen size={20} /> },
+  { path: '#', label: '출력', icon: <List size={20} /> },
+  { path: '#', label: '통계', icon: <BarChart3 size={20} /> },
 ];
 
 interface BottomNavProps {

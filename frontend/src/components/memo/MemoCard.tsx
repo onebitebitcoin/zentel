@@ -48,18 +48,18 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
             className="flex items-center gap-1 text-xs text-gray-500 hover:text-primary"
           >
             <Pencil size={14} />
-            <span>Edit</span>
+            <span>수정</span>
           </button>
           <button
             onClick={() => onDelete(memo.id)}
             className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500"
           >
             <Trash2 size={14} />
-            <span>Delete</span>
+            <span>삭제</span>
           </button>
         </div>
-        <span className="hidden md:block text-xs text-primary uppercase tracking-wide">
-          MODIFIED {getRelativeTime(memo.created_at)}
+        <span className="hidden md:block text-xs text-primary tracking-wide">
+          수정됨 {getRelativeTime(memo.created_at)}
         </span>
         <span className="md:hidden text-xs text-gray-400">
           {getRelativeTime(memo.created_at)}
