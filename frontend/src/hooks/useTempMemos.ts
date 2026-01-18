@@ -14,7 +14,7 @@ export function useTempMemos() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchMemos = useCallback(
-    async (type?: MemoType, limit = 30, offset = 0) => {
+    async (type?: MemoType, limit = 10, offset = 0) => {
       setLoading(true);
       setError(null);
       try {

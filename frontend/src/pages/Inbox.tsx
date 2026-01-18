@@ -10,14 +10,24 @@ import { MEMO_TYPES } from '../types/memo';
 type FilterType = 'ALL' | MemoType;
 
 export function Inbox() {
-  const { memos, loading, fetchMemos, updateMemo, deleteMemo } = useTempMemos();
+  const { memos, total, loading, error, fetchMemos, updateMemo, deleteMemo } = useTempMemos();
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [editingMemo, setEditingMemo] = useState<TempMemo | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const limit = 10;
 
   useEffect(() => {
     const type = filter === 'ALL' ? undefined : filter;
-    fetchMemos(type);
+    setOffset(0);
+    fetchMemos(type, limit, 0);
   }, [filter, fetchMemos]);
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error]);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('정말 삭제하시겠습니까?')) return;
@@ -42,6 +52,23 @@ export function Inbox() {
     }
   };
 
+  const handleLoadMore = async () => {
+    if (loading || loadingMore) return;
+    const nextOffset = offset + limit;
+    if (nextOffset >= total) return;
+
+    setLoadingMore(true);
+    try {
+      const type = filter === 'ALL' ? undefined : filter;
+      await fetchMemos(type, limit, nextOffset);
+      setOffset(nextOffset);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const hasMore = memos.length < total;
+
   const filters: { value: FilterType; label: string; info?: MemoTypeInfo }[] = [
     { value: 'ALL', label: '전체' },
     ...MEMO_TYPES.map((info) => ({
@@ -60,7 +87,7 @@ export function Inbox() {
             임시 메모
           </h1>
           <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded">
-            총 {memos.length}개
+            총 {total}개
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -109,7 +136,7 @@ export function Inbox() {
 
       {/* 메모 목록 */}
       <div className="flex-1 overflow-auto px-4 md:px-6 py-4 pb-24 md:pb-6 space-y-3 md:space-y-4">
-        {loading ? (
+        {loading && memos.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
@@ -118,14 +145,26 @@ export function Inbox() {
             <p>저장된 메모가 없습니다.</p>
           </div>
         ) : (
-          memos.map((memo) => (
-            <MemoCard
-              key={memo.id}
-              memo={memo}
-              onEdit={setEditingMemo}
-              onDelete={handleDelete}
-            />
-          ))
+          <>
+            {memos.map((memo) => (
+              <MemoCard
+                key={memo.id}
+                memo={memo}
+                onEdit={setEditingMemo}
+                onDelete={handleDelete}
+              />
+            ))}
+            {hasMore && (
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="w-full py-3 text-sm font-medium text-primary border border-gray-200 rounded-xl bg-white hover:border-primary/40 disabled:opacity-50"
+              >
+                {loadingMore ? '불러오는 중...' : '더보기'}
+              </button>
+            )}
+          </>
         )}
       </div>
 

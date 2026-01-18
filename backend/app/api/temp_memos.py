@@ -91,7 +91,7 @@ async def create_temp_memo(
 @router.get("", response_model=TempMemoListResponse)
 def list_temp_memos(
     type: Optional[MemoType] = Query(default=None, description="메모 타입 필터"),
-    limit: int = Query(default=30, ge=1, le=100, description="가져올 개수"),
+    limit: int = Query(default=10, ge=1, le=100, description="가져올 개수"),
     offset: int = Query(default=0, ge=0, description="시작 위치"),
     db: Session = Depends(get_db),
 ):
