@@ -54,7 +54,7 @@ async def create_temp_memo(
     )
 
     # LLM으로 context 추출 + OG 메타데이터
-    context, og_metadata = await context_extractor.extract_context(
+    context, og_metadata, facts = await context_extractor.extract_context(
         content=memo.content,
         memo_type=memo.memo_type.value,
         source_url=source_url,
@@ -68,10 +68,14 @@ async def create_temp_memo(
     if og_metadata:
         logger.info(f"OG metadata: title={og_metadata.title}, image={og_metadata.image}")
 
+    if facts:
+        logger.info(f"Facts extracted: {len(facts)} items")
+
     db_memo = TempMemo(
         memo_type=memo.memo_type.value,
         content=memo.content,
         context=context,
+        facts=facts,
         source_url=source_url,
         og_title=og_metadata.title if og_metadata else None,
         og_image=og_metadata.image if og_metadata else None,

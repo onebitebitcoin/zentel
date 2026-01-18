@@ -12,6 +12,7 @@ export interface TempMemo {
   memo_type: MemoType;
   content: string;
   context: string | null;
+  facts: string[] | null;
   source_url: string | null;
   og_title: string | null;
   og_image: string | null;

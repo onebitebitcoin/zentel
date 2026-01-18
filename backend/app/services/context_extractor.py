@@ -48,7 +48,7 @@ class ContextExtractor:
         content: str,
         memo_type: str,
         source_url: Optional[str] = None,
-    ) -> tuple[Optional[str], Optional[OGMetadata]]:
+    ) -> tuple[Optional[str], Optional[OGMetadata], Optional[list[str]]]:
         """
         메모에서 context 추출
 
@@ -58,16 +58,17 @@ class ContextExtractor:
             source_url: 외부 URL (EXTERNAL_SOURCE 타입일 때)
 
         Returns:
-            (추출된 context, OG 메타데이터) 튜플
+            (추출된 context, OG 메타데이터, facts 리스트) 튜플
         """
         og_metadata: Optional[OGMetadata] = None
+        facts: Optional[list[str]] = None
 
         if not self.client:
             logger.warning("OpenAI API key not configured, skipping context extraction")
             # API 키가 없어도 OG 메타데이터는 추출 시도
             if memo_type == "EXTERNAL_SOURCE" and source_url:
                 _, og_metadata = await self._fetch_url_content(source_url)
-            return None, og_metadata
+            return None, og_metadata, None
 
         try:
             # EXTERNAL_SOURCE 타입이고 URL이 있으면 URL 컨텐츠 가져오기
@@ -76,14 +77,15 @@ class ContextExtractor:
                 fetched_content, og_metadata = await self._fetch_url_content(source_url)
                 if fetched_content:
                     text_to_analyze = f"URL: {source_url}\n\n{fetched_content}"
+                    facts = await self._call_llm_facts(fetched_content)
 
             # LLM 호출
             context = await self._call_llm(text_to_analyze, memo_type)
-            return context, og_metadata
+            return context, og_metadata, facts
 
         except Exception as e:
             logger.error(f"Failed to extract context: {e}", exc_info=True)
-            return None, og_metadata
+            return None, og_metadata, facts
 
     async def _fetch_url_content(
         self, url: str
@@ -236,6 +238,68 @@ class ContextExtractor:
         except Exception as e:
             logger.error(f"LLM API call failed: {e}", exc_info=True)
             return None
+
+    async def _call_llm_facts(self, text: str) -> Optional[list[str]]:
+        """
+        OpenAI API 호출 (Facts 추출)
+
+        Args:
+            text: 분석할 텍스트
+
+        Returns:
+            Facts 리스트
+        """
+        if not self.client:
+            return None
+
+        try:
+            response = self.client.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "다음 내용에서 사실 3가지를 추출하세요. "
+                            "각 사실은 한 줄로만 작성하고, 불릿/번호/마크다운 없이 텍스트만 반환하세요."
+                        ),
+                    },
+                    {"role": "user", "content": text},
+                ],
+                max_tokens=120,
+                temperature=0.2,
+            )
+
+            raw = response.choices[0].message.content or ""
+            facts = self._normalize_facts(raw)
+            if facts:
+                logger.info(f"LLM facts extracted: {len(facts)} items")
+                return facts
+
+            return None
+
+        except Exception as e:
+            logger.error(f"LLM facts call failed: {e}", exc_info=True)
+            return None
+
+    def _normalize_facts(self, text: str) -> list[str]:
+        """
+        LLM 응답에서 Facts 정규화
+
+        Args:
+            text: LLM 응답 텍스트
+
+        Returns:
+            정제된 facts 리스트
+        """
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        facts: list[str] = []
+        for line in lines:
+            cleaned = re.sub(r"^[-*•\d\.\)\s]+", "", line).strip()
+            if cleaned:
+                facts.append(cleaned)
+            if len(facts) >= 3:
+                break
+        return facts
 
     def _build_prompt(self, text: str, memo_type: str) -> str:
         """

@@ -1,4 +1,4 @@
-import { Pencil, Trash2, Sparkles, ExternalLink } from 'lucide-react';
+import { Pencil, Trash2, ExternalLink } from 'lucide-react';
 import type { TempMemo } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
 import { getRelativeTime } from '../../utils/date';
@@ -42,12 +42,23 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
 
       {/* Context */}
       {memo.context && (
-        <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg">
-          <Sparkles size={14} className="text-gray-500 mt-0.5 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <span className="text-[10px] text-gray-400 uppercase tracking-wide">Context</span>
-            <p className="text-xs text-gray-700 line-clamp-2">{memo.context}</p>
-          </div>
+        <div className="border-t border-gray-100 pt-2">
+          <span className="text-[10px] text-gray-400 uppercase tracking-wide">Context</span>
+          <p className="text-xs text-gray-700 line-clamp-2">{memo.context}</p>
+        </div>
+      )}
+
+      {/* Facts */}
+      {memo.memo_type === 'EXTERNAL_SOURCE' && memo.facts && memo.facts.length > 0 && (
+        <div className="border-t border-gray-100 pt-2">
+          <span className="text-[10px] text-gray-400 uppercase tracking-wide">Facts</span>
+          <ul className="mt-1 text-xs text-gray-700 list-disc pl-4 space-y-1">
+            {memo.facts.slice(0, 3).map((fact, index) => (
+              <li key={`${memo.id}-fact-${index}`} className="line-clamp-2">
+                {fact}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

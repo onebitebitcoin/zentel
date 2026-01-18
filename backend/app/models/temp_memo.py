@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Index, String, Text
+from sqlalchemy import JSON, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from ulid import ULID
 
@@ -32,6 +32,7 @@ class TempMemo(Base):
     memo_type: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    facts: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
     source_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     og_title: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     og_image: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Check, Sparkles, ExternalLink } from 'lucide-react';
+import { X, Check, ExternalLink } from 'lucide-react';
 import type { TempMemo, MemoType } from '../../types/memo';
 import { MemoTypeChips } from './MemoTypeChips';
 import { formatDateTime } from '../../utils/date';
@@ -63,12 +63,21 @@ export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
 
           {/* Context */}
           {memo.context && (
-            <div className="p-4 bg-gray-50 rounded-xl space-y-1">
-              <div className="flex items-center gap-2">
-                <Sparkles size={14} className="text-gray-500" />
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Context</span>
-              </div>
+            <div className="border-t border-gray-100 pt-3 space-y-1">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Context</span>
               <p className="text-sm text-gray-700">{memo.context}</p>
+            </div>
+          )}
+
+          {/* Facts */}
+          {memo.memo_type === 'EXTERNAL_SOURCE' && memo.facts && memo.facts.length > 0 && (
+            <div className="border-t border-gray-100 pt-3 space-y-2">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Facts</span>
+              <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1">
+                {memo.facts.slice(0, 3).map((fact, index) => (
+                  <li key={`${memo.id}-fact-${index}`}>{fact}</li>
+                ))}
+              </ul>
             </div>
           )}
 
