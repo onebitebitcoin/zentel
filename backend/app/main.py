@@ -3,7 +3,6 @@ Zentel - FastAPI 메인 애플리케이션
 """
 
 import logging
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -19,10 +18,13 @@ from app.database import init_db
 # 프론트엔드 정적 파일 경로 (프로덕션)
 STATIC_DIR = Path(__file__).parent.parent.parent / "static"
 
+# 로그 파일 경로 (backend/debug.log)
+BACKEND_DIR = Path(__file__).parent.parent
+LOG_FILE = BACKEND_DIR / "debug.log"
+
 # 로그 파일 초기화 (핫리로드 시)
-LOG_FILE = "debug.log"
-if os.path.exists(LOG_FILE):
-    os.remove(LOG_FILE)
+if LOG_FILE.exists():
+    LOG_FILE.unlink()
 
 # 로깅 설정
 logging.basicConfig(
