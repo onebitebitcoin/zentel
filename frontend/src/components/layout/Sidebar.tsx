@@ -58,7 +58,10 @@ export function Sidebar({ className = '' }: SidebarProps) {
     >
       {/* Logo */}
       <div className="px-6 py-5">
-        <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+        >
           <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
             <div className="w-5 h-5 text-primary">
               <svg viewBox="0 0 24 24" fill="currentColor">
@@ -66,13 +69,13 @@ export function Sidebar({ className = '' }: SidebarProps) {
               </svg>
             </div>
           </div>
-          <div>
+          <div className="text-left">
             <div className="font-semibold text-gray-800">Zentel</div>
             <div className="text-xs text-gray-400 tracking-wider">
               메모 시스템
             </div>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* 단계 섹션 */}
