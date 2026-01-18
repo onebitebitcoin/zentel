@@ -14,6 +14,9 @@ RUN npm ci --only=production=false
 # Copy source code
 COPY frontend/ ./
 
+# Set production API URL for build
+ENV VITE_API_URL=/api/v1
+
 # Build frontend (generates static files in dist/)
 RUN npm run build
 
