@@ -87,7 +87,7 @@ export function Inbox() {
       </div>
 
       {/* 모바일: 필터 탭 */}
-      <div className="md:hidden sticky top-14 z-10 bg-white border-b border-gray-100">
+      <div className="md:hidden bg-white border-b border-gray-100">
         <div className="flex overflow-x-auto px-2 py-2 gap-2 scrollbar-hide">
           {filters.map((f) => (
             <button
