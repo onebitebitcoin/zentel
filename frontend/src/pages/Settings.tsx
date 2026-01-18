@@ -125,43 +125,6 @@ export function Settings() {
           </div>
         </section>
 
-        {/* 비밀번호 변경 섹션 */}
-        <section>
-          <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
-            비밀번호 변경
-          </h2>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
-            <input
-              type="password"
-              placeholder="현재 비밀번호"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
-            />
-            <input
-              type="password"
-              placeholder="새 비밀번호 (8자 이상)"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
-            />
-            <input
-              type="password"
-              placeholder="새 비밀번호 확인"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
-            />
-            <button
-              onClick={handlePasswordChange}
-              disabled={changingPassword}
-              className="w-full py-2.5 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-600 disabled:opacity-50"
-            >
-              {changingPassword ? '변경 중...' : '비밀번호 변경'}
-            </button>
-          </div>
-        </section>
-
         {/* 관심사 섹션 */}
         <section>
           <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
@@ -224,6 +187,43 @@ export function Settings() {
                 {savingInterests ? '저장 중...' : '관심사 저장'}
               </button>
             )}
+          </div>
+        </section>
+
+        {/* 비밀번호 변경 섹션 */}
+        <section>
+          <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+            비밀번호 변경
+          </h2>
+          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+            <input
+              type="password"
+              placeholder="현재 비밀번호"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+            />
+            <input
+              type="password"
+              placeholder="새 비밀번호 (8자 이상)"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+            />
+            <input
+              type="password"
+              placeholder="새 비밀번호 확인"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+            />
+            <button
+              onClick={handlePasswordChange}
+              disabled={changingPassword}
+              className="w-full py-2.5 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-600 disabled:opacity-50"
+            >
+              {changingPassword ? '변경 중...' : '비밀번호 변경'}
+            </button>
           </div>
         </section>
 
