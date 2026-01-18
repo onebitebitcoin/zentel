@@ -9,7 +9,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: '/', label: '작성', icon: <PenLine size={20} /> },
-  { path: '/inbox', label: '보관함', icon: <BookOpen size={20} /> },
+  { path: '/inbox', label: '임시 메모', icon: <BookOpen size={20} /> },
   { path: '#', label: '출력', icon: <List size={20} /> },
   { path: '#', label: '통계', icon: <BarChart3 size={20} /> },
 ];
