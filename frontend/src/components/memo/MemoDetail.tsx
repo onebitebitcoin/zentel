@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { X, Check, ExternalLink } from 'lucide-react';
+import { X, Check, ExternalLink, Copy } from 'lucide-react';
+import toast from 'react-hot-toast';
 import type { TempMemo, MemoType } from '../../types/memo';
 import { MemoTypeChips } from './MemoTypeChips';
 import { formatDateTime } from '../../utils/date';
@@ -16,6 +17,15 @@ export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
   const [saving, setSaving] = useState(false);
 
   const hasChanges = memoType !== memo.memo_type || content !== memo.content;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      toast.success('메모가 복사되었습니다.');
+    } catch {
+      toast.error('복사에 실패했습니다.');
+    }
+  };
 
   const handleSave = async () => {
     if (!hasChanges || saving) return;
@@ -43,13 +53,18 @@ export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
             <X size={20} />
           </button>
           <span className="text-sm font-medium">메모 수정</span>
-          <button
-            onClick={handleSave}
-            disabled={!hasChanges || saving}
-            className={`p-2 ${hasChanges ? 'text-primary' : 'text-gray-300'}`}
-          >
-            <Check size={20} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button onClick={handleCopy} className="p-2 text-gray-500 hover:text-primary">
+              <Copy size={20} />
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!hasChanges || saving}
+              className={`p-2 ${hasChanges ? 'text-primary' : 'text-gray-300'}`}
+            >
+              <Check size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="p-4 space-y-4">

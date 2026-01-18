@@ -1,4 +1,5 @@
-import { Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { Pencil, Trash2, ExternalLink, Copy } from 'lucide-react';
+import toast from 'react-hot-toast';
 import type { TempMemo } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
 import { getRelativeTime } from '../../utils/date';
@@ -16,6 +17,15 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
   const lines = memo.content.split('\n');
   const title = lines[0].slice(0, 80);
   const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : '';
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(memo.content);
+      toast.success('메모가 복사되었습니다.');
+    } catch {
+      toast.error('복사에 실패했습니다.');
+    }
+  };
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-4 md:p-6 space-y-3 md:space-y-4">
@@ -107,6 +117,13 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
       {/* 메타 정보 */}
       <div className="flex items-center justify-between pt-1 md:pt-2">
         <div className="flex items-center gap-4">
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-primary"
+          >
+            <Copy size={14} />
+            <span>복사</span>
+          </button>
           <button
             onClick={() => onEdit(memo)}
             className="flex items-center gap-1 text-xs text-gray-500 hover:text-primary"
