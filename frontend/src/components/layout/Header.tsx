@@ -1,13 +1,17 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Inbox, ArrowLeft } from 'lucide-react';
 
-export function Header() {
+interface HeaderProps {
+  className?: string;
+}
+
+export function Header({ className = '' }: HeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const isInbox = location.pathname === '/inbox';
 
   return (
-    <header className="sticky top-0 z-10 bg-white border-b border-gray-100">
+    <header className={`sticky top-0 z-10 bg-white border-b border-gray-100 ${className}`}>
       <div className="flex items-center justify-between px-4 h-14">
         {isInbox ? (
           <button

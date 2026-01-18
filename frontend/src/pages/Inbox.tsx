@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Search, SlidersHorizontal } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MemoCard } from '../components/memo/MemoCard';
 import { MemoDetail } from '../components/memo/MemoDetail';
@@ -52,8 +53,41 @@ export function Inbox() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* 필터 탭 */}
-      <div className="sticky top-14 z-10 bg-white border-b border-gray-100">
+      {/* PC: 상단 헤더 */}
+      <div className="hidden md:flex items-center justify-between px-6 py-5 bg-white border-b border-gray-100">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-semibold text-gray-800">
+            Temporary Notes
+          </h1>
+          <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded">
+            {memos.length} TOTAL
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search
+              size={18}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+            <input
+              type="text"
+              placeholder="Search knowledge base..."
+              className="w-64 pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary"
+              disabled
+            />
+          </div>
+          <button
+            disabled
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-400"
+          >
+            <SlidersHorizontal size={16} />
+            Filter
+          </button>
+        </div>
+      </div>
+
+      {/* 모바일: 필터 탭 */}
+      <div className="md:hidden sticky top-14 z-10 bg-white border-b border-gray-100">
         <div className="flex overflow-x-auto px-2 py-2 gap-2 scrollbar-hide">
           {filters.map((f) => (
             <button
@@ -74,7 +108,7 @@ export function Inbox() {
       </div>
 
       {/* 메모 목록 */}
-      <div className="flex-1 overflow-auto px-4 py-4 pb-24 space-y-3">
+      <div className="flex-1 overflow-auto px-4 md:px-6 py-4 pb-24 md:pb-6 space-y-3 md:space-y-4">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
