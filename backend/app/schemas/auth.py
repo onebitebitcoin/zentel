@@ -1,0 +1,69 @@
+"""
+인증 (Auth) Pydantic 스키마
+"""
+from __future__ import annotations
+
+from typing import Optional
+
+from pydantic import BaseModel, Field, field_validator
+
+
+class UserRegister(BaseModel):
+    """회원가입 요청 스키마"""
+
+    username: str = Field(min_length=3, max_length=50)
+    password: str = Field(min_length=8, max_length=100)
+
+    @field_validator("username")
+    @classmethod
+    def username_alphanumeric(cls, v: str) -> str:
+        """사용자 이름은 영문자, 숫자, 언더스코어만 허용"""
+        if not v.replace("_", "").isalnum():
+            raise ValueError("사용자 이름은 영문자, 숫자, 언더스코어만 사용 가능합니다")
+        return v.lower()
+
+
+class UserLogin(BaseModel):
+    """로그인 요청 스키마"""
+
+    username: str
+    password: str
+
+
+class UserOut(BaseModel):
+    """사용자 응답 스키마"""
+
+    id: str
+    username: str
+    is_active: bool
+    created_at: str
+    updated_at: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class TokenResponse(BaseModel):
+    """토큰 응답 스키마"""
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # 초 단위
+
+
+class RefreshTokenRequest(BaseModel):
+    """토큰 갱신 요청 스키마"""
+
+    refresh_token: str
+
+
+class UsernameCheckResponse(BaseModel):
+    """사용자 이름 중복 체크 응답"""
+
+    available: bool
+    message: str
+
+
+class MessageResponse(BaseModel):
+    """일반 메시지 응답"""
+
+    message: str

@@ -1,6 +1,8 @@
 """
 임시 메모 (Temporary Memo) API 라우터
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime, timezone
 from typing import Optional

@@ -6,6 +6,7 @@ import type {
   TempMemoUpdate,
   MemoType,
 } from '../types/memo';
+import { tokenStorage } from '../utils/token';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
@@ -14,15 +15,66 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
-// Trailing slash 제거 인터셉터
+// Request 인터셉터: Authorization 헤더 추가 및 trailing slash 제거
 api.interceptors.request.use((config) => {
+  // Trailing slash 제거
   if (config.url && config.url.endsWith('/')) {
     config.url = config.url.slice(0, -1);
   }
+
+  // Authorization 헤더 추가
+  const token = tokenStorage.getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
   return config;
 });
+
+// Response 인터셉터: 401 에러 처리
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // 401 에러이고 재시도하지 않은 경우
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      // Refresh Token으로 토큰 갱신 시도
+      const refreshToken = tokenStorage.getRefreshToken();
+      if (refreshToken) {
+        try {
+          const response = await axios.post(
+            `${API_BASE_URL}/auth/refresh`,
+            { refresh_token: refreshToken },
+            { withCredentials: true }
+          );
+
+          const { access_token } = response.data;
+          tokenStorage.setAccessToken(access_token);
+
+          // 원래 요청 재시도
+          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+          return api(originalRequest);
+        } catch {
+          // 토큰 갱신 실패 - 로그아웃 처리
+          tokenStorage.clearTokens();
+          window.location.href = '/login';
+        }
+      } else {
+        // Refresh Token 없음 - 로그인 페이지로 이동
+        tokenStorage.clearTokens();
+        window.location.href = '/login';
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 export const tempMemoApi = {
   /**

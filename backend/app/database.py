@@ -1,6 +1,7 @@
 """
 데이터베이스 설정 모듈
 """
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 

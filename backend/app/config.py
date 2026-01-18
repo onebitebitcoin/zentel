@@ -1,6 +1,7 @@
 """
 설정 모듈 - 12-Factor App 원칙에 따라 환경 변수로 설정 관리
 """
+
 import os
 from functools import lru_cache
 
@@ -21,6 +22,12 @@ class Settings:
 
     # API
     API_V1_PREFIX: str = "/api/v1"
+
+    # JWT
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "zentel-jwt-secret-key-dev")
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
+    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
 
 @lru_cache

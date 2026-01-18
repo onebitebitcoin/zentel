@@ -1,6 +1,8 @@
 """
 임시 메모 (Temporary Memo) Pydantic 스키마
 """
+from __future__ import annotations
+
 from enum import Enum
 from typing import List, Optional
 

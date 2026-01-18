@@ -1,6 +1,8 @@
 """
 임시 메모 (Temporary Memo) SQLAlchemy 모델
 """
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from typing import Optional
 

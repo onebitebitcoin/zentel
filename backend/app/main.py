@@ -1,6 +1,7 @@
 """
 Zentel - FastAPI 메인 애플리케이션
 """
+
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -8,10 +9,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-from app.api import temp_memos_router
+from app.api import auth_router, temp_memos_router
 from app.config import settings
 from app.database import init_db
 
@@ -73,6 +74,7 @@ app.add_middleware(
 
 # API 라우터 등록
 app.include_router(temp_memos_router, prefix=settings.API_V1_PREFIX)
+app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health")
