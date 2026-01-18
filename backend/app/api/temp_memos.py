@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -24,6 +25,12 @@ from app.services.context_extractor import context_extractor
 
 logger = logging.getLogger(__name__)
 
+# URL 추출 정규식
+URL_PATTERN = re.compile(
+    r"https?://[^\s<>\"')\]]+",
+    re.IGNORECASE,
+)
+
 router = APIRouter(prefix="/temp-memos", tags=["temp-memos"])
 
 
@@ -33,16 +40,24 @@ async def create_temp_memo(
     db: Session = Depends(get_db),
 ):
     """임시 메모 생성 (LLM context 추출 포함)"""
+    # EXTERNAL_SOURCE 타입이면 content에서 URL 자동 추출
+    source_url = memo.source_url
+    if memo.memo_type == MemoType.EXTERNAL_SOURCE and not source_url:
+        urls = URL_PATTERN.findall(memo.content)
+        if urls:
+            source_url = urls[0]
+            logger.info(f"Auto-extracted URL from content: {source_url}")
+
     logger.info(
         f"Creating temp memo: type={memo.memo_type}, "
-        f"content_length={len(memo.content)}, source_url={memo.source_url}"
+        f"content_length={len(memo.content)}, source_url={source_url}"
     )
 
     # LLM으로 context 추출 + OG 메타데이터
     context, og_metadata = await context_extractor.extract_context(
         content=memo.content,
         memo_type=memo.memo_type.value,
-        source_url=memo.source_url,
+        source_url=source_url,
     )
 
     if context:
@@ -57,7 +72,7 @@ async def create_temp_memo(
         memo_type=memo.memo_type.value,
         content=memo.content,
         context=context,
-        source_url=memo.source_url,
+        source_url=source_url,
         og_title=og_metadata.title if og_metadata else None,
         og_image=og_metadata.image if og_metadata else None,
     )
