@@ -54,6 +54,52 @@ cleanup() {
 # Ctrl+C 처리
 trap cleanup INT TERM
 
+# 함수: 기존 프로세스 종료
+kill_existing() {
+    info "기존 프로세스 확인 중..."
+
+    # PID 파일로 관리되던 프로세스 종료
+    if [ -f "$BACKEND_PID_FILE" ]; then
+        OLD_PID=$(cat $BACKEND_PID_FILE)
+        if kill -0 $OLD_PID 2>/dev/null; then
+            kill $OLD_PID 2>/dev/null || true
+            success "기존 백엔드 프로세스 종료 (PID: $OLD_PID)"
+        fi
+        rm -f $BACKEND_PID_FILE
+    fi
+
+    if [ -f "$FRONTEND_PID_FILE" ]; then
+        OLD_PID=$(cat $FRONTEND_PID_FILE)
+        if kill -0 $OLD_PID 2>/dev/null; then
+            kill $OLD_PID 2>/dev/null || true
+            success "기존 프론트엔드 프로세스 종료 (PID: $OLD_PID)"
+        fi
+        rm -f $FRONTEND_PID_FILE
+    fi
+
+    # 포트를 사용 중인 프로세스 종료 (PID 파일 없이 실행된 경우 대비)
+    BACKEND_PORT=6000
+    FRONTEND_PORT=6001
+
+    BACKEND_PID_ON_PORT=$(lsof -ti:$BACKEND_PORT 2>/dev/null || true)
+    if [ -n "$BACKEND_PID_ON_PORT" ]; then
+        kill $BACKEND_PID_ON_PORT 2>/dev/null || true
+        success "포트 $BACKEND_PORT 사용 중인 프로세스 종료 (PID: $BACKEND_PID_ON_PORT)"
+    fi
+
+    FRONTEND_PID_ON_PORT=$(lsof -ti:$FRONTEND_PORT 2>/dev/null || true)
+    if [ -n "$FRONTEND_PID_ON_PORT" ]; then
+        kill $FRONTEND_PID_ON_PORT 2>/dev/null || true
+        success "포트 $FRONTEND_PORT 사용 중인 프로세스 종료 (PID: $FRONTEND_PID_ON_PORT)"
+    fi
+
+    # 프로세스 종료 대기
+    sleep 1
+}
+
+# 기존 프로세스 종료
+kill_existing
+
 # 로그 파일 초기화
 info "로그 파일 초기화..."
 rm -f backend/debug.log frontend/debug.log
