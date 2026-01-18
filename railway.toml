@@ -1,0 +1,21 @@
+# Railway Configuration
+# https://docs.railway.app/deploy/config-as-code
+
+[build]
+# Use Dockerfile for building
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# Health check endpoint
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+
+# Restart policy
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# Resource limits (optional, uncomment if needed)
+# [deploy.resources]
+# cpu = 1
+# memory = 1024

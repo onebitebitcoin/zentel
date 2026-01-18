@@ -1,0 +1,78 @@
+# Git
+.git
+.gitignore
+
+# Development environments
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+debug.log
+debug.log.*
+backend/debug.log
+frontend/debug.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Test & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage/
+*.test.js
+*.spec.js
+
+# Build artifacts (we build inside Docker)
+dist/
+build/
+
+# Documentation (keep README)
+*.md
+!README.md
+
+# Scripts not needed in container
+deploy.sh
+install.sh
+dev.sh
+test.sh
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Process files
+*.pid
+.backend.pid
+.frontend.pid
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Railway
+railway.json
+
+# Backup files
+*.bak
+*.backup
+
+# Claude plans
+.claude/plans/
