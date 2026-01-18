@@ -349,8 +349,8 @@ class ContextExtractor:
                             "당신은 텍스트 분류 전문가입니다. "
                             "주어진 메모 내용이 어떤 관심사와 관련이 있는지 판단합니다. "
                             "반드시 제공된 관심사 목록에서만 선택해야 합니다. "
-                            "관련 없으면 빈 응답을 반환하세요. "
-                            "관련 있는 관심사만 쉼표로 구분하여 응답하세요. "
+                            "관련된 관심사가 없으면 반드시 '없음'이라고 응답하세요. "
+                            "억지로 연결하지 말고, 명확하게 관련이 있는 경우에만 선택하세요. "
                             "마크다운이나 다른 형식 없이 관심사 이름만 반환하세요."
                         ),
                     },
@@ -360,7 +360,7 @@ class ContextExtractor:
                             f"관심사 목록: {interests_str}\n\n"
                             f"메모 내용:\n{content}\n\n"
                             "관련된 관심사를 쉼표로 구분하여 반환하세요. "
-                            "관련 없으면 빈 응답을 반환하세요."
+                            "명확하게 관련된 관심사가 없으면 '없음'이라고 반환하세요."
                         ),
                     },
                 ],
@@ -371,7 +371,8 @@ class ContextExtractor:
             raw = response.choices[0].message.content or ""
             raw = raw.strip()
 
-            if not raw:
+            # "없음" 또는 빈 응답이면 빈 배열 반환
+            if not raw or raw.lower() in ["없음", "none", "없습니다", "해당 없음"]:
                 logger.info("No matching interests found")
                 return []
 
