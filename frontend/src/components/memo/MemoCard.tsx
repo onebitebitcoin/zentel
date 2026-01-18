@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pencil, Trash2, ExternalLink, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemo } from '../../types/memo';
@@ -12,11 +13,20 @@ interface MemoCardProps {
 
 export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
   const typeInfo = getMemoTypeInfo(memo.memo_type);
+  const [factsExpanded, setFactsExpanded] = useState(false);
 
   // 첫 줄을 제목으로 추출
   const lines = memo.content.split('\n');
   const title = lines[0].slice(0, 80);
   const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : '';
+  const maxFactLength = 120;
+  const facts = memo.facts?.slice(0, 3) ?? [];
+  const hasTruncatedFacts = facts.some((fact) => fact.length > maxFactLength);
+  const visibleFacts = factsExpanded
+    ? facts
+    : facts.map((fact) =>
+        fact.length > maxFactLength ? fact.slice(0, maxFactLength) : fact,
+      );
 
   const handleCopy = async () => {
     try {
@@ -59,16 +69,25 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
       )}
 
       {/* Facts */}
-      {memo.memo_type === 'EXTERNAL_SOURCE' && memo.facts && memo.facts.length > 0 && (
+      {memo.memo_type === 'EXTERNAL_SOURCE' && facts.length > 0 && (
         <div className="border-t border-gray-100 pt-2">
           <span className="text-[10px] text-gray-400 uppercase tracking-wide">Facts</span>
           <div className="mt-1 text-xs text-gray-700 space-y-1">
-            {memo.facts.slice(0, 3).map((fact, index) => (
-              <p key={`${memo.id}-fact-${index}`} className="line-clamp-2">
+            {visibleFacts.map((fact, index) => (
+              <p key={`${memo.id}-fact-${index}`} className="break-words">
                 - {fact}
               </p>
             ))}
           </div>
+          {hasTruncatedFacts && (
+            <button
+              type="button"
+              onClick={() => setFactsExpanded((prev) => !prev)}
+              className="mt-1 text-xs text-primary hover:text-primary-600"
+            >
+              {factsExpanded ? '접기' : '더보기'}
+            </button>
+          )}
         </div>
       )}
 
