@@ -10,9 +10,10 @@ interface MemoDetailProps {
   memo: TempMemo;
   onClose: () => void;
   onSave: (id: string, data: { memo_type?: MemoType; content?: string }) => void;
+  onCommentChange?: () => void;
 }
 
-export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
+export function MemoDetail({ memo, onClose, onSave, onCommentChange }: MemoDetailProps) {
   const [memoType, setMemoType] = useState<MemoType>(memo.memo_type);
   const [content, setContent] = useState(memo.content);
   const [saving, setSaving] = useState(false);
@@ -147,7 +148,7 @@ export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
             <h3 className="text-sm font-medium text-gray-700 mb-3">
               댓글 ({memo.comment_count || 0})
             </h3>
-            <CommentList memoId={memo.id} />
+            <CommentList memoId={memo.id} onCommentChange={onCommentChange} />
           </div>
         </div>
       </div>

@@ -75,6 +75,17 @@ export function useTempMemos() {
     }
   }, []);
 
+  const refreshMemo = useCallback(async (id: string) => {
+    try {
+      const updated = await tempMemoApi.get(id);
+      setMemos((prev) => prev.map((m) => (m.id === id ? updated : m)));
+      return updated;
+    } catch (err) {
+      console.error('메모 새로고침 실패:', err);
+      return undefined;
+    }
+  }, []);
+
   return {
     memos,
     total,
@@ -84,5 +95,6 @@ export function useTempMemos() {
     createMemo,
     updateMemo,
     deleteMemo,
+    refreshMemo,
   };
 }

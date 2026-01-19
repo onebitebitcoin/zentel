@@ -10,7 +10,7 @@ import { MEMO_TYPES } from '../types/memo';
 type FilterType = 'ALL' | MemoType;
 
 export function Inbox() {
-  const { memos, total, loading, error, fetchMemos, updateMemo, deleteMemo } = useTempMemos();
+  const { memos, total, loading, error, fetchMemos, updateMemo, deleteMemo, refreshMemo } = useTempMemos();
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [editingMemo, setEditingMemo] = useState<TempMemo | null>(null);
   const [offset, setOffset] = useState(0);
@@ -49,6 +49,13 @@ export function Inbox() {
       toast.success('메모가 수정되었습니다.');
     } catch {
       toast.error('수정에 실패했습니다.');
+    }
+  };
+
+  const handleCommentChange = async (memoId: string) => {
+    const updated = await refreshMemo(memoId);
+    if (updated && editingMemo?.id === memoId) {
+      setEditingMemo(updated);
     }
   };
 
@@ -174,6 +181,7 @@ export function Inbox() {
           memo={editingMemo}
           onClose={() => setEditingMemo(null)}
           onSave={handleSave}
+          onCommentChange={() => handleCommentChange(editingMemo.id)}
         />
       )}
     </div>
