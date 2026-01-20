@@ -14,11 +14,16 @@ interface MemoCardProps {
 export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
   const typeInfo = getMemoTypeInfo(memo.memo_type);
   const [factsExpanded, setFactsExpanded] = useState(false);
+  const [contentExpanded, setContentExpanded] = useState(false);
 
   // 첫 줄을 제목으로 추출
   const lines = memo.content.split('\n');
   const title = lines[0].slice(0, 80);
   const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : '';
+
+  // 본문이 길면 더보기 표시 (150자 또는 3줄 이상)
+  const bodyLines = body.split('\n');
+  const isLongContent = body.length > 150 || bodyLines.length > 3;
   const maxFactLength = 120;
   const facts = memo.facts?.slice(0, 3) ?? [];
   const hasTruncatedFacts = facts.some((fact) => fact.length > maxFactLength);
@@ -55,9 +60,24 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
 
       {/* 본문 */}
       {body && (
-        <p className="text-sm text-gray-600 line-clamp-3 md:line-clamp-4 whitespace-pre-wrap">
-          {body}
-        </p>
+        <div>
+          <p
+            className={`text-sm text-gray-600 whitespace-pre-wrap ${
+              !contentExpanded ? 'line-clamp-3 md:line-clamp-4' : ''
+            }`}
+          >
+            {body}
+          </p>
+          {isLongContent && (
+            <button
+              type="button"
+              onClick={() => setContentExpanded((prev) => !prev)}
+              className="mt-1 text-xs text-primary hover:text-primary-600"
+            >
+              {contentExpanded ? '접기' : '더보기'}
+            </button>
+          )}
+        </div>
       )}
 
       {/* Context */}
