@@ -76,8 +76,18 @@ class ContextExtractor:
             if memo_type == "EXTERNAL_SOURCE" and source_url:
                 fetched_content, og_metadata = await self._fetch_url_content(source_url)
                 if fetched_content:
-                    text_to_analyze = f"URL: {source_url}\n\n{fetched_content}"
-                    facts = await self._call_llm_facts(fetched_content)
+                    # 사용자 텍스트 + URL 컨텐츠 합쳐서 분석
+                    if content and content.strip():
+                        text_to_analyze = (
+                            f"사용자 메모: {content}\n\n"
+                            f"URL: {source_url}\n\n"
+                            f"URL 내용:\n{fetched_content}"
+                        )
+                        facts_text = f"사용자 메모: {content}\n\n{fetched_content}"
+                    else:
+                        text_to_analyze = f"URL: {source_url}\n\n{fetched_content}"
+                        facts_text = fetched_content
+                    facts = await self._call_llm_facts(facts_text)
 
             # LLM 호출
             context = await self._call_llm(text_to_analyze, memo_type)
