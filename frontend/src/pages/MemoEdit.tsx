@@ -23,8 +23,8 @@ export function MemoEdit() {
   const [factsExpanded, setFactsExpanded] = useState(false);
   const [showInterestPicker, setShowInterestPicker] = useState(false);
 
-  const userInterests = user?.interests || [];
-  const availableInterests = userInterests.filter((i) => !interests.includes(i));
+  const userInterests: string[] = user?.interests || [];
+  const availableInterests = userInterests.filter((i: string) => !interests.includes(i));
 
   const hasChanges = memo
     ? memoType !== memo.memo_type ||
@@ -245,7 +245,7 @@ export function MemoEdit() {
 
             {showInterestPicker && availableInterests.length > 0 && (
               <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 rounded-lg">
-                {availableInterests.map((interest) => (
+                {availableInterests.map((interest: string) => (
                   <button
                     key={interest}
                     type="button"

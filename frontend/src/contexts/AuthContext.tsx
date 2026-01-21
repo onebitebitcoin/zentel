@@ -1,11 +1,22 @@
 /**
  * 인증 상태 관리 Context
  */
-import { useEffect, useState, useCallback, type ReactNode } from 'react';
+import { useEffect, useState, useCallback, useContext, type ReactNode } from 'react';
 import type { User, UserLogin, UserRegister } from '../types/auth';
 import { authService } from '../api/auth';
 import { tokenStorage } from '../utils/token';
 import { AuthContext } from './AuthContextValue';
+
+/**
+ * 인증 Context 사용 훅
+ */
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
 
 interface AuthProviderProps {
   children: ReactNode;
