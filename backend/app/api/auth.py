@@ -96,13 +96,16 @@ def login(data: UserLogin, response: Response, db: Session = Depends(get_db)):
     refresh_token = create_refresh_token(data={"sub": user.id})
 
     # Refresh Token을 httpOnly 쿠키로 설정
+    # 삼성 브라우저 등 호환성을 위해 samesite="none" + secure=True 사용
+    is_production = settings.ENVIRONMENT == "production"
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=settings.ENVIRONMENT == "production",
-        samesite="lax",
+        secure=is_production,
+        samesite="none" if is_production else "lax",
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path="/",
     )
 
     logger.info(f"User logged in successfully: {user.id}")
@@ -166,13 +169,15 @@ def refresh_token(
     new_refresh_token = create_refresh_token(data={"sub": user.id})
 
     # 새 Refresh Token 쿠키 설정
+    is_production = settings.ENVIRONMENT == "production"
     response.set_cookie(
         key="refresh_token",
         value=new_refresh_token,
         httponly=True,
-        secure=settings.ENVIRONMENT == "production",
-        samesite="lax",
+        secure=is_production,
+        samesite="none" if is_production else "lax",
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path="/",
     )
 
     logger.info(f"Token refreshed for user: {user.id}")
@@ -188,11 +193,13 @@ def logout(response: Response, current_user: User = Depends(get_current_user)):
     logger.info(f"User logout: {current_user.id}")
 
     # Refresh Token 쿠키 삭제
+    is_production = settings.ENVIRONMENT == "production"
     response.delete_cookie(
         key="refresh_token",
         httponly=True,
-        secure=settings.ENVIRONMENT == "production",
-        samesite="lax",
+        secure=is_production,
+        samesite="none" if is_production else "lax",
+        path="/",
     )
 
     return MessageResponse(message="로그아웃되었습니다")
