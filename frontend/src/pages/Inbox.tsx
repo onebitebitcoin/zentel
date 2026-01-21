@@ -159,6 +159,7 @@ export function Inbox() {
                 memo={memo}
                 onEdit={setEditingMemo}
                 onDelete={handleDelete}
+                onCommentChange={() => handleCommentChange(memo.id)}
               />
             ))}
             {hasMore && (

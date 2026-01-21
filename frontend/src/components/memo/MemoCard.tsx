@@ -1,20 +1,23 @@
 import { useState } from 'react';
-import { Pencil, Trash2, ExternalLink, Copy, MessageCircle } from 'lucide-react';
+import { Pencil, Trash2, ExternalLink, Copy, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemo } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
 import { getRelativeTime } from '../../utils/date';
+import { CommentList } from './CommentList';
 
 interface MemoCardProps {
   memo: TempMemo;
   onEdit: (memo: TempMemo) => void;
   onDelete: (id: string) => void;
+  onCommentChange?: () => void;
 }
 
-export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
+export function MemoCard({ memo, onEdit, onDelete, onCommentChange }: MemoCardProps) {
   const typeInfo = getMemoTypeInfo(memo.memo_type);
   const [factsExpanded, setFactsExpanded] = useState(false);
   const [contentExpanded, setContentExpanded] = useState(false);
+  const [commentsExpanded, setCommentsExpanded] = useState(false);
 
   // 첫 줄을 제목으로 추출
   const lines = memo.content.split('\n');
@@ -145,10 +148,17 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
         </a>
       )}
 
-      {/* 최신 댓글 */}
-      {memo.latest_comment && (
+      {/* 댓글 섹션 (트위터 스타일) */}
+      {commentsExpanded && (
+        <div className="border-t border-gray-100 pt-3">
+          <CommentList memoId={memo.id} onCommentChange={onCommentChange} />
+        </div>
+      )}
+
+      {/* 최신 댓글 미리보기 (접혀있을 때만 표시) */}
+      {!commentsExpanded && memo.latest_comment && (
         <div
-          onClick={() => onEdit(memo)}
+          onClick={() => setCommentsExpanded(true)}
           className="p-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
         >
           <p className="text-xs text-gray-600 line-clamp-2">
@@ -178,11 +188,12 @@ export function MemoCard({ memo, onEdit, onDelete }: MemoCardProps) {
             <span>복사</span>
           </button>
           <button
-            onClick={() => onEdit(memo)}
-            className="flex items-center gap-1 text-xs text-gray-500 hover:text-primary"
+            onClick={() => setCommentsExpanded((prev) => !prev)}
+            className={`flex items-center gap-1 text-xs ${commentsExpanded ? 'text-primary' : 'text-gray-500'} hover:text-primary`}
           >
             <MessageCircle size={14} />
             <span>{memo.comment_count || 0}</span>
+            {commentsExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
           <button
             onClick={() => onEdit(memo)}
