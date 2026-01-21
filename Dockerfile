@@ -32,11 +32,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Python dependencies file
-COPY backend/requirements.txt ./
+# Copy Python dependencies file (production only)
+COPY backend/requirements.prod.txt ./
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies with memory optimization
+RUN pip install --no-cache-dir --no-compile -r requirements.prod.txt
 
 # Copy backend source code
 COPY backend/ ./backend/
