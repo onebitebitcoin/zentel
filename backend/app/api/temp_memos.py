@@ -190,10 +190,11 @@ def get_temp_memo(
 
 
 @router.patch("/{memo_id}", response_model=TempMemoOut)
-def update_temp_memo(
+async def update_temp_memo(
     memo_id: str,
     memo: TempMemoUpdate,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """임시 메모 수정"""
     logger.info(f"Updating temp memo: id={memo_id}")
@@ -207,6 +208,21 @@ def update_temp_memo(
         db_memo.memo_type = memo.memo_type.value
     if memo.content is not None:
         db_memo.content = memo.content
+
+    # 관심사 다시 매핑 (rematch_interests가 True인 경우)
+    if memo.rematch_interests and current_user and current_user.interests:
+        logger.info(f"Rematching interests for memo: {memo_id}")
+        content_to_match = memo.content if memo.content else db_memo.content
+        matched_interests = await context_extractor.match_interests(
+            content=content_to_match,
+            user_interests=current_user.interests,
+        )
+        db_memo.interests = matched_interests if matched_interests else None
+        logger.info(f"Rematched interests: {matched_interests}")
+    elif memo.interests is not None:
+        # 관심사 직접 수정 (빈 배열이면 None으로 저장)
+        db_memo.interests = memo.interests if memo.interests else None
+        logger.info(f"Updated interests: {memo.interests}")
 
     db_memo.updated_at = datetime.now(timezone.utc).isoformat()
 

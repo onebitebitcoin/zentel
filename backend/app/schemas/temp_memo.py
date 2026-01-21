@@ -34,6 +34,8 @@ class TempMemoUpdate(BaseModel):
 
     memo_type: Optional[MemoType] = None
     content: Optional[str] = Field(default=None, min_length=1, max_length=10000)
+    interests: Optional[List[str]] = None
+    rematch_interests: Optional[bool] = False  # True면 관심사 다시 매핑
 
 
 class MemoCommentSummary(BaseModel):

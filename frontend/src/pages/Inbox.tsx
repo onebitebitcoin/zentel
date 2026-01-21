@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { MemoCard } from '../components/memo/MemoCard';
 import { MemoDetail } from '../components/memo/MemoDetail';
 import { useTempMemos } from '../hooks/useTempMemos';
-import type { MemoType, TempMemo, MemoTypeInfo } from '../types/memo';
+import type { MemoType, TempMemo, MemoTypeInfo, TempMemoUpdate } from '../types/memo';
 import { MEMO_TYPES } from '../types/memo';
 
 type FilterType = 'ALL' | MemoType;
@@ -40,10 +40,7 @@ export function Inbox() {
     }
   };
 
-  const handleSave = async (
-    id: string,
-    data: { memo_type?: MemoType; content?: string }
-  ) => {
+  const handleSave = async (id: string, data: TempMemoUpdate) => {
     try {
       await updateMemo(id, data);
       toast.success('메모가 수정되었습니다.');

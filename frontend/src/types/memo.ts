@@ -38,6 +38,8 @@ export interface TempMemoCreate {
 export interface TempMemoUpdate {
   memo_type?: MemoType;
   content?: string;
+  interests?: string[];
+  rematch_interests?: boolean;
 }
 
 export interface TempMemoListResponse {
