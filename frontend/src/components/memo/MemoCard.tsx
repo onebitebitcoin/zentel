@@ -8,7 +8,7 @@ import { CommentList } from './CommentList';
 
 interface MemoCardProps {
   memo: TempMemo;
-  onEdit: (memo: TempMemo) => void;
+  onEdit: () => void;
   onDelete: (id: string) => void;
   onCommentChange?: () => void;
 }
@@ -196,7 +196,7 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange }: MemoCardPr
             {commentsExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
           <button
-            onClick={() => onEdit(memo)}
+            onClick={onEdit}
             className="flex items-center gap-1 text-xs text-gray-500 hover:text-primary"
           >
             <Pencil size={14} />

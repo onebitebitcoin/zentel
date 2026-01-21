@@ -8,6 +8,7 @@ import { BottomNav } from './components/layout/BottomNav';
 import { Sidebar } from './components/layout/Sidebar';
 import { QuickCapture } from './pages/QuickCapture';
 import { Inbox } from './pages/Inbox';
+import { MemoEdit } from './pages/MemoEdit';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
@@ -72,6 +73,16 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <Inbox />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/memo/:id"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <MemoEdit />
                 </AppLayout>
               </ProtectedRoute>
             }

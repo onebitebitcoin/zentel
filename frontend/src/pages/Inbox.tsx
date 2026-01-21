@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MemoCard } from '../components/memo/MemoCard';
-import { MemoDetail } from '../components/memo/MemoDetail';
 import { useTempMemos } from '../hooks/useTempMemos';
-import type { MemoType, TempMemo, MemoTypeInfo, TempMemoUpdate } from '../types/memo';
+import type { MemoType, MemoTypeInfo } from '../types/memo';
 import { MEMO_TYPES } from '../types/memo';
 
 type FilterType = 'ALL' | MemoType;
 
 export function Inbox() {
-  const { memos, total, loading, error, fetchMemos, updateMemo, deleteMemo, refreshMemo } = useTempMemos();
+  const navigate = useNavigate();
+  const { memos, total, loading, error, fetchMemos, deleteMemo, refreshMemo } = useTempMemos();
   const [filter, setFilter] = useState<FilterType>('ALL');
-  const [editingMemo, setEditingMemo] = useState<TempMemo | null>(null);
   const [offset, setOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const limit = 10;
@@ -29,6 +29,10 @@ export function Inbox() {
     }
   }, [error]);
 
+  const handleEdit = (memoId: string) => {
+    navigate(`/memo/${memoId}`);
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm('정말 삭제하시겠습니까?')) return;
 
@@ -40,20 +44,8 @@ export function Inbox() {
     }
   };
 
-  const handleSave = async (id: string, data: TempMemoUpdate) => {
-    try {
-      await updateMemo(id, data);
-      toast.success('메모가 수정되었습니다.');
-    } catch {
-      toast.error('수정에 실패했습니다.');
-    }
-  };
-
   const handleCommentChange = async (memoId: string) => {
-    const updated = await refreshMemo(memoId);
-    if (updated && editingMemo?.id === memoId) {
-      setEditingMemo(updated);
-    }
+    await refreshMemo(memoId);
   };
 
   const handleLoadMore = async () => {
@@ -154,7 +146,7 @@ export function Inbox() {
               <MemoCard
                 key={memo.id}
                 memo={memo}
-                onEdit={setEditingMemo}
+                onEdit={() => handleEdit(memo.id)}
                 onDelete={handleDelete}
                 onCommentChange={() => handleCommentChange(memo.id)}
               />
@@ -172,15 +164,6 @@ export function Inbox() {
           </>
         )}
       </div>
-
-      {/* 메모 상세/수정 모달 */}
-      {editingMemo && (
-        <MemoDetail
-          memo={editingMemo}
-          onClose={() => setEditingMemo(null)}
-          onSave={handleSave}
-        />
-      )}
     </div>
   );
 }
