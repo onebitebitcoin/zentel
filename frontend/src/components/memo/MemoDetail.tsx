@@ -3,17 +3,15 @@ import { X, Check, ExternalLink, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemo, MemoType } from '../../types/memo';
 import { MemoTypeChips } from './MemoTypeChips';
-import { CommentList } from './CommentList';
 import { formatDateTime } from '../../utils/date';
 
 interface MemoDetailProps {
   memo: TempMemo;
   onClose: () => void;
   onSave: (id: string, data: { memo_type?: MemoType; content?: string }) => void;
-  onCommentChange?: () => void;
 }
 
-export function MemoDetail({ memo, onClose, onSave, onCommentChange }: MemoDetailProps) {
+export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
   const [memoType, setMemoType] = useState<MemoType>(memo.memo_type);
   const [content, setContent] = useState(memo.content);
   const [saving, setSaving] = useState(false);
@@ -141,14 +139,6 @@ export function MemoDetail({ memo, onClose, onSave, onCommentChange }: MemoDetai
           <div className="text-xs text-gray-400">
             <p>생성: {formatDateTime(memo.created_at)}</p>
             {memo.updated_at && <p>수정: {formatDateTime(memo.updated_at)}</p>}
-          </div>
-
-          {/* 댓글 섹션 */}
-          <div className="border-t border-gray-100 pt-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">
-              댓글 ({memo.comment_count || 0})
-            </h3>
-            <CommentList memoId={memo.id} onCommentChange={onCommentChange} />
           </div>
         </div>
       </div>

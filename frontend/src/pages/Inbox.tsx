@@ -182,7 +182,6 @@ export function Inbox() {
           memo={editingMemo}
           onClose={() => setEditingMemo(null)}
           onSave={handleSave}
-          onCommentChange={() => handleCommentChange(editingMemo.id)}
         />
       )}
     </div>
