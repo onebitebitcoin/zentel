@@ -95,7 +95,7 @@ export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
-      <div className="relative w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-auto">
+      <div className="relative w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl max-h-[80vh] sm:max-h-[90vh] overflow-auto pb-safe">
         <div className="sticky top-0 flex items-center justify-between px-4 py-3 border-b bg-white z-10">
           <button onClick={onClose} className="p-2 text-gray-500">
             <X size={20} />
@@ -264,7 +264,7 @@ export function MemoDetail({ memo, onClose, onSave }: MemoDetailProps) {
             </a>
           )}
 
-          <div className="text-xs text-gray-400">
+          <div className="text-xs text-gray-400 pb-4">
             <p>생성: {formatDateTime(memo.created_at)}</p>
             {memo.updated_at && <p>수정: {formatDateTime(memo.updated_at)}</p>}
           </div>
