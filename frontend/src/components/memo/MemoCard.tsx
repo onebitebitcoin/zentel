@@ -19,10 +19,14 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange }: MemoCardPr
   const [contentExpanded, setContentExpanded] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
 
-  // 첫 줄을 제목으로 추출
-  const lines = memo.content.split('\n');
-  const title = lines[0].slice(0, 80);
-  const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : '';
+  // 메모 내용 분리 로직
+  const lines = memo.content.split('\n').filter((line) => line.trim());
+  const isShortMemo = lines.length === 1 && lines[0].length <= 100;
+
+  // 짧은 한 줄 메모는 전체를 제목으로 표시
+  // 긴 메모는 첫 줄을 제목, 나머지를 본문으로 분리
+  const title = isShortMemo ? lines[0] : lines[0]?.slice(0, 80) || '';
+  const body = isShortMemo ? '' : lines.slice(1).join('\n').trim();
 
   // 본문이 길면 더보기 표시 (150자 또는 3줄 이상)
   const bodyLines = body.split('\n');
