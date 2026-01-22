@@ -50,7 +50,12 @@ def get_memo_comment_info(db: Session, memo_id: str) -> tuple[int, MemoComment |
     return count, latest
 
 
-def memo_to_out(db: Session, memo: TempMemo) -> TempMemoOut:
+def memo_to_out(
+    db: Session,
+    memo: TempMemo,
+    fetch_failed: bool = False,
+    fetch_message: Optional[str] = None,
+) -> TempMemoOut:
     """TempMemo를 TempMemoOut으로 변환 (댓글 정보 포함)"""
     count, latest = get_memo_comment_info(db, memo.id)
     latest_summary = None
@@ -70,6 +75,8 @@ def memo_to_out(db: Session, memo: TempMemo) -> TempMemoOut:
         source_url=memo.source_url,
         og_title=memo.og_title,
         og_image=memo.og_image,
+        fetch_failed=fetch_failed,
+        fetch_message=fetch_message,
         created_at=memo.created_at,
         updated_at=memo.updated_at,
         comment_count=count,
@@ -143,7 +150,12 @@ async def create_temp_memo(
     db.refresh(db_memo)
 
     logger.info(f"Created temp memo: id={db_memo.id}")
-    return memo_to_out(db, db_memo)
+
+    # fetch_failed 정보 전달
+    fetch_failed = og_metadata.fetch_failed if og_metadata else False
+    fetch_message = og_metadata.fetch_message if og_metadata else None
+
+    return memo_to_out(db, db_memo, fetch_failed=fetch_failed, fetch_message=fetch_message)
 
 
 @router.get("", response_model=TempMemoListResponse)

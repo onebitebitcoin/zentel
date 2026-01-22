@@ -43,9 +43,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const currentUser = await authService.getCurrentUser();
       setUser(currentUser);
     } catch {
-      // 토큰이 유효하지 않으면 로그아웃 처리
-      tokenStorage.clearTokens();
-      setUser(null);
+      // Access Token이 만료되었을 가능성 - Refresh Token으로 갱신 시도
+      try {
+        await authService.refreshToken();
+        const currentUser = await authService.getCurrentUser();
+        setUser(currentUser);
+      } catch {
+        // Refresh Token도 만료되었으면 로그아웃 처리
+        tokenStorage.clearTokens();
+        setUser(null);
+      }
     } finally {
       setIsLoading(false);
     }

@@ -58,6 +58,8 @@ class TempMemoOut(BaseModel):
     source_url: Optional[str] = None
     og_title: Optional[str] = None
     og_image: Optional[str] = None
+    fetch_failed: bool = False
+    fetch_message: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None
     comment_count: int = 0

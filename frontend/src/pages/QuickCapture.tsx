@@ -31,8 +31,17 @@ export function QuickCapture() {
         content: content.trim(),
       };
 
-      await createMemo(payload);
-      toast.success('임시 메모가 저장되었습니다.');
+      const newMemo = await createMemo(payload);
+
+      // URL 접근 실패 시 안내 메시지 표시
+      if (newMemo.fetch_failed && newMemo.fetch_message) {
+        toast(newMemo.fetch_message, {
+          icon: '⚠️',
+          duration: 5000,
+        });
+      } else {
+        toast.success('임시 메모가 저장되었습니다.');
+      }
       setContent('');
     } catch {
       toast.error('저장에 실패했습니다.');

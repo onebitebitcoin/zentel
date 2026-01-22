@@ -34,8 +34,8 @@ class Settings:
     # JWT
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "zentel-jwt-secret-key-dev")
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
-    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))  # 30일 (30 * 24 * 60)
+    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "90"))  # 90일
 
     # OpenAI API
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")

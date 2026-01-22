@@ -28,6 +28,19 @@ class OGMetadata:
     title: Optional[str] = None
     image: Optional[str] = None
     description: Optional[str] = None
+    fetch_failed: bool = False
+    fetch_message: Optional[str] = None
+
+
+# 직접 접근이 불가능한 도메인 목록
+INACCESSIBLE_DOMAINS: set[str] = {
+    "twitter.com",
+    "x.com",
+    "www.twitter.com",
+    "www.x.com",
+    "mobile.twitter.com",
+    "mobile.x.com",
+}
 
 
 class ContextExtractor:
@@ -97,6 +110,25 @@ class ContextExtractor:
             logger.error(f"Failed to extract context: {e}", exc_info=True)
             return None, og_metadata, facts
 
+    def _is_inaccessible_url(self, url: str) -> bool:
+        """
+        접근 불가능한 URL인지 확인
+
+        Args:
+            url: 확인할 URL
+
+        Returns:
+            접근 불가능하면 True
+        """
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+            return domain in INACCESSIBLE_DOMAINS
+        except Exception:
+            return False
+
     async def _fetch_url_content(
         self, url: str
     ) -> tuple[Optional[str], Optional[OGMetadata]]:
@@ -109,6 +141,14 @@ class ContextExtractor:
         Returns:
             (추출된 텍스트 컨텐츠, OG 메타데이터) 튜플
         """
+        # 접근 불가능한 URL 체크
+        if self._is_inaccessible_url(url):
+            logger.info(f"Inaccessible URL detected: {url}")
+            return None, OGMetadata(
+                fetch_failed=True,
+                fetch_message="이 링크는 직접 접근이 불가능합니다. 내용을 복사해서 메모에 붙여넣어 주세요.",
+            )
+
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(

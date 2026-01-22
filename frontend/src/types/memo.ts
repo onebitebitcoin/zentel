@@ -23,6 +23,8 @@ export interface TempMemo {
   source_url: string | null;
   og_title: string | null;
   og_image: string | null;
+  fetch_failed: boolean;
+  fetch_message: string | null;
   created_at: string;
   updated_at: string | null;
   comment_count: number;

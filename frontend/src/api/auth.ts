@@ -31,6 +31,75 @@ authApi.interceptors.request.use((config) => {
   return config;
 });
 
+// 토큰 갱신 중인지 추적하는 플래그
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+// 토큰 갱신 완료 시 대기 중인 요청들에게 새 토큰 전달
+const onRefreshed = (token: string) => {
+  refreshSubscribers.forEach((callback) => callback(token));
+  refreshSubscribers = [];
+};
+
+// 토큰 갱신 대기 큐에 추가
+const addRefreshSubscriber = (callback: (token: string) => void) => {
+  refreshSubscribers.push(callback);
+};
+
+// 401 에러 시 자동 토큰 갱신 인터셉터
+authApi.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // 401 에러이고, refresh 요청이 아니고, 재시도하지 않은 요청인 경우
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/refresh') &&
+      !originalRequest.url?.includes('/auth/login')
+    ) {
+      if (isRefreshing) {
+        // 이미 토큰 갱신 중이면 대기
+        return new Promise((resolve) => {
+          addRefreshSubscriber((token: string) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            resolve(authApi(originalRequest));
+          });
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        // Refresh Token으로 새 Access Token 발급
+        const response = await authApi.post<TokenResponse>('/auth/refresh', {});
+        const { access_token } = response.data;
+
+        // 새 토큰 저장
+        tokenStorage.setAccessToken(access_token);
+
+        // 대기 중인 요청들에게 새 토큰 전달
+        onRefreshed(access_token);
+
+        // 실패한 요청 재시도
+        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        return authApi(originalRequest);
+      } catch (refreshError) {
+        // Refresh Token도 만료되었으면 로그아웃 처리
+        tokenStorage.clearTokens();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export const authService = {
   /**
    * 회원가입

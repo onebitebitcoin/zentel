@@ -154,7 +154,7 @@ class TestRefreshToken:
             "/api/v1/auth/register",
             json={"username": "testuser", "password": "password123"},
         )
-        login_response = client.post(
+        client.post(
             "/api/v1/auth/login",
             json={"username": "testuser", "password": "password123"},
         )

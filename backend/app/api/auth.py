@@ -3,7 +3,6 @@
 """
 
 import logging
-
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
@@ -18,7 +17,6 @@ from app.models.user import User
 from app.schemas.auth import (
     MessageResponse,
     PasswordChange,
-    RefreshTokenRequest,
     TokenResponse,
     UserLogin,
     UsernameCheckResponse,
