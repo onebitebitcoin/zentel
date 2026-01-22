@@ -82,3 +82,6 @@ temp/
 # OS
 Thumbs.db
 desktop.ini
+
+# Playwright cookies (민감 정보)
+samples/*_cookies.json
