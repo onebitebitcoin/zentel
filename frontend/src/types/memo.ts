@@ -7,6 +7,8 @@ export type MemoType =
   | 'UNRESOLVED_PROBLEM'
   | 'EMOTION';
 
+export type AnalysisStatus = 'pending' | 'analyzing' | 'completed' | 'failed';
+
 export interface MemoCommentSummary {
   id: string;
   content: string;
@@ -25,6 +27,8 @@ export interface TempMemo {
   og_image: string | null;
   fetch_failed: boolean;
   fetch_message: string | null;
+  analysis_status: AnalysisStatus;
+  analysis_error: string | null;
   created_at: string;
   updated_at: string | null;
   comment_count: number;

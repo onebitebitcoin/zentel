@@ -29,3 +29,6 @@ openai>=1.0.0
 
 # Web Scraping
 playwright==1.40.0
+
+# SSE (Server-Sent Events)
+sse-starlette==2.0.0

@@ -3,14 +3,18 @@
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import re
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
+from sse_starlette.sse import EventSourceResponse
 
 from app.core.deps import get_current_user_optional
 from app.database import get_db
@@ -18,6 +22,7 @@ from app.models.memo_comment import MemoComment
 from app.models.temp_memo import TempMemo
 from app.models.user import User
 from app.schemas.temp_memo import (
+    AnalysisStatus,
     MemoCommentSummary,
     MemoType,
     TempMemoCreate,
@@ -25,7 +30,11 @@ from app.schemas.temp_memo import (
     TempMemoOut,
     TempMemoUpdate,
 )
-from app.services.context_extractor import context_extractor
+from app.services.analysis_service import (
+    analysis_service,
+    register_sse_client,
+    unregister_sse_client,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +86,8 @@ def memo_to_out(
         og_image=memo.og_image,
         fetch_failed=fetch_failed,
         fetch_message=fetch_message,
+        analysis_status=AnalysisStatus(memo.analysis_status),
+        analysis_error=memo.analysis_error,
         created_at=memo.created_at,
         updated_at=memo.updated_at,
         comment_count=count,
@@ -84,13 +95,40 @@ def memo_to_out(
     )
 
 
+def _run_background_analysis(
+    memo_id: str,
+    user_id: Optional[str],
+    db_url: str,
+):
+    """백그라운드에서 분석 실행 (별도 스레드에서 호출)"""
+    import asyncio
+
+    from app.database import SessionLocal
+
+    async def _async_analysis():
+        db = SessionLocal()
+        try:
+            await analysis_service.run_analysis(memo_id, db, user_id)
+        finally:
+            db.close()
+
+    # 새 이벤트 루프에서 실행
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(_async_analysis())
+    finally:
+        loop.close()
+
+
 @router.post("", response_model=TempMemoOut, status_code=201)
 async def create_temp_memo(
     memo: TempMemoCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """임시 메모 생성 (LLM context 추출 포함)"""
+    """임시 메모 생성 (AI 분석은 백그라운드에서 비동기 처리)"""
     # EXTERNAL_SOURCE 타입이면 content에서 URL 자동 추출
     source_url = memo.source_url
     if memo.memo_type == MemoType.EXTERNAL_SOURCE and not source_url:
@@ -104,58 +142,30 @@ async def create_temp_memo(
         f"content_length={len(memo.content)}, source_url={source_url}"
     )
 
-    # LLM으로 context 추출 + OG 메타데이터
-    context, og_metadata, facts = await context_extractor.extract_context(
-        content=memo.content,
-        memo_type=memo.memo_type.value,
-        source_url=source_url,
-    )
-
-    if context:
-        logger.info(f"Context extracted: {len(context)} chars")
-    else:
-        logger.info("No context extracted")
-
-    if og_metadata:
-        logger.info(f"OG metadata: title={og_metadata.title}, image={og_metadata.image}")
-
-    if facts:
-        logger.info(f"Facts extracted: {len(facts)} items")
-
-    # 로그인 사용자의 관심사 매핑
-    interests: Optional[list[str]] = None
-    if current_user and current_user.interests:
-        logger.info(f"Matching interests for user: {current_user.id}")
-        interests = await context_extractor.match_interests(
-            content=memo.content,
-            user_interests=current_user.interests,
-        )
-        if interests:
-            logger.info(f"Matched interests: {interests}")
-        else:
-            logger.info("No interests matched")
-
+    # 메모 즉시 저장 (analysis_status = "pending")
     db_memo = TempMemo(
         memo_type=memo.memo_type.value,
         content=memo.content,
-        context=context,
-        facts=facts,
-        interests=interests if interests else None,
         source_url=source_url,
-        og_title=og_metadata.title if og_metadata else None,
-        og_image=og_metadata.image if og_metadata else None,
+        analysis_status="pending",
     )
     db.add(db_memo)
     db.commit()
     db.refresh(db_memo)
 
-    logger.info(f"Created temp memo: id={db_memo.id}")
+    logger.info(f"Created temp memo: id={db_memo.id}, starting background analysis")
 
-    # fetch_failed 정보 전달
-    fetch_failed = og_metadata.fetch_failed if og_metadata else False
-    fetch_message = og_metadata.fetch_message if og_metadata else None
+    # 백그라운드에서 AI 분석 실행
+    from app.config import settings
 
-    return memo_to_out(db, db_memo, fetch_failed=fetch_failed, fetch_message=fetch_message)
+    background_tasks.add_task(
+        _run_background_analysis,
+        db_memo.id,
+        current_user.id if current_user else None,
+        settings.DATABASE_URL,
+    )
+
+    return memo_to_out(db, db_memo)
 
 
 @router.get("", response_model=TempMemoListResponse)
@@ -263,3 +273,75 @@ def delete_temp_memo(
 
     logger.info(f"Deleted temp memo: id={memo_id}")
     return None
+
+
+@router.post("/{memo_id}/reanalyze", response_model=TempMemoOut)
+async def reanalyze_memo(
+    memo_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """메모 재분석 요청"""
+    logger.info(f"Reanalyze request: memo_id={memo_id}")
+
+    db_memo = db.query(TempMemo).filter(TempMemo.id == memo_id).first()
+    if not db_memo:
+        logger.warning(f"Temp memo not found: id={memo_id}")
+        raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다.")
+
+    # 이미 분석 중인 경우 거부
+    if db_memo.analysis_status == "analyzing":
+        raise HTTPException(status_code=400, detail="이미 분석 중입니다.")
+
+    # 상태를 pending으로 리셋
+    db_memo.analysis_status = "pending"
+    db_memo.analysis_error = None
+    db.commit()
+    db.refresh(db_memo)
+
+    # 백그라운드에서 재분석 실행
+    from app.config import settings
+
+    background_tasks.add_task(
+        _run_background_analysis,
+        db_memo.id,
+        current_user.id if current_user else None,
+        settings.DATABASE_URL,
+    )
+
+    logger.info(f"Reanalyze started: memo_id={memo_id}")
+    return memo_to_out(db, db_memo)
+
+
+@router.get("/analysis-events")
+async def analysis_events(request: Request):
+    """분석 완료 이벤트를 SSE로 전송"""
+    client_id = str(uuid.uuid4())
+    queue: asyncio.Queue = asyncio.Queue()
+
+    register_sse_client(client_id, queue)
+
+    async def event_generator():
+        try:
+            while True:
+                # 클라이언트 연결 확인
+                if await request.is_disconnected():
+                    logger.info(f"[SSE] Client disconnected: {client_id}")
+                    break
+
+                try:
+                    # 5초마다 keepalive ping 전송
+                    event = await asyncio.wait_for(queue.get(), timeout=5.0)
+                    yield {
+                        "event": "analysis_complete",
+                        "data": json.dumps(event),
+                    }
+                except asyncio.TimeoutError:
+                    # keepalive ping
+                    yield {"event": "ping", "data": ""}
+
+        finally:
+            unregister_sse_client(client_id)
+
+    return EventSourceResponse(event_generator())

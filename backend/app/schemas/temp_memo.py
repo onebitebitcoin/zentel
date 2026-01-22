@@ -21,6 +21,15 @@ class MemoType(str, Enum):
     EMOTION = "EMOTION"
 
 
+class AnalysisStatus(str, Enum):
+    """AI 분석 상태"""
+
+    PENDING = "pending"
+    ANALYZING = "analyzing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class TempMemoCreate(BaseModel):
     """임시 메모 생성 스키마"""
 
@@ -60,6 +69,9 @@ class TempMemoOut(BaseModel):
     og_image: Optional[str] = None
     fetch_failed: bool = False
     fetch_message: Optional[str] = None
+    # AI 분석 상태
+    analysis_status: AnalysisStatus = AnalysisStatus.PENDING
+    analysis_error: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None
     comment_count: int = 0

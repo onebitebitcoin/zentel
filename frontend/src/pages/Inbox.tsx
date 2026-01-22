@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MemoCard } from '../components/memo/MemoCard';
 import { useTempMemos } from '../hooks/useTempMemos';
+import { useAnalysisSSE } from '../hooks/useAnalysisSSE';
 import type { MemoType, MemoTypeInfo } from '../types/memo';
 import { MEMO_TYPES } from '../types/memo';
 
@@ -16,6 +17,23 @@ export function Inbox() {
   const [offset, setOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const limit = 10;
+
+  // SSE로 분석 완료 이벤트 수신
+  const handleAnalysisComplete = useCallback(
+    async (memoId: string, status: string) => {
+      console.log('[Inbox] Analysis complete:', memoId, status);
+      // 해당 메모 새로고침
+      await refreshMemo(memoId);
+      if (status === 'completed') {
+        toast.success('AI 분석이 완료되었습니다.');
+      } else if (status === 'failed') {
+        toast.error('AI 분석에 실패했습니다.');
+      }
+    },
+    [refreshMemo]
+  );
+
+  useAnalysisSSE(handleAnalysisComplete);
 
   useEffect(() => {
     const type = filter === 'ALL' ? undefined : filter;
@@ -45,6 +63,10 @@ export function Inbox() {
   };
 
   const handleCommentChange = async (memoId: string) => {
+    await refreshMemo(memoId);
+  };
+
+  const handleReanalyze = async (memoId: string) => {
     await refreshMemo(memoId);
   };
 
@@ -149,6 +171,7 @@ export function Inbox() {
                 onEdit={() => handleEdit(memo.id)}
                 onDelete={handleDelete}
                 onCommentChange={() => handleCommentChange(memo.id)}
+                onReanalyze={handleReanalyze}
               />
             ))}
             {hasMore && (

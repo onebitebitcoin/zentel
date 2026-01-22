@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, ExternalLink, Copy, RefreshCw, Plus, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, ExternalLink, Copy, RefreshCw, Plus, X, Trash2, Loader2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemo, MemoType, TempMemoUpdate } from '../types/memo';
 import { MemoTypeChips } from '../components/memo/MemoTypeChips';
 import { formatDateTime } from '../utils/date';
 import { useAuth } from '../contexts/AuthContext';
 import { tempMemoApi } from '../api/client';
+import { useAnalysisSSE } from '../hooks/useAnalysisSSE';
 
 export function MemoEdit() {
   const { id } = useParams<{ id: string }>();
@@ -20,11 +21,36 @@ export function MemoEdit() {
   const [interests, setInterests] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [rematching, setRematching] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
   const [factsExpanded, setFactsExpanded] = useState(false);
   const [showInterestPicker, setShowInterestPicker] = useState(false);
 
   const userInterests: string[] = user?.interests || [];
   const availableInterests = userInterests.filter((i: string) => !interests.includes(i));
+
+  const isAnalyzing = memo?.analysis_status === 'pending' || memo?.analysis_status === 'analyzing';
+  const isAnalysisFailed = memo?.analysis_status === 'failed';
+
+  // SSE로 분석 완료 이벤트 수신
+  const handleAnalysisComplete = useCallback(
+    async (memoId: string, status: string) => {
+      if (memoId === id) {
+        console.log('[MemoEdit] Analysis complete:', memoId, status);
+        // 메모 새로고침
+        const data = await tempMemoApi.get(memoId);
+        setMemo(data);
+        setInterests(data.interests || []);
+        if (status === 'completed') {
+          toast.success('AI 분석이 완료되었습니다.');
+        } else if (status === 'failed') {
+          toast.error('AI 분석에 실패했습니다.');
+        }
+      }
+    },
+    [id]
+  );
+
+  useAnalysisSSE(handleAnalysisComplete);
 
   const hasChanges = memo
     ? memoType !== memo.memo_type ||
@@ -122,6 +148,20 @@ export function MemoEdit() {
   const handleAddInterest = (interest: string) => {
     setInterests((prev) => [...prev, interest]);
     setShowInterestPicker(false);
+  };
+
+  const handleReanalyze = async () => {
+    if (!memo || reanalyzing) return;
+    setReanalyzing(true);
+    try {
+      const updated = await tempMemoApi.reanalyze(memo.id);
+      setMemo(updated);
+      toast.success('재분석을 시작했습니다.');
+    } catch {
+      toast.error('재분석 요청에 실패했습니다.');
+    } finally {
+      setReanalyzing(false);
+    }
   };
 
   if (loading) {
@@ -265,18 +305,61 @@ export function MemoEdit() {
             )}
           </div>
 
-          {/* Context */}
-          {memo.context && (
+          {/* AI 분석 상태 */}
+          {isAnalyzing && (
+            <div className="border-t border-gray-100 pt-3">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Loader2 size={16} className="animate-spin text-primary" />
+                <span>AI 분석중...</span>
+              </div>
+            </div>
+          )}
+
+          {/* 분석 실패 */}
+          {isAnalysisFailed && (
+            <div className="border-t border-gray-100 pt-3">
+              <div className="flex items-center gap-2 text-sm text-red-500">
+                <AlertCircle size={16} />
+                <span>분석 실패</span>
+                <button
+                  type="button"
+                  onClick={handleReanalyze}
+                  disabled={reanalyzing}
+                  className="flex items-center gap-1 text-primary hover:text-primary-600 ml-auto"
+                >
+                  <RefreshCw size={14} className={reanalyzing ? 'animate-spin' : ''} />
+                  다시 분석
+                </button>
+              </div>
+              {memo.analysis_error && (
+                <p className="mt-1 text-xs text-red-400">{memo.analysis_error}</p>
+              )}
+            </div>
+          )}
+
+          {/* Context (분석 완료 시에만 표시) */}
+          {memo.analysis_status === 'completed' && memo.context && (
             <div className="border-t border-gray-100 pt-3 space-y-1">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                Context
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  Context
+                </span>
+                <button
+                  type="button"
+                  onClick={handleReanalyze}
+                  disabled={reanalyzing}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary"
+                >
+                  <RefreshCw size={12} className={reanalyzing ? 'animate-spin' : ''} />
+                  다시 분석
+                </button>
+              </div>
               <p className="text-sm text-gray-700">{memo.context}</p>
             </div>
           )}
 
-          {/* Facts */}
-          {memo.memo_type === 'EXTERNAL_SOURCE' && facts.length > 0 && (
+          {/* Facts (분석 완료 시에만 표시) */}
+          {memo.analysis_status === 'completed' && memo.memo_type === 'EXTERNAL_SOURCE' && facts.length > 0 && (
             <div className="border-t border-gray-100 pt-3 space-y-2">
               <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                 Facts

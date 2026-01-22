@@ -37,6 +37,11 @@ class TempMemo(Base):
     source_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     og_title: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     og_image: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
+    # AI 분석 상태
+    analysis_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending"
+    )  # pending | analyzing | completed | failed
+    analysis_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[str] = mapped_column(String(64), nullable=False, default=now_iso)
     updated_at: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 

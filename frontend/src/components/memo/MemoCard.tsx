@@ -1,23 +1,43 @@
 import { useState } from 'react';
-import { Pencil, Trash2, ExternalLink, Copy, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Pencil, Trash2, ExternalLink, Copy, MessageCircle, ChevronDown, ChevronUp, RefreshCw, Loader2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemo } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
 import { getRelativeTime } from '../../utils/date';
 import { CommentList } from './CommentList';
+import { tempMemoApi } from '../../api/client';
 
 interface MemoCardProps {
   memo: TempMemo;
   onEdit: () => void;
   onDelete: (id: string) => void;
   onCommentChange?: () => void;
+  onReanalyze?: (id: string) => void;
 }
 
-export function MemoCard({ memo, onEdit, onDelete, onCommentChange }: MemoCardProps) {
+export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze }: MemoCardProps) {
   const typeInfo = getMemoTypeInfo(memo.memo_type);
   const [factsExpanded, setFactsExpanded] = useState(false);
   const [contentExpanded, setContentExpanded] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
+
+  const isAnalyzing = memo.analysis_status === 'pending' || memo.analysis_status === 'analyzing';
+  const isAnalysisFailed = memo.analysis_status === 'failed';
+
+  const handleReanalyze = async () => {
+    if (reanalyzing) return;
+    setReanalyzing(true);
+    try {
+      await tempMemoApi.reanalyze(memo.id);
+      toast.success('재분석을 시작했습니다.');
+      onReanalyze?.(memo.id);
+    } catch {
+      toast.error('재분석 요청에 실패했습니다.');
+    } finally {
+      setReanalyzing(false);
+    }
+  };
 
   // 메모 내용 분리 로직
   const lines = memo.content.split('\n').filter((line) => line.trim());
@@ -87,16 +107,59 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange }: MemoCardPr
         </div>
       )}
 
-      {/* Context */}
-      {memo.context && (
+      {/* AI 분석 상태 */}
+      {isAnalyzing && (
         <div className="border-t border-gray-100 pt-2">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wide">Context</span>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <Loader2 size={14} className="animate-spin text-primary" />
+            <span>AI 분석중...</span>
+          </div>
+        </div>
+      )}
+
+      {/* 분석 실패 */}
+      {isAnalysisFailed && (
+        <div className="border-t border-gray-100 pt-2">
+          <div className="flex items-center gap-2 text-xs text-red-500">
+            <AlertCircle size={14} />
+            <span>분석 실패</span>
+            <button
+              type="button"
+              onClick={handleReanalyze}
+              disabled={reanalyzing}
+              className="flex items-center gap-1 text-primary hover:text-primary-600 ml-auto"
+            >
+              <RefreshCw size={12} className={reanalyzing ? 'animate-spin' : ''} />
+              다시 분석
+            </button>
+          </div>
+          {memo.analysis_error && (
+            <p className="mt-1 text-[10px] text-red-400 line-clamp-2">{memo.analysis_error}</p>
+          )}
+        </div>
+      )}
+
+      {/* Context (분석 완료 시에만 표시) */}
+      {memo.analysis_status === 'completed' && memo.context && (
+        <div className="border-t border-gray-100 pt-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-gray-400 uppercase tracking-wide">Context</span>
+            <button
+              type="button"
+              onClick={handleReanalyze}
+              disabled={reanalyzing}
+              className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-primary"
+            >
+              <RefreshCw size={10} className={reanalyzing ? 'animate-spin' : ''} />
+              다시 분석
+            </button>
+          </div>
           <p className="text-xs text-gray-700 line-clamp-2">{memo.context}</p>
         </div>
       )}
 
-      {/* Facts */}
-      {memo.memo_type === 'EXTERNAL_SOURCE' && facts.length > 0 && (
+      {/* Facts (분석 완료 시에만 표시) */}
+      {memo.analysis_status === 'completed' && memo.memo_type === 'EXTERNAL_SOURCE' && facts.length > 0 && (
         <div className="border-t border-gray-100 pt-2">
           <span className="text-[10px] text-gray-400 uppercase tracking-wide">Facts</span>
           <div className="mt-1 text-xs text-gray-700 space-y-1">

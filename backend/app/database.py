@@ -64,3 +64,24 @@ def _run_migrations():
                     conn.execute(text("ALTER TABLE temp_memos ADD COLUMN interests JSONB"))
                 conn.commit()
             logger.info("Migration: 'interests' column added successfully")
+
+        # analysis_status 컬럼 추가
+        if "analysis_status" not in columns:
+            logger.info("Migration: Adding 'analysis_status' column to temp_memos table")
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE temp_memos ADD COLUMN analysis_status "
+                        "VARCHAR(32) NOT NULL DEFAULT 'completed'"
+                    )
+                )
+                conn.commit()
+            logger.info("Migration: 'analysis_status' column added successfully")
+
+        # analysis_error 컬럼 추가
+        if "analysis_error" not in columns:
+            logger.info("Migration: Adding 'analysis_error' column to temp_memos table")
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE temp_memos ADD COLUMN analysis_error TEXT"))
+                conn.commit()
+            logger.info("Migration: 'analysis_error' column added successfully")

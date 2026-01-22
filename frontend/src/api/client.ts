@@ -120,6 +120,14 @@ export const tempMemoApi = {
   delete: async (id: string): Promise<void> => {
     await api.delete(`/temp-memos/${id}`);
   },
+
+  /**
+   * 메모 재분석 요청
+   */
+  reanalyze: async (id: string): Promise<TempMemo> => {
+    const response = await api.post<TempMemo>(`/temp-memos/${id}/reanalyze`);
+    return response.data;
+  },
 };
 
 export const commentApi = {
