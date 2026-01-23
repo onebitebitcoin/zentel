@@ -40,6 +40,7 @@ RUN pip install --no-cache-dir python-ulid==2.7.0
 RUN pip install --no-cache-dir "python-jose[cryptography]==3.3.0"
 RUN pip install --no-cache-dir "passlib[bcrypt]==1.7.4" "bcrypt>=4.0.0,<5.0.0"
 RUN pip install --no-cache-dir "openai>=1.0.0"
+RUN pip install --no-cache-dir sse-starlette==2.0.0
 
 # Copy backend source code
 COPY backend/ ./backend/
