@@ -27,9 +27,26 @@ FROM python:3.11-slim AS production
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies for Playwright Chromium
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    # Playwright Chromium dependencies
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libatspi2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies one by one to reduce memory usage
@@ -41,6 +58,10 @@ RUN pip install --no-cache-dir "python-jose[cryptography]==3.3.0"
 RUN pip install --no-cache-dir "passlib[bcrypt]==1.7.4" "bcrypt>=4.0.0,<5.0.0"
 RUN pip install --no-cache-dir "openai>=1.0.0"
 RUN pip install --no-cache-dir sse-starlette==2.0.0
+RUN pip install --no-cache-dir httpx==0.27.0 playwright==1.49.0
+
+# Install Playwright Chromium browser
+RUN playwright install chromium
 
 # Copy backend source code
 COPY backend/ ./backend/
