@@ -452,25 +452,29 @@ class ContextExtractor:
             logger.error(f"Interest matching failed: {e}", exc_info=True)
             return []
 
-    async def detect_language(self, text: str) -> Optional[str]:
+    async def translate_and_highlight(
+        self, text: str
+    ) -> tuple[Optional[str], Optional[str], Optional[list[dict]]]:
         """
-        텍스트의 언어 감지
+        언어 감지 + 번역 + 하이라이트 추출을 1회 LLM 호출로 처리 (비용 절감)
 
         Args:
             text: 분석할 텍스트
 
         Returns:
-            ISO 639-1 코드 (ko, en, ja 등) 또는 None
+            (언어코드, 번역본, 하이라이트 목록) 튜플
+            - 언어코드: ISO 639-1 코드 (ko, en, ja 등)
+            - 번역본: 한국어가 아닌 경우에만 번역본, 한국어면 None
+            - 하이라이트: 번역본이 있으면 번역본 기준, 없으면 원문 기준
         """
+        import json
+
         if not self.client:
-            return None
+            return None, None, None
 
-        # 분석할 텍스트가 너무 짧으면 None
-        if len(text.strip()) < 10:
-            return None
-
-        # 분석용 텍스트는 앞부분만 사용 (토큰 절약)
-        sample_text = text[:500]
+        # 텍스트가 너무 짧으면 스킵
+        if len(text.strip()) < 20:
+            return None, None, None
 
         try:
             response = self.client.chat.completions.create(
@@ -479,142 +483,79 @@ class ContextExtractor:
                     {
                         "role": "system",
                         "content": (
-                            "Detect the primary language of the given text. "
-                            "Return ONLY the ISO 639-1 language code (e.g., 'ko', 'en', 'ja', 'zh'). "
-                            "No explanation, no punctuation, just the 2-letter code."
-                        ),
-                    },
-                    {"role": "user", "content": sample_text},
-                ],
-                max_tokens=5,
-                temperature=0,
-            )
-
-            lang_code = response.choices[0].message.content
-            if lang_code:
-                lang_code = lang_code.strip().lower()[:2]
-                logger.info(f"Language detected: {lang_code}")
-                return lang_code
-
-            return None
-
-        except Exception as e:
-            logger.error(f"Language detection failed: {e}", exc_info=True)
-            return None
-
-    async def translate_to_korean(self, text: str) -> Optional[str]:
-        """
-        텍스트를 한국어로 번역
-
-        Args:
-            text: 번역할 텍스트
-
-        Returns:
-            한국어 번역문 또는 None
-        """
-        if not self.client:
-            return None
-
-        try:
-            response = self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "Translate the following text to Korean. "
-                            "Provide only the translation, no explanations or additional text. "
-                            "Preserve the original formatting (paragraphs, line breaks)."
-                        ),
-                    },
-                    {"role": "user", "content": text},
-                ],
-                max_tokens=4000,
-                temperature=0.3,
-            )
-
-            translated = response.choices[0].message.content
-            if translated:
-                translated = translated.strip()
-                logger.info(f"Translation completed: {len(translated)} chars")
-                return translated
-
-            return None
-
-        except Exception as e:
-            logger.error(f"Translation failed: {e}", exc_info=True)
-            return None
-
-    async def extract_highlights(self, text: str) -> Optional[list[dict]]:
-        """
-        텍스트에서 핵심 주장과 일반적이지 않은 팩트 추출
-
-        Args:
-            text: 분석할 텍스트
-
-        Returns:
-            하이라이트 목록 또는 None
-            [{"type": "claim"|"fact", "text": "...", "start": n, "end": m, "reason": "..."}]
-        """
-        if not self.client:
-            return None
-
-        try:
-            response = self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "주어진 텍스트에서 다음을 찾아주세요:\n"
-                            "1. 핵심 주장 (claim): 글쓴이의 주요 논점이나 의견\n"
-                            "2. 일반적이지 않은 팩트 (fact): 새롭거나 흥미로운 사실\n\n"
-                            "최대 5개까지만 추출하세요.\n"
-                            "반드시 원문 텍스트에 있는 문장을 그대로 사용하세요.\n\n"
+                            "당신은 텍스트 분석 전문가입니다. 다음 작업을 수행하세요:\n\n"
+                            "1. **언어 감지**: 텍스트의 주요 언어를 ISO 639-1 코드로 감지 (ko, en, ja, zh 등)\n\n"
+                            "2. **번역** (한국어가 아닌 경우만): 전체 내용을 자연스러운 한국어로 번역\n"
+                            "   - 한국어(ko)인 경우 translation은 null로 설정\n\n"
+                            "3. **하이라이트 추출**: 다음 항목을 최대 5개 추출\n"
+                            "   - claim: 핵심 주장, 글쓴이의 주요 논점이나 의견\n"
+                            "   - fact: 일반적이지 않은 팩트, 새롭거나 흥미로운 사실\n"
+                            "   - 번역을 했다면 번역된 텍스트에서 추출, 한국어 원문이면 원문에서 추출\n"
+                            "   - 반드시 해당 텍스트(번역본 또는 원문)에 있는 문장을 그대로 사용\n\n"
                             "JSON 형식으로만 응답하세요:\n"
-                            '[{"type": "claim"|"fact", "text": "원문 그대로", "reason": "선정 이유"}]'
+                            "```json\n"
+                            "{\n"
+                            '  "language": "en",\n'
+                            '  "translation": "번역된 전체 내용..." 또는 null,\n'
+                            '  "highlights": [\n'
+                            '    {"type": "claim", "text": "하이라이트할 문장", "reason": "선정 이유"},\n'
+                            '    {"type": "fact", "text": "하이라이트할 문장", "reason": "선정 이유"}\n'
+                            "  ]\n"
+                            "}\n"
+                            "```"
                         ),
                     },
                     {"role": "user", "content": text},
                 ],
-                max_tokens=1000,
-                temperature=0.2,
+                max_tokens=4500,
+                temperature=0.3,
             )
 
             raw = response.choices[0].message.content or ""
             raw = raw.strip()
-
-            # JSON 파싱
-            import json
 
             # 마크다운 코드 블록 제거
             if raw.startswith("```"):
                 raw = re.sub(r"^```(?:json)?\n?", "", raw)
                 raw = re.sub(r"\n?```$", "", raw)
 
-            highlights = json.loads(raw)
+            result = json.loads(raw)
 
-            # start/end 위치 계산
-            result = []
-            for item in highlights:
+            # 언어 코드
+            language = result.get("language")
+            if language:
+                language = language.strip().lower()[:2]
+
+            # 번역본
+            translation = result.get("translation")
+            if translation:
+                translation = translation.strip()
+
+            # 하이라이트 처리
+            highlights_raw = result.get("highlights", [])
+            # 하이라이트 대상 텍스트 (번역본 있으면 번역본, 없으면 원문)
+            highlight_target = translation if translation else text
+
+            highlights = []
+            for item in highlights_raw:
                 if not isinstance(item, dict):
                     continue
                 highlight_text = item.get("text", "")
                 if not highlight_text:
                     continue
 
-                # 원문에서 위치 찾기
-                start = text.find(highlight_text)
+                # 대상 텍스트에서 위치 찾기
+                start = highlight_target.find(highlight_text)
                 if start == -1:
                     # 부분 매칭 시도 (앞 50자)
                     short_text = highlight_text[:50]
-                    start = text.find(short_text)
+                    start = highlight_target.find(short_text)
                     if start == -1:
                         continue
 
                 end = start + len(highlight_text)
 
-                result.append(
+                highlights.append(
                     {
                         "type": item.get("type", "fact"),
                         "text": highlight_text,
@@ -624,18 +565,25 @@ class ContextExtractor:
                     }
                 )
 
-            if result:
-                logger.info(f"Highlights extracted: {len(result)} items")
-                return result
+            logger.info(
+                f"[translate_and_highlight] language={language}, "
+                f"translation={'Yes' if translation else 'No'} "
+                f"({len(translation) if translation else 0} chars), "
+                f"highlights={len(highlights)}"
+            )
 
-            return None
+            return (
+                language,
+                translation,
+                highlights if highlights else None,
+            )
 
         except json.JSONDecodeError as e:
-            logger.error(f"Highlights JSON parse failed: {e}")
-            return None
+            logger.error(f"translate_and_highlight JSON parse failed: {e}")
+            return None, None, None
         except Exception as e:
-            logger.error(f"Highlight extraction failed: {e}", exc_info=True)
-            return None
+            logger.error(f"translate_and_highlight failed: {e}", exc_info=True)
+            return None, None, None
 
 
 # 싱글톤 인스턴스

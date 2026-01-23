@@ -238,7 +238,12 @@ class AnalysisService:
         memo: TempMemo,
         fetched_content: Optional[str],
     ) -> None:
-        """번역 및 하이라이트 처리"""
+        """
+        번역 및 하이라이트 처리 (1회 LLM 호출로 통합)
+
+        - 한국어가 아닌 경우: 언어감지 + 번역 + 하이라이트 (번역본 기준)
+        - 한국어인 경우: 언어감지 + 하이라이트 (원문 기준), 번역은 스킵
+        """
         # 분석할 텍스트 결정 (스크래핑 컨텐츠 우선)
         text_to_analyze = fetched_content or memo.content
 
@@ -246,30 +251,22 @@ class AnalysisService:
             logger.info("[AnalysisService] 텍스트가 너무 짧아 번역/하이라이트 스킵")
             return
 
-        # 1. 언어 감지
-        logger.info("[AnalysisService] 언어 감지 시작")
-        lang = await context_extractor.detect_language(text_to_analyze)
+        # 1회 LLM 호출로 언어감지 + 번역 + 하이라이트 처리
+        logger.info("[AnalysisService] 번역/하이라이트 통합 분석 시작 (1회 LLM 호출)")
+        lang, translation, highlights = await context_extractor.translate_and_highlight(
+            text_to_analyze
+        )
+
+        # 결과 저장
         memo.original_language = lang
-        logger.info(f"[AnalysisService] 감지된 언어: {lang}")
-
-        # 2. 한국어가 아니면 번역
-        if lang and lang != "ko":
-            logger.info(f"[AnalysisService] 번역 시작 ({lang} → ko)")
-            translated = await context_extractor.translate_to_korean(text_to_analyze)
-            memo.translated_content = translated
-            logger.info(
-                f"[AnalysisService] 번역 완료: "
-                f"{len(translated) if translated else 0} chars"
-            )
-
-        # 3. 하이라이트 추출 (번역본 있으면 번역본 기준, 없으면 원문)
-        highlight_target = memo.translated_content or text_to_analyze
-        logger.info("[AnalysisService] 하이라이트 추출 시작")
-        highlights = await context_extractor.extract_highlights(highlight_target)
+        memo.translated_content = translation  # 한국어면 None
         memo.highlights = highlights
+
         logger.info(
-            f"[AnalysisService] 하이라이트 추출 완료: "
-            f"{len(highlights) if highlights else 0} items"
+            f"[AnalysisService] 번역/하이라이트 완료: "
+            f"lang={lang}, "
+            f"translation={'Yes' if translation else 'No'}, "
+            f"highlights={len(highlights) if highlights else 0}"
         )
 
 
