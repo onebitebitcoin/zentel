@@ -35,6 +35,7 @@ from app.services.analysis_service import (
     register_sse_client,
     unregister_sse_client,
 )
+from app.services.context_extractor import context_extractor
 
 logger = logging.getLogger(__name__)
 
