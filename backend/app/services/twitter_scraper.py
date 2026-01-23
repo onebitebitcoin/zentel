@@ -363,6 +363,30 @@ class TwitterScraper:
     async def _extract_tweet_content(self, page) -> str:
         """트윗/아티클 본문 텍스트 추출"""
         try:
+            # 0. X Notes/Articles (긴 형식) 본문 추출 시도
+            # X Notes는 별도의 구조를 가짐
+            note_selectors = [
+                '[data-testid="TextFlowRoot"]',  # X Notes 본문
+                '[data-testid="noteComponent"]',
+                'article [data-testid="richTextComponent"]',
+                '[class*="RichTextComposer"] [dir="auto"]',
+            ]
+
+            for selector in note_selectors:
+                elements = await page.query_selector_all(selector)
+                if elements:
+                    texts = []
+                    for elem in elements[:30]:
+                        text = await elem.inner_text()
+                        if text and len(text.strip()) > 5:
+                            texts.append(text.strip())
+                    if texts and len("\n".join(texts)) > 100:
+                        logger.info(
+                            f"[TwitterScraper] X Notes 텍스트 추출: {selector}, "
+                            f"{len(texts)}개, total={len(''.join(texts))}자"
+                        )
+                        return "\n\n".join(texts)
+
             # 1. 트윗 텍스트 요소 찾기
             tweet_elements = await page.query_selector_all('[data-testid="tweetText"]')
             if tweet_elements:
