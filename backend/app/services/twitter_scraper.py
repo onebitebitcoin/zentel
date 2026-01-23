@@ -1,11 +1,11 @@
 """
 Twitter/X 스크래핑 서비스
 
-여러 방법으로 x.com의 컨텐츠를 추출합니다:
-1. Twitter oEmbed API (우선 시도 - 로그인 불필요)
-2. Playwright 브라우저 (fallback)
+X.com의 컨텐츠를 추출합니다:
+1. Syndication API로 메타데이터 추출 (screen_name, tweet_id, article_url)
+2. 아티클 URL이 있으면 정규 트윗 URL로 변환
+3. Playwright로 실제 콘텐츠 추출
 
-- 싱글톤 패턴으로 브라우저 인스턴스 관리
 - 동시 요청 제한 (asyncio.Semaphore)
 - 쿠키 기반 세션 유지
 """
@@ -75,15 +75,9 @@ class TwitterScraper:
         """
         self.timeout = timeout
         self.headless = headless
-        # 일반 User-Agent (데스크톱)
         self.user_agent = (
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-        # 모바일 User-Agent (아티클 접근용)
-        self.mobile_user_agent = (
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
         )
 
         # 쿠키 저장 경로 설정
@@ -131,29 +125,9 @@ class TwitterScraper:
         """
         semaphore = _get_semaphore()
         async with semaphore:
-            # 1. FxTwitter API 시도 (로그인 불필요, 빠름)
-            result = await self._scrape_via_fxtwitter(url)
-            if result.success and result.content:
-                # t.co 링크만 있고 아티클 URL이 있으면 Playwright로 재시도
-                article_url = result.article_url
-                if article_url:
-                    logger.info(f"[TwitterScraper] X 아티클 발견, Playwright로 접근: {article_url}")
-                    article_result = await self._scrape_internal(article_url)
-                    # 아티클 콘텐츠가 제대로 추출되었는지 확인
-                    if article_result.success and article_result.content:
-                        if "이 페이지는 지원되지 않습니다" in article_result.content or \
-                           "This page is not supported" in article_result.content:
-                            # 웹에서 지원되지 않는 콘텐츠
-                            result.og_description = f"X 아티클 (앱에서만 볼 수 있음): {article_url}"
-                            logger.info("[TwitterScraper] X 아티클은 앱에서만 지원됩니다")
-                        else:
-                            # 원본 메타데이터 유지
-                            article_result.og_title = result.og_title or article_result.og_title
-                            return article_result
-                return result
-
-            # 2. Syndication API 시도
+            # 1. Syndication API로 메타데이터 추출
             result = await self._scrape_via_syndication(url)
+
             if result.success and result.content:
                 # t.co 링크만 있고 아티클 URL이 있으면, 정규 트윗 URL로 접근
                 article_url = result.article_url
@@ -162,7 +136,7 @@ class TwitterScraper:
                     web_url = f"https://x.com/{result.screen_name}/status/{result.tweet_id}"
                     logger.info(f"[TwitterScraper] X 아티클 발견, 정규 트윗 URL로 접근: {web_url}")
 
-                    article_result = await self._scrape_internal(web_url)
+                    article_result = await self._scrape_via_playwright(web_url)
                     if article_result.success and article_result.content:
                         if "이 페이지는 지원되지 않습니다" in article_result.content or \
                            "This page is not supported" in article_result.content:
@@ -176,14 +150,9 @@ class TwitterScraper:
                             return article_result
                 return result
 
-            # 3. oEmbed API 시도
-            result = await self._scrape_via_oembed(url)
-            if result.success and result.content:
-                return result
-
-            # 4. 모든 API 실패 시 Playwright 사용 (로그인 후 접근)
-            logger.info("[TwitterScraper] API 실패, Playwright로 재시도...")
-            return await self._scrape_internal(url)
+            # 2. Syndication API 실패 시 Playwright 직접 사용
+            logger.info("[TwitterScraper] Syndication API 실패, Playwright로 재시도...")
+            return await self._scrape_via_playwright(url)
 
     def _extract_tweet_id(self, url: str) -> Optional[str]:
         """URL에서 트윗 ID 추출"""
@@ -194,7 +163,7 @@ class TwitterScraper:
         return None
 
     async def _scrape_via_syndication(self, url: str) -> TwitterScrapingResult:
-        """Twitter syndication API를 통한 컨텐츠 추출"""
+        """Twitter Syndication API를 통한 메타데이터 추출"""
         start_time = time.time()
         result = TwitterScrapingResult()
 
@@ -204,7 +173,7 @@ class TwitterScraper:
                 logger.warning("[TwitterScraper] 트윗 ID 추출 실패")
                 return result
 
-            # syndication API 호출
+            # Syndication API 호출
             api_url = f"https://cdn.syndication.twimg.com/tweet-result?id={tweet_id}&token=x"
 
             headers = {
@@ -232,9 +201,8 @@ class TwitterScraper:
                     if media and len(media) > 0:
                         result.og_image = media[0].get("media_url_https", "")
 
-                    # t.co 링크만 있는 경우 실제 URL 확인
+                    # t.co 링크가 있는 경우 실제 URL 확인
                     if result.content and "t.co/" in result.content:
-                        # t.co 링크 추출
                         tco_match = re.search(r'https://t\.co/\w+', result.content)
                         if tco_match:
                             tco_url = tco_match.group(0)
@@ -250,7 +218,7 @@ class TwitterScraper:
                                 )
                                 result.og_description = f"링크: {final_url}"
 
-                                # X 아티클인 경우 아티클 URL 저장 (나중에 Playwright로 접근)
+                                # X 아티클인 경우 아티클 URL 저장
                                 if "/i/article/" in final_url:
                                     result.article_url = final_url
                             except Exception as e:
@@ -272,160 +240,22 @@ class TwitterScraper:
         result.elapsed_time = time.time() - start_time
         return result
 
-    async def _scrape_via_fxtwitter(self, url: str) -> TwitterScrapingResult:
-        """FxTwitter API를 통한 컨텐츠 추출"""
+    async def _scrape_via_playwright(self, url: str) -> TwitterScrapingResult:
+        """Playwright를 사용한 브라우저 스크래핑"""
         start_time = time.time()
         result = TwitterScrapingResult()
-
-        try:
-            tweet_id = self._extract_tweet_id(url)
-            if not tweet_id:
-                return result
-
-            # FxTwitter API 호출
-            api_url = f"https://api.fxtwitter.com/status/{tweet_id}"
-
-            headers = {
-                "User-Agent": self.user_agent,
-            }
-
-            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                response = await client.get(api_url, headers=headers)
-
-                if response.status_code == 200:
-                    data = response.json()
-                    tweet = data.get("tweet", {})
-
-                    result.content = tweet.get("text", "")
-                    author = tweet.get("author", {})
-                    result.og_title = author.get("name", "")
-
-                    media = tweet.get("media", {})
-                    photos = media.get("photos", [])
-                    if photos:
-                        result.og_image = photos[0].get("url", "")
-
-                    # 내용이 t.co 링크만 있는 경우
-                    logger.info(f"[TwitterScraper] content 확인: '{result.content}'")
-                    if result.content and "t.co/" in result.content:
-                        tco_url = result.content.strip()
-
-                        # t.co 링크를 따라가서 실제 URL 확인
-                        try:
-                            redirect_response = await client.head(
-                                tco_url,
-                                follow_redirects=True,
-                                timeout=5.0
-                            )
-                            final_url = str(redirect_response.url)
-                            logger.info(f"[TwitterScraper] t.co 리다이렉트: {tco_url} -> {final_url}")
-
-                            # 최종 URL 정보 추가
-                            result.og_description = f"링크: {final_url}"
-
-                            # X.com 아티클 URL인 경우 별도 처리 필요
-                            if "x.com" in final_url and "/i/" in final_url:
-                                result.og_description = f"X 아티클 링크: {final_url}"
-
-                        except Exception as e:
-                            logger.warning(f"[TwitterScraper] t.co 리다이렉트 실패: {e}")
-
-                        # quote 트윗이나 카드 정보 확인
-                        quote = tweet.get("quote", {})
-                        if quote:
-                            quote_text = quote.get("text", "")
-                            quote_author = quote.get("author", {}).get("name", "")
-                            if quote_text:
-                                result.content = f"{result.content}\n\n[인용]\n{quote_author}: {quote_text}"
-
-                    result.success = bool(result.content)
-
-                    logger.info(
-                        f"[TwitterScraper] FxTwitter API 성공: content_length={len(result.content)}"
-                    )
-                else:
-                    logger.warning(
-                        f"[TwitterScraper] FxTwitter API 실패: status={response.status_code}"
-                    )
-
-        except Exception as e:
-            logger.warning(f"[TwitterScraper] FxTwitter 실패: {e}")
-
-        result.elapsed_time = time.time() - start_time
-        return result
-
-    async def _scrape_via_oembed(self, url: str) -> TwitterScrapingResult:
-        """Twitter oEmbed API를 통한 컨텐츠 추출"""
-        start_time = time.time()
-        result = TwitterScrapingResult()
-
-        try:
-            # URL 정규화 (x.com -> twitter.com)
-            normalized_url = url.replace("x.com", "twitter.com")
-
-            # oEmbed API 호출
-            oembed_url = f"https://publish.twitter.com/oembed?url={normalized_url}"
-
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(oembed_url)
-
-                if response.status_code == 200:
-                    data = response.json()
-
-                    # HTML에서 텍스트 추출
-                    html = data.get("html", "")
-                    # <blockquote> 태그 내용 추출
-                    text_match = re.search(
-                        r'<p[^>]*>(.*?)</p>',
-                        html,
-                        re.DOTALL | re.IGNORECASE
-                    )
-                    if text_match:
-                        # HTML 태그 제거
-                        text = re.sub(r'<[^>]+>', '', text_match.group(1))
-                        text = text.strip()
-                        result.content = text
-
-                    result.og_title = data.get("author_name", "")
-                    result.success = bool(result.content)
-
-                    logger.info(
-                        f"[TwitterScraper] oEmbed 성공: content_length={len(result.content)}"
-                    )
-                else:
-                    logger.warning(
-                        f"[TwitterScraper] oEmbed API 실패: status={response.status_code}"
-                    )
-
-        except Exception as e:
-            logger.warning(f"[TwitterScraper] oEmbed 실패: {e}")
-
-        result.elapsed_time = time.time() - start_time
-        return result
-
-    async def _scrape_internal(self, url: str) -> TwitterScrapingResult:
-        """내부 스크래핑 로직 - 먼저 로그인 후 URL 접근"""
-        start_time = time.time()
-        result = TwitterScrapingResult()
-
-        # 아티클 URL인 경우 모바일 UA 사용
-        is_article = "/i/article/" in url
-        user_agent = self.mobile_user_agent if is_article else self.user_agent
-        viewport = {"width": 390, "height": 844} if is_article else {"width": 1280, "height": 720}
 
         try:
             from playwright.async_api import async_playwright
 
             async with async_playwright() as p:
-                logger.info(f"[TwitterScraper] 브라우저 시작 (headless={self.headless}, is_article={is_article})")
+                logger.info(f"[TwitterScraper] 브라우저 시작 (headless={self.headless})")
 
-                # Chromium 사용 (Firefox는 X 아티클 미지원)
                 browser = await p.chromium.launch(headless=self.headless)
 
                 context = await browser.new_context(
-                    user_agent=user_agent,
-                    viewport=viewport,
-                    is_mobile=is_article,
+                    user_agent=self.user_agent,
+                    viewport={"width": 1280, "height": 720},
                 )
 
                 # 쿠키 로드
@@ -456,20 +286,18 @@ class TwitterScraper:
                 await page.goto(url, timeout=self.timeout, wait_until="load")
                 await page.wait_for_timeout(3000)
 
-                # 4. 아티클/스레드 콘텐츠 확인
+                # 4. 콘텐츠 확인
                 tweet_elements = await page.query_selector_all('[data-testid="tweetText"]')
                 logger.info(f"[TwitterScraper] 트윗 요소 발견: {len(tweet_elements)}개")
 
-                # 아티클인 경우 추가 대기 및 다른 셀렉터 시도
+                # 트윗 요소가 없으면 다른 셀렉터 시도
                 if not tweet_elements:
                     await page.wait_for_timeout(3000)
 
-                    # 아티클 콘텐츠 셀렉터 (여러 가지 시도)
                     article_selectors = [
                         '[data-testid="article"]',
                         '[role="article"]',
                         'article[data-testid]',
-                        '.r-1oszu61',  # 아티클 본문 클래스
                         '[data-testid="cellInnerDiv"]',
                     ]
 
@@ -536,11 +364,11 @@ class TwitterScraper:
     async def _extract_tweet_content(self, page) -> str:
         """트윗/아티클 본문 텍스트 추출"""
         try:
-            # 1. 트윗 텍스트 요소 찾기 (data-testid="tweetText")
+            # 1. 트윗 텍스트 요소 찾기
             tweet_elements = await page.query_selector_all('[data-testid="tweetText"]')
             if tweet_elements:
                 texts = []
-                for elem in tweet_elements[:5]:  # 최대 5개
+                for elem in tweet_elements[:5]:
                     text = await elem.inner_text()
                     if text:
                         texts.append(text.strip())
@@ -559,9 +387,9 @@ class TwitterScraper:
                 elements = await page.query_selector_all(selector)
                 if elements:
                     texts = []
-                    for elem in elements[:20]:  # 최대 20개
+                    for elem in elements[:20]:
                         text = await elem.inner_text()
-                        if text and len(text) > 10:  # 짧은 텍스트 제외
+                        if text and len(text) > 10:
                             texts.append(text.strip())
                     if texts:
                         logger.info(f"[TwitterScraper] 아티클 텍스트 추출: {selector}, {len(texts)}개")
@@ -571,14 +399,12 @@ class TwitterScraper:
             text = await page.evaluate(
                 """
                 () => {
-                    // 메인 콘텐츠 영역 찾기
                     const main = document.querySelector('main') ||
                                  document.querySelector('[role="main"]') ||
                                  document.body;
 
                     const clone = main.cloneNode(true);
 
-                    // 불필요한 요소 제거
                     const removeSelectors = [
                         'script', 'style', 'noscript', 'nav', 'header', 'footer',
                         '[role="navigation"]', '[data-testid="sidebarColumn"]',
@@ -593,7 +419,7 @@ class TwitterScraper:
                 }
             """
             )
-            return text[:5000] if text else ""  # 최대 5000자
+            return text[:5000] if text else ""
 
         except Exception as e:
             logger.error(f"[TwitterScraper] 텍스트 추출 실패: {e}")
@@ -656,7 +482,7 @@ class TwitterScraper:
                 'button:has-text("다음")',
                 'div[role="button"]:has-text("Next")',
                 'div[role="button"]:has-text("다음")',
-                'button[type="button"]:not([data-testid])',  # 일반 버튼
+                'button[type="button"]:not([data-testid])',
             ]
             next_button = None
             for selector in next_selectors:
@@ -669,7 +495,6 @@ class TwitterScraper:
                 await next_button.click()
                 await page.wait_for_timeout(2000)
             else:
-                # Enter 키로 대체
                 await username_input.press("Enter")
                 await page.wait_for_timeout(2000)
 
@@ -699,7 +524,6 @@ class TwitterScraper:
                 await login_button.click()
                 await page.wait_for_timeout(3000)
             else:
-                # Enter 키로 대체
                 await password_input.press("Enter")
                 await page.wait_for_timeout(3000)
 
