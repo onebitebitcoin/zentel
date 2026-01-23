@@ -146,12 +146,26 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
   const handleReanalyze = async () => {
     if (reanalyzing) return;
     setReanalyzing(true);
+    setAnalysisTimedOut(false);
+    setTimeoutMessage(null);
     try {
       await tempMemoApi.reanalyze(memo.id);
       toast.success('재분석을 시작했습니다.');
       onReanalyze?.(memo.id);
-    } catch {
-      toast.error('재분석 요청에 실패했습니다.');
+    } catch (err) {
+      // axios 에러에서 상세 메시지 추출
+      let errorMsg = '재분석 요청에 실패했습니다.';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { detail?: string }, status?: number } };
+        if (axiosErr.response?.data?.detail) {
+          errorMsg = axiosErr.response.data.detail;
+        } else if (axiosErr.response?.status === 404) {
+          errorMsg = '메모를 찾을 수 없습니다.';
+        } else if (axiosErr.response?.status === 400) {
+          errorMsg = '이미 분석 중입니다.';
+        }
+      }
+      toast.error(errorMsg);
     } finally {
       setReanalyzing(false);
     }
