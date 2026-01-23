@@ -52,6 +52,8 @@ class TwitterScrapingResult:
     error: Optional[str] = None
     elapsed_time: float = 0.0
     article_url: Optional[str] = None  # X 아티클 URL (있는 경우)
+    screen_name: Optional[str] = None  # 작성자 screen_name (username)
+    tweet_id: Optional[str] = None  # 트윗 ID
 
 
 class TwitterScraper:
@@ -153,19 +155,24 @@ class TwitterScraper:
             # 2. Syndication API 시도
             result = await self._scrape_via_syndication(url)
             if result.success and result.content:
-                # t.co 링크만 있고 아티클 URL이 있으면 Playwright로 재시도
+                # t.co 링크만 있고 아티클 URL이 있으면, 정규 트윗 URL로 접근
                 article_url = result.article_url
-                if article_url:
-                    logger.info(f"[TwitterScraper] X 아티클 발견, Playwright로 접근: {article_url}")
-                    article_result = await self._scrape_internal(article_url)
+                if article_url and result.screen_name and result.tweet_id:
+                    # /i/article/ 대신 /username/status/ID 형식으로 접근
+                    web_url = f"https://x.com/{result.screen_name}/status/{result.tweet_id}"
+                    logger.info(f"[TwitterScraper] X 아티클 발견, 정규 트윗 URL로 접근: {web_url}")
+
+                    article_result = await self._scrape_internal(web_url)
                     if article_result.success and article_result.content:
                         if "이 페이지는 지원되지 않습니다" in article_result.content or \
                            "This page is not supported" in article_result.content:
-                            # 웹에서 지원되지 않는 콘텐츠
-                            result.og_description = f"X 아티클 (앱에서만 볼 수 있음): {article_url}"
+                            # 웹에서 지원되지 않는 콘텐츠 - 아티클 URL 저장
+                            result.og_description = f"X 아티클: {article_url}"
                             logger.info("[TwitterScraper] X 아티클은 앱에서만 지원됩니다")
                         else:
+                            # 성공적으로 추출
                             article_result.og_title = result.og_title or article_result.og_title
+                            article_result.og_description = f"아티클: {article_url}"
                             return article_result
                 return result
 
@@ -217,6 +224,8 @@ class TwitterScraper:
                     # 사용자 정보
                     user = data.get("user", {})
                     result.og_title = user.get("name", "")
+                    result.screen_name = user.get("screen_name", "")
+                    result.tweet_id = tweet_id
 
                     # 미디어 정보
                     media = data.get("mediaDetails", [])
