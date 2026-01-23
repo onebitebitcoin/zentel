@@ -194,26 +194,20 @@ class AnalysisService:
                 text_to_analyze, memo.memo_type
             )
 
-            # facts 추출
-            facts_text = f"사용자 메모: {content}\n\n{fetched_content}" if content else fetched_content
-            facts = await context_extractor.call_llm_facts(facts_text)
-
             # 결과 저장
             memo.context = context
-            memo.facts = facts
             memo.og_title = og_title or memo.og_title
             memo.og_image = og_image or memo.og_image
 
         else:
             # Twitter 컨텐츠 없이 일반 분석
-            context, og_metadata, facts = await context_extractor.extract_context(
+            context, og_metadata, _ = await context_extractor.extract_context(
                 content=content,
                 memo_type=memo.memo_type,
                 source_url=source_url,
             )
 
             memo.context = context
-            memo.facts = facts
             if og_metadata:
                 memo.og_title = og_metadata.title or memo.og_title
                 memo.og_image = og_metadata.image or memo.og_image

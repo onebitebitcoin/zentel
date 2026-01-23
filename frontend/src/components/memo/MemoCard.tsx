@@ -20,7 +20,6 @@ interface MemoCardProps {
 
 export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze }: MemoCardProps) {
   const typeInfo = getMemoTypeInfo(memo.memo_type);
-  const [factsExpanded, setFactsExpanded] = useState(false);
   const [contentExpanded, setContentExpanded] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [translationExpanded, setTranslationExpanded] = useState(false);
@@ -183,14 +182,6 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
   // 본문이 길면 더보기 표시 (150자 또는 3줄 이상)
   const bodyLines = body.split('\n');
   const isLongContent = body.length > 150 || bodyLines.length > 3;
-  const maxFactLength = 120;
-  const facts = memo.facts?.slice(0, 3) ?? [];
-  const hasTruncatedFacts = facts.some((fact) => fact.length > maxFactLength);
-  const visibleFacts = factsExpanded
-    ? facts
-    : facts.map((fact) =>
-        fact.length > maxFactLength ? `${fact.slice(0, maxFactLength)}...` : fact,
-      );
 
   const handleCopy = async () => {
     try {
@@ -318,29 +309,6 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
             </button>
           </div>
           <p className="text-xs text-gray-700 line-clamp-2">{memo.context}</p>
-        </div>
-      )}
-
-      {/* Facts (분석 완료 시에만 표시) */}
-      {memo.analysis_status === 'completed' && memo.memo_type === 'EXTERNAL_SOURCE' && facts.length > 0 && (
-        <div className="border-t border-gray-100 pt-2">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wide">Facts</span>
-          <div className="mt-1 text-xs text-gray-700 space-y-1">
-            {visibleFacts.map((fact, index) => (
-              <p key={`${memo.id}-fact-${index}`} className="break-words">
-                - {fact}
-              </p>
-            ))}
-          </div>
-          {hasTruncatedFacts && (
-            <button
-              type="button"
-              onClick={() => setFactsExpanded((prev) => !prev)}
-              className="mt-1 text-xs text-primary hover:text-primary-600"
-            >
-              {factsExpanded ? '접기' : '더보기'}
-            </button>
-          )}
         </div>
       )}
 
