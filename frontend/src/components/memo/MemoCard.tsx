@@ -26,22 +26,47 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
   const [translationExpanded, setTranslationExpanded] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [analysisTimedOut, setAnalysisTimedOut] = useState(false);
+  const [timeoutMessage, setTimeoutMessage] = useState<string | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isAnalyzing = memo.analysis_status === 'pending' || memo.analysis_status === 'analyzing';
   const isAnalysisFailed = memo.analysis_status === 'failed';
 
+  // 타임아웃 시 서버 상태 확인
+  const checkServerStatus = async () => {
+    setCheckingStatus(true);
+    try {
+      const serverMemo = await tempMemoApi.get(memo.id);
+      if (serverMemo.analysis_status === 'completed') {
+        setTimeoutMessage('분석 완료됨 - 새로고침 필요');
+        onReanalyze?.(memo.id); // 상태 갱신 트리거
+      } else if (serverMemo.analysis_status === 'failed') {
+        setTimeoutMessage(serverMemo.analysis_error || '분석 실패');
+      } else {
+        setTimeoutMessage('서버에서 아직 분석 중');
+      }
+    } catch {
+      setTimeoutMessage('서버 연결 실패');
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
+
   // 분석 타임아웃 처리
   useEffect(() => {
     if (isAnalyzing && !analysisTimedOut) {
       // 타임아웃 설정
-      timeoutRef.current = setTimeout(() => {
+      timeoutRef.current = setTimeout(async () => {
         setAnalysisTimedOut(true);
         console.log(`[MemoCard] 분석 타임아웃: ${memo.id}`);
+        // 서버 상태 자동 확인
+        await checkServerStatus();
       }, ANALYSIS_TIMEOUT_SEC * 1000);
     } else if (!isAnalyzing) {
       // 분석 완료되면 타임아웃 해제
       setAnalysisTimedOut(false);
+      setTimeoutMessage(null);
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
@@ -53,7 +78,8 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [isAnalyzing, analysisTimedOut, memo.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAnalyzing, memo.id]);
 
   // 번역 가능 여부 (한국어가 아니고 번역본이 있는 경우)
   const hasTranslation = memo.original_language && memo.original_language !== 'ko' && memo.translated_content;
@@ -217,6 +243,15 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
             <span>분석 지연</span>
             <button
               type="button"
+              onClick={checkServerStatus}
+              disabled={checkingStatus}
+              className="flex items-center gap-1 text-gray-500 hover:text-gray-700"
+            >
+              <RefreshCw size={12} className={checkingStatus ? 'animate-spin' : ''} />
+              상태 확인
+            </button>
+            <button
+              type="button"
               onClick={handleReanalyze}
               disabled={reanalyzing}
               className="flex items-center gap-1 text-primary hover:text-primary-600 ml-auto"
@@ -225,6 +260,9 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
               다시 시도
             </button>
           </div>
+          {timeoutMessage && (
+            <p className="mt-1 text-[10px] text-gray-500">{timeoutMessage}</p>
+          )}
         </div>
       )}
 
