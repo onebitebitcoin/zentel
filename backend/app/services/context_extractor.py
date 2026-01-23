@@ -452,6 +452,191 @@ class ContextExtractor:
             logger.error(f"Interest matching failed: {e}", exc_info=True)
             return []
 
+    async def detect_language(self, text: str) -> Optional[str]:
+        """
+        텍스트의 언어 감지
+
+        Args:
+            text: 분석할 텍스트
+
+        Returns:
+            ISO 639-1 코드 (ko, en, ja 등) 또는 None
+        """
+        if not self.client:
+            return None
+
+        # 분석할 텍스트가 너무 짧으면 None
+        if len(text.strip()) < 10:
+            return None
+
+        # 분석용 텍스트는 앞부분만 사용 (토큰 절약)
+        sample_text = text[:500]
+
+        try:
+            response = self.client.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Detect the primary language of the given text. "
+                            "Return ONLY the ISO 639-1 language code (e.g., 'ko', 'en', 'ja', 'zh'). "
+                            "No explanation, no punctuation, just the 2-letter code."
+                        ),
+                    },
+                    {"role": "user", "content": sample_text},
+                ],
+                max_tokens=5,
+                temperature=0,
+            )
+
+            lang_code = response.choices[0].message.content
+            if lang_code:
+                lang_code = lang_code.strip().lower()[:2]
+                logger.info(f"Language detected: {lang_code}")
+                return lang_code
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Language detection failed: {e}", exc_info=True)
+            return None
+
+    async def translate_to_korean(self, text: str) -> Optional[str]:
+        """
+        텍스트를 한국어로 번역
+
+        Args:
+            text: 번역할 텍스트
+
+        Returns:
+            한국어 번역문 또는 None
+        """
+        if not self.client:
+            return None
+
+        try:
+            response = self.client.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Translate the following text to Korean. "
+                            "Provide only the translation, no explanations or additional text. "
+                            "Preserve the original formatting (paragraphs, line breaks)."
+                        ),
+                    },
+                    {"role": "user", "content": text},
+                ],
+                max_tokens=4000,
+                temperature=0.3,
+            )
+
+            translated = response.choices[0].message.content
+            if translated:
+                translated = translated.strip()
+                logger.info(f"Translation completed: {len(translated)} chars")
+                return translated
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Translation failed: {e}", exc_info=True)
+            return None
+
+    async def extract_highlights(self, text: str) -> Optional[list[dict]]:
+        """
+        텍스트에서 핵심 주장과 일반적이지 않은 팩트 추출
+
+        Args:
+            text: 분석할 텍스트
+
+        Returns:
+            하이라이트 목록 또는 None
+            [{"type": "claim"|"fact", "text": "...", "start": n, "end": m, "reason": "..."}]
+        """
+        if not self.client:
+            return None
+
+        try:
+            response = self.client.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "주어진 텍스트에서 다음을 찾아주세요:\n"
+                            "1. 핵심 주장 (claim): 글쓴이의 주요 논점이나 의견\n"
+                            "2. 일반적이지 않은 팩트 (fact): 새롭거나 흥미로운 사실\n\n"
+                            "최대 5개까지만 추출하세요.\n"
+                            "반드시 원문 텍스트에 있는 문장을 그대로 사용하세요.\n\n"
+                            "JSON 형식으로만 응답하세요:\n"
+                            '[{"type": "claim"|"fact", "text": "원문 그대로", "reason": "선정 이유"}]'
+                        ),
+                    },
+                    {"role": "user", "content": text},
+                ],
+                max_tokens=1000,
+                temperature=0.2,
+            )
+
+            raw = response.choices[0].message.content or ""
+            raw = raw.strip()
+
+            # JSON 파싱
+            import json
+
+            # 마크다운 코드 블록 제거
+            if raw.startswith("```"):
+                raw = re.sub(r"^```(?:json)?\n?", "", raw)
+                raw = re.sub(r"\n?```$", "", raw)
+
+            highlights = json.loads(raw)
+
+            # start/end 위치 계산
+            result = []
+            for item in highlights:
+                if not isinstance(item, dict):
+                    continue
+                highlight_text = item.get("text", "")
+                if not highlight_text:
+                    continue
+
+                # 원문에서 위치 찾기
+                start = text.find(highlight_text)
+                if start == -1:
+                    # 부분 매칭 시도 (앞 50자)
+                    short_text = highlight_text[:50]
+                    start = text.find(short_text)
+                    if start == -1:
+                        continue
+
+                end = start + len(highlight_text)
+
+                result.append(
+                    {
+                        "type": item.get("type", "fact"),
+                        "text": highlight_text,
+                        "start": start,
+                        "end": end,
+                        "reason": item.get("reason"),
+                    }
+                )
+
+            if result:
+                logger.info(f"Highlights extracted: {len(result)} items")
+                return result
+
+            return None
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Highlights JSON parse failed: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Highlight extraction failed: {e}", exc_info=True)
+            return None
+
 
 # 싱글톤 인스턴스
 context_extractor = ContextExtractor()

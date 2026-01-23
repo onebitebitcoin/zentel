@@ -85,3 +85,41 @@ def _run_migrations():
                 conn.execute(text("ALTER TABLE temp_memos ADD COLUMN analysis_error TEXT"))
                 conn.commit()
             logger.info("Migration: 'analysis_error' column added successfully")
+
+        # original_language 컬럼 추가
+        if "original_language" not in columns:
+            logger.info(
+                "Migration: Adding 'original_language' column to temp_memos table"
+            )
+            with engine.connect() as conn:
+                conn.execute(
+                    text("ALTER TABLE temp_memos ADD COLUMN original_language VARCHAR(16)")
+                )
+                conn.commit()
+            logger.info("Migration: 'original_language' column added successfully")
+
+        # translated_content 컬럼 추가
+        if "translated_content" not in columns:
+            logger.info(
+                "Migration: Adding 'translated_content' column to temp_memos table"
+            )
+            with engine.connect() as conn:
+                conn.execute(
+                    text("ALTER TABLE temp_memos ADD COLUMN translated_content TEXT")
+                )
+                conn.commit()
+            logger.info("Migration: 'translated_content' column added successfully")
+
+        # highlights 컬럼 추가
+        if "highlights" not in columns:
+            logger.info("Migration: Adding 'highlights' column to temp_memos table")
+            with engine.connect() as conn:
+                if settings.DATABASE_URL.startswith("sqlite"):
+                    conn.execute(text("ALTER TABLE temp_memos ADD COLUMN highlights TEXT"))
+                else:
+                    # PostgreSQL
+                    conn.execute(
+                        text("ALTER TABLE temp_memos ADD COLUMN highlights JSONB")
+                    )
+                conn.commit()
+            logger.info("Migration: 'highlights' column added successfully")

@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Pencil, Trash2, ExternalLink, Copy, MessageCircle, ChevronDown, ChevronUp, RefreshCw, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useMemo, Fragment } from 'react';
+import { Pencil, Trash2, ExternalLink, Copy, MessageCircle, ChevronDown, ChevronUp, RefreshCw, Loader2, AlertCircle, Languages } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { TempMemo } from '../../types/memo';
+import type { TempMemo, HighlightItem } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
 import { getRelativeTime } from '../../utils/date';
 import { CommentList } from './CommentList';
@@ -20,10 +20,64 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
   const [factsExpanded, setFactsExpanded] = useState(false);
   const [contentExpanded, setContentExpanded] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
+  const [translationExpanded, setTranslationExpanded] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
 
   const isAnalyzing = memo.analysis_status === 'pending' || memo.analysis_status === 'analyzing';
   const isAnalysisFailed = memo.analysis_status === 'failed';
+
+  // 번역 가능 여부 (한국어가 아니고 번역본이 있는 경우)
+  const hasTranslation = memo.original_language && memo.original_language !== 'ko' && memo.translated_content;
+
+  // 하이라이트 렌더링 함수
+  const renderHighlightedText = useMemo(() => {
+    return (text: string, highlights: HighlightItem[] | null) => {
+      if (!highlights || highlights.length === 0) {
+        return <span>{text}</span>;
+      }
+
+      // 하이라이트 위치 정렬
+      const sortedHighlights = [...highlights].sort((a, b) => a.start - b.start);
+      const elements: React.ReactNode[] = [];
+      let lastEnd = 0;
+
+      sortedHighlights.forEach((highlight, idx) => {
+        // 하이라이트 이전 텍스트
+        if (highlight.start > lastEnd) {
+          elements.push(
+            <span key={`text-${idx}`}>{text.slice(lastEnd, highlight.start)}</span>
+          );
+        }
+
+        // 하이라이트된 텍스트
+        elements.push(
+          <span
+            key={`highlight-${idx}`}
+            className="bg-yellow-200 cursor-help relative group"
+            title={highlight.reason || ''}
+          >
+            {text.slice(highlight.start, highlight.end)}
+            {highlight.reason && (
+              <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-[10px] bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                {highlight.reason}
+              </span>
+            )}
+          </span>
+        );
+
+        lastEnd = highlight.end;
+      });
+
+      // 마지막 하이라이트 이후 텍스트
+      if (lastEnd < text.length) {
+        elements.push(
+          <span key="text-last">{text.slice(lastEnd)}</span>
+        );
+      }
+
+      return <Fragment>{elements}</Fragment>;
+    };
+  }, []);
 
   const handleReanalyze = async () => {
     if (reanalyzing) return;
@@ -178,6 +232,47 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
               {factsExpanded ? '접기' : '더보기'}
             </button>
           )}
+        </div>
+      )}
+
+      {/* 번역 섹션 (한국어가 아닌 컨텐츠에만 표시) */}
+      {memo.analysis_status === 'completed' && hasTranslation && (
+        <div className="border-t border-gray-100 pt-2">
+          <button
+            type="button"
+            onClick={() => setTranslationExpanded((prev) => !prev)}
+            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-600"
+          >
+            <Languages size={14} />
+            <span>번역 보기</span>
+            {translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
+          {translationExpanded && memo.translated_content && (
+            <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
+                {renderHighlightedText(memo.translated_content, memo.highlights)}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 하이라이트 (한국어 컨텐츠 - 번역 없이 원문에 하이라이트) */}
+      {memo.analysis_status === 'completed' &&
+       memo.original_language === 'ko' &&
+       memo.highlights &&
+       memo.highlights.length > 0 && (
+        <div className="border-t border-gray-100 pt-2">
+          <span className="text-[10px] text-gray-400 uppercase tracking-wide">Highlights</span>
+          <div className="mt-1 text-xs text-gray-700 space-y-1">
+            {memo.highlights.slice(0, 3).map((highlight, index) => (
+              <p key={`${memo.id}-highlight-${index}`} className="break-words">
+                <span className="bg-yellow-200 cursor-help" title={highlight.reason}>
+                  {highlight.text.length > 100 ? `${highlight.text.slice(0, 100)}...` : highlight.text}
+                </span>
+              </p>
+            ))}
+          </div>
         </div>
       )}
 

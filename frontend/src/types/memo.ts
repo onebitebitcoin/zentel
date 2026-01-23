@@ -9,6 +9,14 @@ export type MemoType =
 
 export type AnalysisStatus = 'pending' | 'analyzing' | 'completed' | 'failed';
 
+export interface HighlightItem {
+  type: 'claim' | 'fact';
+  text: string;
+  start: number;
+  end: number;
+  reason?: string;
+}
+
 export interface MemoCommentSummary {
   id: string;
   content: string;
@@ -29,6 +37,9 @@ export interface TempMemo {
   fetch_message: string | null;
   analysis_status: AnalysisStatus;
   analysis_error: string | null;
+  original_language: string | null;
+  translated_content: string | null;
+  highlights: HighlightItem[] | null;
   created_at: string;
   updated_at: string | null;
   comment_count: number;

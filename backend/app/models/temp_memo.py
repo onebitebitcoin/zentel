@@ -34,6 +34,14 @@ class TempMemo(Base):
         String(32), nullable=False, default="pending"
     )  # pending | analyzing | completed | failed
     analysis_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # 번역 및 하이라이트
+    original_language: Mapped[Optional[str]] = mapped_column(
+        String(16), nullable=True
+    )  # "ko", "en", "ja" 등
+    translated_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    highlights: Mapped[Optional[list[dict]]] = mapped_column(
+        JSON, nullable=True
+    )  # 하이라이트 위치 정보
     created_at: Mapped[str] = mapped_column(String(64), nullable=False, default=now_iso)
     updated_at: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 

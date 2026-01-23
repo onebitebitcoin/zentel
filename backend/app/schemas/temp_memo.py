@@ -30,6 +30,16 @@ class AnalysisStatus(str, Enum):
     FAILED = "failed"
 
 
+class HighlightItem(BaseModel):
+    """하이라이트 항목"""
+
+    type: str  # "claim" | "fact"
+    text: str
+    start: int
+    end: int
+    reason: Optional[str] = None
+
+
 class TempMemoCreate(BaseModel):
     """임시 메모 생성 스키마"""
 
@@ -72,6 +82,10 @@ class TempMemoOut(BaseModel):
     # AI 분석 상태
     analysis_status: AnalysisStatus = AnalysisStatus.PENDING
     analysis_error: Optional[str] = None
+    # 번역 및 하이라이트
+    original_language: Optional[str] = None
+    translated_content: Optional[str] = None
+    highlights: Optional[List[HighlightItem]] = None
     created_at: str
     updated_at: Optional[str] = None
     comment_count: int = 0

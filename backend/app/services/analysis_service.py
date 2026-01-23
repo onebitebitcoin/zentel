@@ -230,6 +230,48 @@ class AnalysisService:
                 memo.interests = interests if interests else None
                 logger.info(f"[AnalysisService] 매핑된 관심사: {interests}")
 
+        # 번역 및 하이라이트 추출
+        await self._process_translation_and_highlights(memo, fetched_content)
+
+    async def _process_translation_and_highlights(
+        self,
+        memo: TempMemo,
+        fetched_content: Optional[str],
+    ) -> None:
+        """번역 및 하이라이트 처리"""
+        # 분석할 텍스트 결정 (스크래핑 컨텐츠 우선)
+        text_to_analyze = fetched_content or memo.content
+
+        if not text_to_analyze or len(text_to_analyze.strip()) < 20:
+            logger.info("[AnalysisService] 텍스트가 너무 짧아 번역/하이라이트 스킵")
+            return
+
+        # 1. 언어 감지
+        logger.info("[AnalysisService] 언어 감지 시작")
+        lang = await context_extractor.detect_language(text_to_analyze)
+        memo.original_language = lang
+        logger.info(f"[AnalysisService] 감지된 언어: {lang}")
+
+        # 2. 한국어가 아니면 번역
+        if lang and lang != "ko":
+            logger.info(f"[AnalysisService] 번역 시작 ({lang} → ko)")
+            translated = await context_extractor.translate_to_korean(text_to_analyze)
+            memo.translated_content = translated
+            logger.info(
+                f"[AnalysisService] 번역 완료: "
+                f"{len(translated) if translated else 0} chars"
+            )
+
+        # 3. 하이라이트 추출 (번역본 있으면 번역본 기준, 없으면 원문)
+        highlight_target = memo.translated_content or text_to_analyze
+        logger.info("[AnalysisService] 하이라이트 추출 시작")
+        highlights = await context_extractor.extract_highlights(highlight_target)
+        memo.highlights = highlights
+        logger.info(
+            f"[AnalysisService] 하이라이트 추출 완료: "
+            f"{len(highlights) if highlights else 0} items"
+        )
+
 
 # 싱글톤 인스턴스
 analysis_service = AnalysisService()
