@@ -313,8 +313,16 @@ class TwitterScraper:
                 result.og_image = og_metadata.get("image")
                 result.og_description = og_metadata.get("description")
 
-                # 본문 텍스트 추출
-                result.content = await self._extract_tweet_content(page)
+                # X 아티클 링크 확인 및 본문 추출
+                article_content = await self._extract_article_content(page)
+                if article_content and len(article_content) > 200:
+                    logger.info(
+                        f"[TwitterScraper] X 아티클 본문 추출 성공: {len(article_content)}자"
+                    )
+                    result.content = article_content
+                else:
+                    # 일반 트윗 본문 추출
+                    result.content = await self._extract_tweet_content(page)
 
                 await browser.close()
                 result.success = True
@@ -359,6 +367,54 @@ class TwitterScraper:
                 pass
 
         return metadata
+
+    async def _extract_article_content(self, page) -> str:
+        """X 아티클 본문 추출 (별도 페이지로 이동)"""
+        try:
+            # 아티클 링크 찾기
+            links = await page.query_selector_all('a[href*="/article/"]')
+            article_url = None
+
+            for link in links:
+                href = await link.get_attribute("href")
+                if href and "/article/" in href and "support.x.com" not in href:
+                    # 상대 경로면 절대 경로로 변환
+                    if href.startswith("/"):
+                        article_url = f"https://x.com{href}"
+                    else:
+                        article_url = href
+                    break
+
+            if not article_url:
+                return ""
+
+            logger.info(f"[TwitterScraper] X 아티클 페이지 발견: {article_url}")
+
+            # 아티클 페이지로 이동
+            await page.goto(article_url, wait_until="domcontentloaded", timeout=20000)
+            await asyncio.sleep(5)
+
+            # main 영역에서 텍스트 추출
+            main = await page.query_selector("main")
+            if main:
+                text = await main.inner_text()
+                if text:
+                    # 불필요한 부분 제거 (처음 몇 줄은 헤더)
+                    lines = text.strip().split("\n")
+                    # 빈 줄 제거하고 본문만 추출
+                    content_lines = [
+                        line.strip()
+                        for line in lines
+                        if line.strip() and len(line.strip()) > 10
+                    ]
+                    if content_lines:
+                        return "\n\n".join(content_lines)
+
+            return ""
+
+        except Exception as e:
+            logger.warning(f"[TwitterScraper] 아티클 추출 실패: {e}")
+            return ""
 
     async def _extract_tweet_content(self, page) -> str:
         """트윗/아티클 본문 텍스트 추출"""

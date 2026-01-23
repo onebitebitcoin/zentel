@@ -476,6 +476,11 @@ class ContextExtractor:
         if len(text.strip()) < 20:
             return None, None, None
 
+        # 긴 텍스트는 잘라서 처리 (토큰 제한)
+        max_chars = 6000
+        is_long_text = len(text) > max_chars
+        truncated_text = text[:max_chars] if is_long_text else text
+
         try:
             response = self.client.chat.completions.create(
                 model=settings.OPENAI_MODEL,
@@ -488,26 +493,26 @@ class ContextExtractor:
                             "2. **번역**: \n"
                             "   - 한국어(ko)가 아닌 모든 언어는 반드시 한국어로 번역\n"
                             "   - 한국어(ko)인 경우에만 translation을 null로 설정\n"
-                            "   - 영어, 일본어, 중국어 등 모든 외국어는 반드시 번역 필수!\n\n"
+                            "   - 긴 글이면 핵심 내용을 요약하여 번역 (500-1500자)\n"
+                            "   - 짧은 글이면 전체 번역\n\n"
                             "3. **하이라이트 추출**: 다음 항목을 최대 5개 추출\n"
                             "   - claim: 핵심 주장, 글쓴이의 주요 논점이나 의견\n"
                             "   - fact: 일반적이지 않은 팩트, 새롭거나 흥미로운 사실\n"
-                            "   - 중요: 번역을 했다면 반드시 번역본(한국어)에서 문장을 추출!\n"
-                            "   - 한국어 원문이면 원문에서 추출\n"
-                            "   - 해당 텍스트에 실제로 있는 문장을 그대로 복사해서 사용\n\n"
+                            "   - 반드시 번역본(한국어)에서 문장을 추출\n"
+                            "   - 번역본에 있는 문장을 그대로 복사해서 text에 사용\n\n"
                             "JSON 형식으로만 응답하세요:\n"
                             "```json\n"
                             "{\n"
                             '  "language": "en",\n'
-                            '  "translation": "번역된 전체 내용..." (한국어가 아니면 필수!),\n'
+                            '  "translation": "번역/요약 내용 (500-1500자)",\n'
                             '  "highlights": [\n'
-                            '    {"type": "claim", "text": "번역본/원문에서 그대로 복사한 문장", "reason": "선정 이유"}\n'
+                            '    {"type": "claim", "text": "번역본에서 복사한 문장", "reason": "선정 이유"}\n'
                             "  ]\n"
                             "}\n"
                             "```"
                         ),
                     },
-                    {"role": "user", "content": text},
+                    {"role": "user", "content": truncated_text},
                 ],
                 max_tokens=4500,
                 temperature=0.3,
