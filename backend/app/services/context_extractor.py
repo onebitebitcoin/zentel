@@ -485,21 +485,23 @@ class ContextExtractor:
                         "content": (
                             "당신은 텍스트 분석 전문가입니다. 다음 작업을 수행하세요:\n\n"
                             "1. **언어 감지**: 텍스트의 주요 언어를 ISO 639-1 코드로 감지 (ko, en, ja, zh 등)\n\n"
-                            "2. **번역** (한국어가 아닌 경우만): 전체 내용을 자연스러운 한국어로 번역\n"
-                            "   - 한국어(ko)인 경우 translation은 null로 설정\n\n"
+                            "2. **번역**: \n"
+                            "   - 한국어(ko)가 아닌 모든 언어는 반드시 한국어로 번역\n"
+                            "   - 한국어(ko)인 경우에만 translation을 null로 설정\n"
+                            "   - 영어, 일본어, 중국어 등 모든 외국어는 반드시 번역 필수!\n\n"
                             "3. **하이라이트 추출**: 다음 항목을 최대 5개 추출\n"
                             "   - claim: 핵심 주장, 글쓴이의 주요 논점이나 의견\n"
                             "   - fact: 일반적이지 않은 팩트, 새롭거나 흥미로운 사실\n"
-                            "   - 번역을 했다면 번역된 텍스트에서 추출, 한국어 원문이면 원문에서 추출\n"
-                            "   - 반드시 해당 텍스트(번역본 또는 원문)에 있는 문장을 그대로 사용\n\n"
+                            "   - 중요: 번역을 했다면 반드시 번역본(한국어)에서 문장을 추출!\n"
+                            "   - 한국어 원문이면 원문에서 추출\n"
+                            "   - 해당 텍스트에 실제로 있는 문장을 그대로 복사해서 사용\n\n"
                             "JSON 형식으로만 응답하세요:\n"
                             "```json\n"
                             "{\n"
                             '  "language": "en",\n'
-                            '  "translation": "번역된 전체 내용..." 또는 null,\n'
+                            '  "translation": "번역된 전체 내용..." (한국어가 아니면 필수!),\n'
                             '  "highlights": [\n'
-                            '    {"type": "claim", "text": "하이라이트할 문장", "reason": "선정 이유"},\n'
-                            '    {"type": "fact", "text": "하이라이트할 문장", "reason": "선정 이유"}\n'
+                            '    {"type": "claim", "text": "번역본/원문에서 그대로 복사한 문장", "reason": "선정 이유"}\n'
                             "  ]\n"
                             "}\n"
                             "```"
@@ -520,6 +522,7 @@ class ContextExtractor:
                 raw = re.sub(r"\n?```$", "", raw)
 
             result = json.loads(raw)
+            logger.debug(f"[translate_and_highlight] LLM response: {result}")
 
             # 언어 코드
             language = result.get("language")
@@ -550,10 +553,9 @@ class ContextExtractor:
                     # 부분 매칭 시도 (앞 50자)
                     short_text = highlight_text[:50]
                     start = highlight_target.find(short_text)
-                    if start == -1:
-                        continue
 
-                end = start + len(highlight_text)
+                # 위치를 찾지 못해도 하이라이트 텍스트는 저장 (start/end = -1)
+                end = start + len(highlight_text) if start != -1 else -1
 
                 highlights.append(
                     {
