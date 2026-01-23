@@ -1,67 +1,33 @@
 """
-LLM Context 추출 서비스
+Context 추출 서비스 (오케스트레이션)
 
-메모 저장 시 OpenAI API를 사용하여 context를 추출합니다.
-- EXTERNAL_SOURCE 타입: URL에서 컨텐츠를 가져와 분석
-- 기타 타입: 입력된 내용을 직접 분석
+Unix Philosophy:
+- Modularity: 작은 모듈들을 조합
+- Simplicity: 오케스트레이션 로직만 담당
+- Composition: 다른 모듈과 연결되도록 설계
 """
 
 from __future__ import annotations
 
 import logging
-import re
-from dataclasses import dataclass
 from typing import Optional
 
-import httpx
-from openai import OpenAI
-
-from app.config import settings
+from app.services import llm_service
+from app.services.og_metadata import OGMetadata
+from app.services.url_fetcher import fetch_url_content
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class OGMetadata:
-    """Open Graph 메타데이터"""
-
-    title: Optional[str] = None
-    image: Optional[str] = None
-    description: Optional[str] = None
-    fetch_failed: bool = False
-    fetch_message: Optional[str] = None
-
-
-# 직접 접근이 불가능한 도메인 목록
-# (별도 스크래퍼로 처리하는 도메인 포함)
-INACCESSIBLE_DOMAINS: set[str] = {
-    "twitter.com",
-    "x.com",
-    "www.twitter.com",
-    "www.x.com",
-    "mobile.twitter.com",
-    "mobile.x.com",
-    # YouTube - youtube_scraper로 처리
-    "youtube.com",
-    "www.youtube.com",
-    "m.youtube.com",
-    "youtu.be",
-    "www.youtu.be",
-}
-
-
 class ContextExtractor:
-    """LLM을 사용한 Context 추출 서비스"""
+    """
+    Context 추출 서비스
 
-    def __init__(self) -> None:
-        self._client: Optional[OpenAI] = None
-
-    @property
-    def client(self) -> Optional[OpenAI]:
-        """OpenAI 클라이언트 (Lazy initialization)"""
-        if self._client is None and settings.OPENAI_API_KEY:
-            self._client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        return self._client
+    - URL 콘텐츠 가져오기
+    - LLM을 통한 context 추출
+    - 관심사 매핑
+    - 번역 및 하이라이트 추출
+    """
 
     async def extract_context(
         self,
@@ -82,235 +48,23 @@ class ContextExtractor:
         """
         og_metadata: Optional[OGMetadata] = None
 
-        if not self.client:
-            logger.warning("OpenAI API key not configured, skipping context extraction")
-            # API 키가 없어도 OG 메타데이터는 추출 시도
-            if memo_type == "EXTERNAL_SOURCE" and source_url:
-                _, og_metadata = await self._fetch_url_content(source_url)
-            return None, og_metadata
+        # EXTERNAL_SOURCE 타입이면 URL 콘텐츠 가져오기
+        text_to_analyze = content
+        if memo_type == "EXTERNAL_SOURCE" and source_url:
+            fetched_content, og_metadata = await fetch_url_content(source_url)
+            if fetched_content:
+                if content and content.strip():
+                    text_to_analyze = (
+                        f"사용자 메모: {content}\n\n"
+                        f"URL: {source_url}\n\n"
+                        f"URL 내용:\n{fetched_content}"
+                    )
+                else:
+                    text_to_analyze = f"URL: {source_url}\n\n{fetched_content}"
 
-        try:
-            # EXTERNAL_SOURCE 타입이고 URL이 있으면 URL 컨텐츠 가져오기
-            text_to_analyze = content
-            if memo_type == "EXTERNAL_SOURCE" and source_url:
-                fetched_content, og_metadata = await self._fetch_url_content(source_url)
-                if fetched_content:
-                    # 사용자 텍스트 + URL 컨텐츠 합쳐서 분석
-                    if content and content.strip():
-                        text_to_analyze = (
-                            f"사용자 메모: {content}\n\n"
-                            f"URL: {source_url}\n\n"
-                            f"URL 내용:\n{fetched_content}"
-                        )
-                    else:
-                        text_to_analyze = f"URL: {source_url}\n\n{fetched_content}"
-
-            # LLM 호출
-            context = await self.call_llm(text_to_analyze, memo_type)
-            return context, og_metadata
-
-        except Exception as e:
-            logger.error(f"Failed to extract context: {e}", exc_info=True)
-            return None, og_metadata
-
-    def _is_inaccessible_url(self, url: str) -> bool:
-        """
-        접근 불가능한 URL인지 확인
-
-        Args:
-            url: 확인할 URL
-
-        Returns:
-            접근 불가능하면 True
-        """
-        try:
-            from urllib.parse import urlparse
-
-            parsed = urlparse(url)
-            domain = parsed.netloc.lower()
-            return domain in INACCESSIBLE_DOMAINS
-        except Exception:
-            return False
-
-    async def _fetch_url_content(
-        self, url: str
-    ) -> tuple[Optional[str], Optional[OGMetadata]]:
-        """
-        URL에서 컨텐츠와 OG 메타데이터 가져오기
-
-        Args:
-            url: 대상 URL
-
-        Returns:
-            (추출된 텍스트 컨텐츠, OG 메타데이터) 튜플
-        """
-        # 접근 불가능한 URL 체크
-        if self._is_inaccessible_url(url):
-            logger.info(f"Inaccessible URL detected: {url}")
-            return None, OGMetadata(
-                fetch_failed=True,
-                fetch_message="이 링크는 직접 접근이 불가능합니다. 내용을 복사해서 메모에 붙여넣어 주세요.",
-            )
-
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    url,
-                    headers={"User-Agent": "Mozilla/5.0 Zentel/1.0"},
-                    follow_redirects=True,
-                )
-                response.raise_for_status()
-
-                html = response.text
-
-                # OG 메타데이터 추출
-                og_metadata = self._extract_og_metadata(html, url)
-
-                # 너무 긴 컨텐츠는 잘라내기
-                max_length = 10000
-                content = html
-                if len(content) > max_length:
-                    content = content[:max_length] + "..."
-
-                logger.info(
-                    f"Fetched URL content: {url}, length={len(content)}, "
-                    f"og_title={og_metadata.title if og_metadata else None}"
-                )
-                return content, og_metadata
-
-        except Exception as e:
-            logger.error(f"Failed to fetch URL content: {url}, error={e}")
-            return None, None
-
-    def _extract_og_metadata(self, html: str, base_url: str) -> Optional[OGMetadata]:
-        """
-        HTML에서 OG 메타데이터 추출
-
-        Args:
-            html: HTML 문자열
-            base_url: 기본 URL (상대 경로 해석용)
-
-        Returns:
-            OGMetadata 또는 None
-        """
-        try:
-            og_title = self._extract_meta_content(html, "og:title")
-            og_image = self._extract_meta_content(html, "og:image")
-            og_description = self._extract_meta_content(html, "og:description")
-
-            # og:title이 없으면 <title> 태그에서 추출
-            if not og_title:
-                title_match = re.search(
-                    r"<title[^>]*>([^<]+)</title>", html, re.IGNORECASE
-                )
-                if title_match:
-                    og_title = title_match.group(1).strip()
-
-            # og:image 상대 경로 처리
-            if og_image and not og_image.startswith(("http://", "https://")):
-                from urllib.parse import urljoin
-
-                og_image = urljoin(base_url, og_image)
-
-            if og_title or og_image:
-                return OGMetadata(
-                    title=og_title, image=og_image, description=og_description
-                )
-
-            return None
-
-        except Exception as e:
-            logger.error(f"Failed to extract OG metadata: {e}")
-            return None
-
-    def _extract_meta_content(self, html: str, property_name: str) -> Optional[str]:
-        """
-        메타 태그에서 content 추출
-
-        Args:
-            html: HTML 문자열
-            property_name: property 속성 값
-
-        Returns:
-            content 값 또는 None
-        """
-        # property="og:..." 또는 name="og:..." 형태 모두 처리
-        patterns = [
-            rf'<meta[^>]+property=["\']?{re.escape(property_name)}["\']?[^>]+content=["\']([^"\']+)["\']',
-            rf'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']?{re.escape(property_name)}["\']?',
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, html, re.IGNORECASE)
-            if match:
-                return match.group(1).strip()
-
-        return None
-
-    async def call_llm(self, text: str, memo_type: str) -> Optional[str]:
-        """
-        OpenAI API 호출
-
-        Args:
-            text: 분석할 텍스트
-            memo_type: 메모 타입
-
-        Returns:
-            LLM 응답 (context)
-        """
-        if not self.client:
-            return None
-
-        # 텍스트 길이 제한 (토큰 초과 방지)
-        max_chars = 6000
-        if len(text) > max_chars:
-            text = text[:max_chars] + "..."
-            logger.info(f"[call_llm] 텍스트 truncate: {max_chars}자")
-
-        prompt = self._build_prompt(text, memo_type)
-
-        try:
-            response = self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "10단어 이내의 짧은 문구로 이 메모의 핵심 맥락(context)을 한 줄로 표현하세요. "
-                            "마크다운 형식 없이 순수한 텍스트로만 응답하세요. "
-                            "반드시 한국어로 응답하세요."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=50,
-                temperature=0.3,
-            )
-
-            context = response.choices[0].message.content
-            if context:
-                context = context.strip()
-                logger.info(f"LLM context extracted: {len(context)} chars")
-                return context
-
-            return None
-
-        except Exception as e:
-            logger.error(f"LLM API call failed: {e}", exc_info=True)
-            return None
-
-    def _build_prompt(self, text: str, memo_type: str) -> str:
-        """
-        메모 타입별 프롬프트 생성
-
-        Args:
-            text: 분석할 텍스트
-            memo_type: 메모 타입
-
-        Returns:
-            프롬프트 문자열
-        """
-        return f"다음 내용의 핵심 context를 10단어 이내로 표현해주세요:\n\n{text}"
+        # LLM으로 context 추출
+        context = await llm_service.extract_context(text_to_analyze, memo_type)
+        return context, og_metadata
 
     async def match_interests(
         self,
@@ -327,209 +81,21 @@ class ContextExtractor:
         Returns:
             매핑된 관심사 배열
         """
-        if not self.client:
-            logger.warning("OpenAI API key not configured, skipping interest matching")
-            return []
-
-        if not user_interests:
-            logger.info("No user interests to match")
-            return []
-
-        try:
-            interests_str = ", ".join(user_interests)
-
-            response = self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "당신은 텍스트 분류 전문가입니다. "
-                            "주어진 메모 내용이 어떤 관심사와 관련이 있는지 판단합니다. "
-                            "반드시 제공된 관심사 목록에서만 선택해야 합니다. "
-                            "관련된 관심사가 없으면 반드시 '없음'이라고 응답하세요. "
-                            "억지로 연결하지 말고, 명확하게 관련이 있는 경우에만 선택하세요. "
-                            "마크다운이나 다른 형식 없이 관심사 이름만 반환하세요."
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            f"관심사 목록: {interests_str}\n\n"
-                            f"메모 내용:\n{content}\n\n"
-                            "관련된 관심사를 쉼표로 구분하여 반환하세요. "
-                            "명확하게 관련된 관심사가 없으면 '없음'이라고 반환하세요."
-                        ),
-                    },
-                ],
-                max_tokens=100,
-                temperature=0.2,
-            )
-
-            raw = response.choices[0].message.content or ""
-            raw = raw.strip()
-
-            # "없음" 또는 빈 응답이면 빈 배열 반환
-            if not raw or raw.lower() in ["없음", "none", "없습니다", "해당 없음"]:
-                logger.info("No matching interests found")
-                return []
-
-            # LLM 환각 방지: 실제 관심사 목록에 있는 것만 필터링
-            matched = []
-            candidates = [item.strip() for item in raw.split(",")]
-            user_interests_lower = {i.lower(): i for i in user_interests}
-
-            for candidate in candidates:
-                candidate_lower = candidate.lower()
-                if candidate_lower in user_interests_lower:
-                    matched.append(user_interests_lower[candidate_lower])
-
-            logger.info(f"Matched interests: {matched}")
-            return matched
-
-        except Exception as e:
-            logger.error(f"Interest matching failed: {e}", exc_info=True)
-            return []
+        return await llm_service.match_interests(content, user_interests)
 
     async def translate_and_highlight(
         self, text: str
     ) -> tuple[Optional[str], Optional[str], Optional[list[dict]]]:
         """
-        언어 감지 + 번역 + 하이라이트 추출을 1회 LLM 호출로 처리 (비용 절감)
+        언어 감지 + 번역 + 하이라이트 추출
 
         Args:
             text: 분석할 텍스트
 
         Returns:
             (언어코드, 번역본, 하이라이트 목록) 튜플
-            - 언어코드: ISO 639-1 코드 (ko, en, ja 등)
-            - 번역본: 한국어가 아닌 경우에만 번역본, 한국어면 None
-            - 하이라이트: 번역본이 있으면 번역본 기준, 없으면 원문 기준
         """
-        import json
-
-        if not self.client:
-            return None, None, None
-
-        # 텍스트가 너무 짧으면 스킵
-        if len(text.strip()) < 20:
-            return None, None, None
-
-        # 긴 텍스트는 잘라서 처리 (토큰 제한)
-        max_chars = 6000
-        is_long_text = len(text) > max_chars
-        truncated_text = text[:max_chars] if is_long_text else text
-
-        try:
-            response = self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "당신은 텍스트 분석 전문가입니다. 다음 작업을 수행하세요:\n\n"
-                            "1. **언어 감지**: 텍스트의 주요 언어를 ISO 639-1 코드로 감지 (ko, en, ja, zh 등)\n\n"
-                            "2. **번역**: \n"
-                            "   - 한국어(ko)가 아닌 모든 언어는 반드시 한국어로 번역\n"
-                            "   - 한국어(ko)인 경우에만 translation을 null로 설정\n"
-                            "   - 긴 글이면 핵심 내용을 요약하여 번역 (500-1500자)\n"
-                            "   - 짧은 글이면 전체 번역\n\n"
-                            "3. **하이라이트 추출**: 다음 항목을 최대 5개 추출\n"
-                            "   - claim: 핵심 주장, 글쓴이의 주요 논점이나 의견\n"
-                            "   - fact: 일반적이지 않은 팩트, 새롭거나 흥미로운 사실\n"
-                            "   - 반드시 번역본(한국어)에서 문장을 추출\n"
-                            "   - 번역본에 있는 문장을 그대로 복사해서 text에 사용\n\n"
-                            "JSON 형식으로만 응답하세요:\n"
-                            "```json\n"
-                            "{\n"
-                            '  "language": "en",\n'
-                            '  "translation": "번역/요약 내용 (500-1500자)",\n'
-                            '  "highlights": [\n'
-                            '    {"type": "claim", "text": "번역본에서 복사한 문장", "reason": "선정 이유"}\n'
-                            "  ]\n"
-                            "}\n"
-                            "```"
-                        ),
-                    },
-                    {"role": "user", "content": truncated_text},
-                ],
-                max_tokens=4500,
-                temperature=0.3,
-            )
-
-            raw = response.choices[0].message.content or ""
-            raw = raw.strip()
-
-            # 마크다운 코드 블록 제거
-            if raw.startswith("```"):
-                raw = re.sub(r"^```(?:json)?\n?", "", raw)
-                raw = re.sub(r"\n?```$", "", raw)
-
-            result = json.loads(raw)
-            logger.debug(f"[translate_and_highlight] LLM response: {result}")
-
-            # 언어 코드
-            language = result.get("language")
-            if language:
-                language = language.strip().lower()[:2]
-
-            # 번역본
-            translation = result.get("translation")
-            if translation:
-                translation = translation.strip()
-
-            # 하이라이트 처리
-            highlights_raw = result.get("highlights", [])
-            # 하이라이트 대상 텍스트 (번역본 있으면 번역본, 없으면 원문)
-            highlight_target = translation if translation else text
-
-            highlights = []
-            for item in highlights_raw:
-                if not isinstance(item, dict):
-                    continue
-                highlight_text = item.get("text", "")
-                if not highlight_text:
-                    continue
-
-                # 대상 텍스트에서 위치 찾기
-                start = highlight_target.find(highlight_text)
-                if start == -1:
-                    # 부분 매칭 시도 (앞 50자)
-                    short_text = highlight_text[:50]
-                    start = highlight_target.find(short_text)
-
-                # 위치를 찾지 못해도 하이라이트 텍스트는 저장 (start/end = -1)
-                end = start + len(highlight_text) if start != -1 else -1
-
-                highlights.append(
-                    {
-                        "type": item.get("type", "fact"),
-                        "text": highlight_text,
-                        "start": start,
-                        "end": end,
-                        "reason": item.get("reason"),
-                    }
-                )
-
-            logger.info(
-                f"[translate_and_highlight] language={language}, "
-                f"translation={'Yes' if translation else 'No'} "
-                f"({len(translation) if translation else 0} chars), "
-                f"highlights={len(highlights)}"
-            )
-
-            return (
-                language,
-                translation,
-                highlights if highlights else None,
-            )
-
-        except json.JSONDecodeError as e:
-            logger.error(f"translate_and_highlight JSON parse failed: {e}")
-            return None, None, None
-        except Exception as e:
-            logger.error(f"translate_and_highlight failed: {e}", exc_info=True)
-            return None, None, None
+        return await llm_service.translate_and_highlight(text)
 
 
 # 싱글톤 인스턴스

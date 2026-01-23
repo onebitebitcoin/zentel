@@ -127,62 +127,84 @@ ruff format .
 3. API 문서 (Swagger) 자동 반영 확인
 4. 테스트 코드 업데이트
 
-## Backend Development - 12-Factor App (CRITICAL)
+## Backend Development - Unix Philosophy (CRITICAL)
 
-**Backend 개발 시 반드시 12-Factor App 방법론을 따라야 한다.**
+**Backend 개발 시 반드시 Unix Philosophy를 따라야 한다.**
 
-12-Factor App은 확장 가능하고 유지보수가 쉬운 SaaS 애플리케이션을 구축하기 위한 방법론이다.
-참고: https://12factor.net/
+Unix Philosophy는 Ken Thompson이 시작하고 Eric Raymond가 정리한 소프트웨어 설계 원칙이다.
+참고: https://en.wikipedia.org/wiki/Unix_philosophy
 
-### 12가지 원칙
+### 17가지 원칙
 
 | # | 원칙 | 설명 | 적용 예시 |
 |---|------|------|----------|
-| 1 | **Codebase** | 버전 관리되는 하나의 코드베이스, 여러 배포 | Git으로 관리, dev/staging/prod 환경 분리 |
-| 2 | **Dependencies** | 의존성을 명시적으로 선언하고 격리 | `requirements.txt`, `pyproject.toml` 사용 |
-| 3 | **Config** | 설정을 환경 변수로 분리 | `.env` 파일, `os.getenv()` 사용 |
-| 4 | **Backing Services** | 백엔드 서비스를 연결된 리소스로 취급 | DB, Redis, S3를 URL로 연결 |
-| 5 | **Build, Release, Run** | 빌드/릴리스/실행 단계 엄격히 분리 | Docker 빌드 → 이미지 태깅 → 컨테이너 실행 |
-| 6 | **Processes** | 무상태(Stateless) 프로세스로 실행 | 세션은 Redis/DB에 저장, 로컬 파일 의존 금지 |
-| 7 | **Port Binding** | 포트 바인딩으로 서비스 노출 | `uvicorn app:app --port $PORT` |
-| 8 | **Concurrency** | 프로세스 모델로 수평 확장 | 워커 수 조절, 로드밸런서 사용 |
-| 9 | **Disposability** | 빠른 시작/종료로 견고성 확보 | graceful shutdown, 시그널 핸들링 |
-| 10 | **Dev/Prod Parity** | 개발/스테이징/프로덕션 환경 동일하게 유지 | Docker로 환경 통일, 같은 DB 종류 사용 |
-| 11 | **Logs** | 로그를 이벤트 스트림으로 취급 | stdout 출력, 로그 수집기가 처리 |
-| 12 | **Admin Processes** | 관리 작업을 일회성 프로세스로 실행 | 마이그레이션, 스크립트를 별도 명령으로 |
+| 1 | **Modularity** | 단순한 부분들을 깔끔한 인터페이스로 연결 | 작은 함수/클래스, 명확한 책임 분리 |
+| 2 | **Clarity** | 명확함이 영리함보다 낫다 | 트릭 코드 금지, 읽기 쉬운 코드 작성 |
+| 3 | **Composition** | 프로그램들이 서로 연결되도록 설계 | 재사용 가능한 모듈, 표준 인터페이스 |
+| 4 | **Separation** | 정책과 메커니즘 분리, 인터페이스와 엔진 분리 | 비즈니스 로직과 데이터 접근 분리 |
+| 5 | **Simplicity** | 단순성을 위해 설계, 필요한 곳에만 복잡성 추가 | YAGNI 원칙, 과도한 추상화 금지 |
+| 6 | **Parsimony** | 큰 프로그램은 필요가 명확히 입증될 때만 작성 | 작은 모듈 선호, 거대 클래스 금지 |
+| 7 | **Transparency** | 검사와 디버깅을 용이하게 가시성 확보 | 명확한 로깅, 상태 추적 가능 |
+| 8 | **Robustness** | 견고함은 투명성과 단순성의 산물 | 엣지 케이스 처리, 예외 처리 |
+| 9 | **Representation** | 데이터에 지식을 담아 프로그램 로직을 단순하게 | 데이터 구조 활용, 하드코딩 금지 |
+| 10 | **Least Surprise** | 가장 예상 가능한 동작 수행 | 일관된 API, 표준 컨벤션 준수 |
+| 11 | **Silence** | 할 말이 없으면 침묵 | 불필요한 출력 금지, 필요한 정보만 |
+| 12 | **Repair** | 실패할 때는 명확하고 빠르게 실패 | 빠른 실패, 명확한 에러 메시지 |
+| 13 | **Economy** | 프로그래머 시간은 비싸다, 기계 시간보다 우선 | 가독성 우선, 조기 최적화 금지 |
+| 14 | **Generation** | 손으로 작성하지 말고 프로그램이 코드 생성 | 코드 생성기, 메타프로그래밍 활용 |
+| 15 | **Optimization** | 프로토타입 먼저, 작동 후 최적화 | 먼저 동작하게, 나중에 빠르게 |
+| 16 | **Diversity** | "유일한 방법" 주장을 의심 | 다양한 접근법 허용, 독단 금지 |
+| 17 | **Extensibility** | 미래를 위해 설계 | 확장 가능한 구조, 플러그인 지원 |
 
 ### 필수 체크리스트
 
 ```
-[ ] 모든 설정은 환경 변수로 관리 (하드코딩 금지)
-[ ] 의존성은 requirements.txt 또는 pyproject.toml에 명시
-[ ] 프로세스는 무상태로 유지 (로컬 파일 시스템 의존 금지)
-[ ] 로그는 stdout으로 출력 (파일 직접 쓰기는 개발 환경만)
-[ ] graceful shutdown 구현
-[ ] 개발/프로덕션 환경 차이 최소화
+[ ] 각 모듈/함수는 한 가지 일만 수행 (Modularity, Simplicity)
+[ ] 코드는 트릭 없이 명확하게 작성 (Clarity)
+[ ] 비즈니스 로직과 인프라 코드 분리 (Separation)
+[ ] 실패 시 명확한 에러 메시지 반환 (Repair)
+[ ] 불필요한 로그/출력 제거 (Silence)
+[ ] API는 예측 가능하게 동작 (Least Surprise)
+[ ] 과도한 추상화/최적화 금지 (Parsimony, Optimization)
 ```
 
 ### FastAPI 적용 예시
 
 ```python
-import os
-from fastapi import FastAPI
+# Modularity: 작은 함수로 분리
+def validate_user(data: UserCreate) -> None:
+    """사용자 데이터 검증만 수행"""
+    if not data.email:
+        raise ValueError("이메일 필수")
 
-# Config: 환경 변수로 설정 관리
-DATABASE_URL = os.getenv("DATABASE_URL")
-REDIS_URL = os.getenv("REDIS_URL")
-SECRET_KEY = os.getenv("SECRET_KEY")
+def create_user(db: Session, data: UserCreate) -> User:
+    """사용자 생성만 수행"""
+    validate_user(data)
+    user = User(**data.dict())
+    db.add(user)
+    db.commit()
+    return user
 
-# Port Binding: 환경 변수로 포트 설정
-PORT = int(os.getenv("PORT", 8000))
+# Separation: 라우터와 서비스 분리
+# routers/users.py - HTTP 처리만
+@router.post("/users")
+def create_user_endpoint(data: UserCreate, db: Session = Depends(get_db)):
+    return user_service.create_user(db, data)
 
-# Processes: 무상태 유지
-# ❌ 잘못된 예시 - 로컬 파일에 상태 저장
-# user_sessions = {}  # 메모리에 세션 저장
+# services/user_service.py - 비즈니스 로직만
+def create_user(db: Session, data: UserCreate) -> User:
+    ...
 
-# ✅ 올바른 예시 - 외부 서비스 사용
-# from redis import Redis
-# redis_client = Redis.from_url(REDIS_URL)
+# Repair: 빠르고 명확한 실패
+if not user:
+    raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
+
+# Silence: 필요한 정보만 로깅
+logger.info(f"User created: {user.id}")  # 필요한 정보만
+# logger.debug(f"Full user data: {user.__dict__}")  # 개발 시에만
+
+# Least Surprise: 일관된 응답 형식
+return {"data": user, "message": "생성 완료"}
 ```
 
 ---
