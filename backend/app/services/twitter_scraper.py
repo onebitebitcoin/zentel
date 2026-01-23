@@ -33,6 +33,9 @@ logger = logging.getLogger(__name__)
 MAX_CONCURRENT_REQUESTS = 2
 _semaphore: Optional[asyncio.Semaphore] = None
 
+# 콘텐츠 최대 길이 (LLM 토큰 제한 고려)
+MAX_CONTENT_LENGTH = 8000
+
 
 def _get_semaphore() -> asyncio.Semaphore:
     """Semaphore 인스턴스 반환 (Lazy initialization)"""
@@ -146,12 +149,22 @@ class TwitterScraper:
                             # 성공적으로 추출
                             article_result.og_title = result.og_title or article_result.og_title
                             article_result.og_description = f"아티클: {article_url}"
-                            return article_result
-                return result
+                            return self._truncate_content(article_result)
+                return self._truncate_content(result)
 
             # 2. Syndication API 실패 시 Playwright 직접 사용
             logger.info("[TwitterScraper] Syndication API 실패, Playwright로 재시도...")
-            return await self._scrape_via_playwright(url)
+            return self._truncate_content(await self._scrape_via_playwright(url))
+
+    def _truncate_content(self, result: TwitterScrapingResult) -> TwitterScrapingResult:
+        """콘텐츠가 너무 길면 max까지 자름"""
+        if result.content and len(result.content) > MAX_CONTENT_LENGTH:
+            original_len = len(result.content)
+            result.content = result.content[:MAX_CONTENT_LENGTH] + "..."
+            logger.info(
+                f"[TwitterScraper] 콘텐츠 truncate: {original_len} -> {MAX_CONTENT_LENGTH}"
+            )
+        return result
 
     def _extract_tweet_id(self, url: str) -> Optional[str]:
         """URL에서 트윗 ID 추출"""

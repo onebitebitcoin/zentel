@@ -265,6 +265,12 @@ class ContextExtractor:
         if not self.client:
             return None
 
+        # 텍스트 길이 제한 (토큰 초과 방지)
+        max_chars = 6000
+        if len(text) > max_chars:
+            text = text[:max_chars] + "..."
+            logger.info(f"[call_llm] 텍스트 truncate: {max_chars}자")
+
         prompt = self._build_prompt(text, memo_type)
 
         try:
@@ -309,6 +315,12 @@ class ContextExtractor:
         """
         if not self.client:
             return None
+
+        # 텍스트 길이 제한 (토큰 초과 방지)
+        max_chars = 6000
+        if len(text) > max_chars:
+            text = text[:max_chars] + "..."
+            logger.info(f"[call_llm_facts] 텍스트 truncate: {max_chars}자")
 
         try:
             response = self.client.chat.completions.create(
