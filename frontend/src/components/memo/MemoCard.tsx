@@ -7,8 +7,8 @@ import { getRelativeTime } from '../../utils/date';
 import { CommentList } from './CommentList';
 import { tempMemoApi } from '../../api/client';
 
-// 분석 타임아웃 (초)
-const ANALYSIS_TIMEOUT_SEC = 30;
+// 분석 타임아웃 (초) - 스크래핑 + LLM 호출 고려
+const ANALYSIS_TIMEOUT_SEC = 60;
 
 interface MemoCardProps {
   memo: TempMemo;
