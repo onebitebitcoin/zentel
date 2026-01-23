@@ -195,6 +195,39 @@ def list_temp_memos(
     return TempMemoListResponse(items=items, total=total, next_offset=next_offset)
 
 
+@router.get("/analysis-events")
+async def analysis_events(request: Request):
+    """분석 완료 이벤트를 SSE로 전송"""
+    client_id = str(uuid.uuid4())
+    queue: asyncio.Queue = asyncio.Queue()
+
+    register_sse_client(client_id, queue)
+
+    async def event_generator():
+        try:
+            while True:
+                # 클라이언트 연결 확인
+                if await request.is_disconnected():
+                    logger.info(f"[SSE] Client disconnected: {client_id}")
+                    break
+
+                try:
+                    # 5초마다 keepalive ping 전송
+                    event = await asyncio.wait_for(queue.get(), timeout=5.0)
+                    yield {
+                        "event": "analysis_complete",
+                        "data": json.dumps(event),
+                    }
+                except asyncio.TimeoutError:
+                    # keepalive ping
+                    yield {"event": "ping", "data": ""}
+
+        finally:
+            unregister_sse_client(client_id)
+
+    return EventSourceResponse(event_generator())
+
+
 @router.get("/{memo_id}", response_model=TempMemoOut)
 def get_temp_memo(
     memo_id: str,
@@ -312,36 +345,3 @@ async def reanalyze_memo(
 
     logger.info(f"Reanalyze started: memo_id={memo_id}")
     return memo_to_out(db, db_memo)
-
-
-@router.get("/analysis-events")
-async def analysis_events(request: Request):
-    """분석 완료 이벤트를 SSE로 전송"""
-    client_id = str(uuid.uuid4())
-    queue: asyncio.Queue = asyncio.Queue()
-
-    register_sse_client(client_id, queue)
-
-    async def event_generator():
-        try:
-            while True:
-                # 클라이언트 연결 확인
-                if await request.is_disconnected():
-                    logger.info(f"[SSE] Client disconnected: {client_id}")
-                    break
-
-                try:
-                    # 5초마다 keepalive ping 전송
-                    event = await asyncio.wait_for(queue.get(), timeout=5.0)
-                    yield {
-                        "event": "analysis_complete",
-                        "data": json.dumps(event),
-                    }
-                except asyncio.TimeoutError:
-                    # keepalive ping
-                    yield {"event": "ping", "data": ""}
-
-        finally:
-            unregister_sse_client(client_id)
-
-    return EventSourceResponse(event_generator())
