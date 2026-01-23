@@ -80,7 +80,6 @@ def memo_to_out(
         memo_type=memo.memo_type,
         content=memo.content,
         context=memo.context,
-        facts=memo.facts,
         interests=memo.interests,
         source_url=memo.source_url,
         og_title=memo.og_title,

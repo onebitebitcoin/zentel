@@ -72,7 +72,6 @@ class TempMemoOut(BaseModel):
     memo_type: MemoType
     content: str
     context: Optional[str] = None
-    facts: Optional[List[str]] = None
     interests: Optional[List[str]] = None
     source_url: Optional[str] = None
     og_title: Optional[str] = None

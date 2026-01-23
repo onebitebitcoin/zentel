@@ -68,7 +68,7 @@ class ContextExtractor:
         content: str,
         memo_type: str,
         source_url: Optional[str] = None,
-    ) -> tuple[Optional[str], Optional[OGMetadata], Optional[list[str]]]:
+    ) -> tuple[Optional[str], Optional[OGMetadata]]:
         """
         메모에서 context 추출
 
@@ -78,17 +78,16 @@ class ContextExtractor:
             source_url: 외부 URL (EXTERNAL_SOURCE 타입일 때)
 
         Returns:
-            (추출된 context, OG 메타데이터, facts 리스트) 튜플
+            (추출된 context, OG 메타데이터) 튜플
         """
         og_metadata: Optional[OGMetadata] = None
-        facts: Optional[list[str]] = None
 
         if not self.client:
             logger.warning("OpenAI API key not configured, skipping context extraction")
             # API 키가 없어도 OG 메타데이터는 추출 시도
             if memo_type == "EXTERNAL_SOURCE" and source_url:
                 _, og_metadata = await self._fetch_url_content(source_url)
-            return None, og_metadata, None
+            return None, og_metadata
 
         try:
             # EXTERNAL_SOURCE 타입이고 URL이 있으면 URL 컨텐츠 가져오기
@@ -103,19 +102,16 @@ class ContextExtractor:
                             f"URL: {source_url}\n\n"
                             f"URL 내용:\n{fetched_content}"
                         )
-                        facts_text = f"사용자 메모: {content}\n\n{fetched_content}"
                     else:
                         text_to_analyze = f"URL: {source_url}\n\n{fetched_content}"
-                        facts_text = fetched_content
-                    facts = await self.call_llm_facts(facts_text)
 
             # LLM 호출
             context = await self.call_llm(text_to_analyze, memo_type)
-            return context, og_metadata, facts
+            return context, og_metadata
 
         except Exception as e:
             logger.error(f"Failed to extract context: {e}", exc_info=True)
-            return None, og_metadata, facts
+            return None, og_metadata
 
     def _is_inaccessible_url(self, url: str) -> bool:
         """
@@ -302,75 +298,6 @@ class ContextExtractor:
         except Exception as e:
             logger.error(f"LLM API call failed: {e}", exc_info=True)
             return None
-
-    async def call_llm_facts(self, text: str) -> Optional[list[str]]:
-        """
-        OpenAI API 호출 (Facts 추출)
-
-        Args:
-            text: 분석할 텍스트
-
-        Returns:
-            Facts 리스트
-        """
-        if not self.client:
-            return None
-
-        # 텍스트 길이 제한 (토큰 초과 방지)
-        max_chars = 6000
-        if len(text) > max_chars:
-            text = text[:max_chars] + "..."
-            logger.info(f"[call_llm_facts] 텍스트 truncate: {max_chars}자")
-
-        try:
-            response = self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "다음 내용에서 사실 3가지를 추출하세요. "
-                            "각 사실은 한 줄로만 작성하고, 불릿/번호/마크다운 없이 텍스트만 반환하세요. "
-                            "반드시 한국어로 응답하세요."
-                        ),
-                    },
-                    {"role": "user", "content": text},
-                ],
-                max_tokens=120,
-                temperature=0.2,
-            )
-
-            raw = response.choices[0].message.content or ""
-            facts = self._normalize_facts(raw)
-            if facts:
-                logger.info(f"LLM facts extracted: {len(facts)} items")
-                return facts
-
-            return None
-
-        except Exception as e:
-            logger.error(f"LLM facts call failed: {e}", exc_info=True)
-            return None
-
-    def _normalize_facts(self, text: str) -> list[str]:
-        """
-        LLM 응답에서 Facts 정규화
-
-        Args:
-            text: LLM 응답 텍스트
-
-        Returns:
-            정제된 facts 리스트
-        """
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-        facts: list[str] = []
-        for line in lines:
-            cleaned = re.sub(r"^[-*•\d\.\)\s]+", "", line).strip()
-            if cleaned:
-                facts.append(cleaned)
-            if len(facts) >= 3:
-                break
-        return facts
 
     def _build_prompt(self, text: str, memo_type: str) -> str:
         """

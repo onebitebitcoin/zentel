@@ -201,7 +201,7 @@ class AnalysisService:
 
         else:
             # Twitter 컨텐츠 없이 일반 분석
-            context, og_metadata, _ = await context_extractor.extract_context(
+            context, og_metadata = await context_extractor.extract_context(
                 content=content,
                 memo_type=memo.memo_type,
                 source_url=source_url,

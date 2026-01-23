@@ -22,7 +22,6 @@ export function MemoEdit() {
   const [saving, setSaving] = useState(false);
   const [rematching, setRematching] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
-  const [factsExpanded, setFactsExpanded] = useState(false);
   const [showInterestPicker, setShowInterestPicker] = useState(false);
 
   const userInterests: string[] = user?.interests || [];
@@ -175,15 +174,6 @@ export function MemoEdit() {
   if (!memo) {
     return null;
   }
-
-  const facts = memo.facts?.slice(0, 3) ?? [];
-  const maxFactLength = 200;
-  const hasTruncatedFacts = facts.some((fact) => fact.length > maxFactLength);
-  const visibleFacts = factsExpanded
-    ? facts
-    : facts.map((fact) =>
-        fact.length > maxFactLength ? `${fact.slice(0, maxFactLength)}...` : fact,
-      );
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -355,31 +345,6 @@ export function MemoEdit() {
                 </button>
               </div>
               <p className="text-sm text-gray-700">{memo.context}</p>
-            </div>
-          )}
-
-          {/* Facts (분석 완료 시에만 표시) */}
-          {memo.analysis_status === 'completed' && memo.memo_type === 'EXTERNAL_SOURCE' && facts.length > 0 && (
-            <div className="border-t border-gray-100 pt-3 space-y-2">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                Facts
-              </span>
-              <div className="text-sm text-gray-700 space-y-1">
-                {visibleFacts.map((fact, index) => (
-                  <p key={`${memo.id}-fact-${index}`} className="break-words">
-                    - {fact}
-                  </p>
-                ))}
-              </div>
-              {hasTruncatedFacts && (
-                <button
-                  type="button"
-                  onClick={() => setFactsExpanded((prev) => !prev)}
-                  className="text-xs text-primary hover:text-primary-600"
-                >
-                  {factsExpanded ? '접기' : '더보기'}
-                </button>
-              )}
             </div>
           )}
 
