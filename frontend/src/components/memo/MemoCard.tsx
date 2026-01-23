@@ -32,12 +32,21 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
   // 하이라이트 렌더링 함수
   const renderHighlightedText = useMemo(() => {
     return (text: string, highlights: HighlightItem[] | null) => {
+      // 하이라이트가 없으면 텍스트만 반환
       if (!highlights || highlights.length === 0) {
         return <span>{text}</span>;
       }
 
+      // 유효한 위치가 있는 하이라이트만 필터링
+      const validHighlights = highlights.filter((h) => h.start >= 0 && h.end >= 0);
+
+      // 유효한 하이라이트가 없으면 텍스트만 반환
+      if (validHighlights.length === 0) {
+        return <span>{text}</span>;
+      }
+
       // 하이라이트 위치 정렬
-      const sortedHighlights = [...highlights].sort((a, b) => a.start - b.start);
+      const sortedHighlights = [...validHighlights].sort((a, b) => a.start - b.start);
       const elements: React.ReactNode[] = [];
       let lastEnd = 0;
 
