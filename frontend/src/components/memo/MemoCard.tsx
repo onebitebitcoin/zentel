@@ -1,11 +1,14 @@
-import { useState, useMemo, Fragment } from 'react';
-import { Pencil, Trash2, ExternalLink, Copy, MessageCircle, ChevronDown, ChevronUp, RefreshCw, Loader2, AlertCircle, Languages } from 'lucide-react';
+import { useState, useMemo, Fragment, useEffect, useRef } from 'react';
+import { Pencil, Trash2, ExternalLink, Copy, MessageCircle, ChevronDown, ChevronUp, RefreshCw, Loader2, AlertCircle, Languages, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemo, HighlightItem } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
 import { getRelativeTime } from '../../utils/date';
 import { CommentList } from './CommentList';
 import { tempMemoApi } from '../../api/client';
+
+// 분석 타임아웃 (초)
+const ANALYSIS_TIMEOUT_SEC = 30;
 
 interface MemoCardProps {
   memo: TempMemo;
@@ -22,9 +25,35 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [translationExpanded, setTranslationExpanded] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [analysisTimedOut, setAnalysisTimedOut] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isAnalyzing = memo.analysis_status === 'pending' || memo.analysis_status === 'analyzing';
   const isAnalysisFailed = memo.analysis_status === 'failed';
+
+  // 분석 타임아웃 처리
+  useEffect(() => {
+    if (isAnalyzing && !analysisTimedOut) {
+      // 타임아웃 설정
+      timeoutRef.current = setTimeout(() => {
+        setAnalysisTimedOut(true);
+        console.log(`[MemoCard] 분석 타임아웃: ${memo.id}`);
+      }, ANALYSIS_TIMEOUT_SEC * 1000);
+    } else if (!isAnalyzing) {
+      // 분석 완료되면 타임아웃 해제
+      setAnalysisTimedOut(false);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    }
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [isAnalyzing, analysisTimedOut, memo.id]);
 
   // 번역 가능 여부 (한국어가 아니고 번역본이 있는 경우)
   const hasTranslation = memo.original_language && memo.original_language !== 'ko' && memo.translated_content;
@@ -171,11 +200,30 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
       )}
 
       {/* AI 분석 상태 */}
-      {isAnalyzing && (
+      {isAnalyzing && !analysisTimedOut && (
         <div className="border-t border-gray-100 pt-2">
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <Loader2 size={14} className="animate-spin text-primary" />
             <span>AI 분석중...</span>
+          </div>
+        </div>
+      )}
+
+      {/* 분석 타임아웃 */}
+      {isAnalyzing && analysisTimedOut && (
+        <div className="border-t border-gray-100 pt-2">
+          <div className="flex items-center gap-2 text-xs text-amber-600">
+            <Clock size={14} />
+            <span>분석 지연</span>
+            <button
+              type="button"
+              onClick={handleReanalyze}
+              disabled={reanalyzing}
+              className="flex items-center gap-1 text-primary hover:text-primary-600 ml-auto"
+            >
+              <RefreshCw size={12} className={reanalyzing ? 'animate-spin' : ''} />
+              다시 시도
+            </button>
           </div>
         </div>
       )}
