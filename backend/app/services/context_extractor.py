@@ -33,6 +33,7 @@ class OGMetadata:
 
 
 # 직접 접근이 불가능한 도메인 목록
+# (별도 스크래퍼로 처리하는 도메인 포함)
 INACCESSIBLE_DOMAINS: set[str] = {
     "twitter.com",
     "x.com",
@@ -40,6 +41,12 @@ INACCESSIBLE_DOMAINS: set[str] = {
     "www.x.com",
     "mobile.twitter.com",
     "mobile.x.com",
+    # YouTube - youtube_scraper로 처리
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com",
+    "youtu.be",
+    "www.youtu.be",
 }
 
 

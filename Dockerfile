@@ -59,6 +59,7 @@ RUN pip install --no-cache-dir "passlib[bcrypt]==1.7.4" "bcrypt>=4.0.0,<5.0.0"
 RUN pip install --no-cache-dir "openai>=1.0.0"
 RUN pip install --no-cache-dir sse-starlette==2.0.0
 RUN pip install --no-cache-dir httpx==0.27.0 playwright==1.49.0
+RUN pip install --no-cache-dir youtube-transcript-api==1.2.3
 
 # Install Playwright Chromium browser
 RUN playwright install chromium

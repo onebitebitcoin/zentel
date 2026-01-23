@@ -29,6 +29,7 @@ openai>=1.0.0
 
 # Web Scraping
 playwright==1.40.0
+youtube-transcript-api==1.2.3
 
 # SSE (Server-Sent Events)
 sse-starlette==2.0.0

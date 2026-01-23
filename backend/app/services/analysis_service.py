@@ -20,6 +20,7 @@ from app.models.temp_memo import TempMemo
 from app.models.user import User
 from app.services.context_extractor import context_extractor
 from app.services.twitter_scraper import twitter_scraper
+from app.services.youtube_scraper import youtube_scraper
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,26 @@ class AnalysisService:
             else:
                 logger.warning(
                     f"[AnalysisService] Twitter 스크래핑 실패: {result.error}"
+                )
+                # 스크래핑 실패해도 계속 진행 (content만으로 분석)
+
+        # YouTube URL인 경우 자막 스크래핑
+        elif source_url and youtube_scraper.is_youtube_url(source_url):
+            logger.info(f"[AnalysisService] YouTube URL 감지, 스크래핑 시작: {source_url}")
+            result = await youtube_scraper.scrape(source_url)
+
+            if result.success:
+                fetched_content = result.content
+                og_title = result.og_title
+                og_image = result.og_image
+                logger.info(
+                    f"[AnalysisService] YouTube 스크래핑 성공: "
+                    f"content_length={len(fetched_content or '')}, "
+                    f"language={result.language}"
+                )
+            else:
+                logger.warning(
+                    f"[AnalysisService] YouTube 스크래핑 실패: {result.error}"
                 )
                 # 스크래핑 실패해도 계속 진행 (content만으로 분석)
 
