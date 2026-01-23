@@ -3,24 +3,14 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from functools import partial
 from typing import Optional
 
 from sqlalchemy import JSON, Boolean, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
-from ulid import ULID
 
 from app.database import Base
-
-
-def generate_user_ulid() -> str:
-    """User ULID 생성"""
-    return f"user_{ULID()}"
-
-
-def now_iso() -> str:
-    """현재 시간을 ISO8601 형식으로 반환 (UTC)"""
-    return datetime.now(timezone.utc).isoformat()
+from app.utils import generate_ulid, now_iso
 
 
 class User(Base):
@@ -28,7 +18,9 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=generate_user_ulid)
+    id: Mapped[str] = mapped_column(
+        String(32), primary_key=True, default=partial(generate_ulid, "user")
+    )
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(128), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

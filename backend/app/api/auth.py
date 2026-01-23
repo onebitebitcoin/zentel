@@ -9,6 +9,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.core.cookies import delete_refresh_token_cookie, set_refresh_token_cookie
 from app.core.deps import get_current_user
 from app.core.jwt import create_access_token, create_refresh_token, decode_token
 from app.core.security import get_password_hash, verify_password
@@ -24,6 +25,7 @@ from app.schemas.auth import (
     UserRegister,
     UserUpdate,
 )
+from app.utils import now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -94,17 +96,7 @@ def login(data: UserLogin, response: Response, db: Session = Depends(get_db)):
     refresh_token = create_refresh_token(data={"sub": user.id})
 
     # Refresh Token을 httpOnly 쿠키로 설정
-    # 삼성 브라우저 등 호환성을 위해 samesite="none" + secure=True 사용
-    is_production = settings.ENVIRONMENT == "production"
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=is_production,
-        samesite="none" if is_production else "lax",
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        path="/",
-    )
+    set_refresh_token_cookie(response, refresh_token)
 
     logger.info(f"User logged in successfully: {user.id}")
     return TokenResponse(
@@ -167,16 +159,7 @@ def refresh_token(
     new_refresh_token = create_refresh_token(data={"sub": user.id})
 
     # 새 Refresh Token 쿠키 설정
-    is_production = settings.ENVIRONMENT == "production"
-    response.set_cookie(
-        key="refresh_token",
-        value=new_refresh_token,
-        httponly=True,
-        secure=is_production,
-        samesite="none" if is_production else "lax",
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        path="/",
-    )
+    set_refresh_token_cookie(response, new_refresh_token)
 
     logger.info(f"Token refreshed for user: {user.id}")
     return TokenResponse(
@@ -191,14 +174,7 @@ def logout(response: Response, current_user: User = Depends(get_current_user)):
     logger.info(f"User logout: {current_user.id}")
 
     # Refresh Token 쿠키 삭제
-    is_production = settings.ENVIRONMENT == "production"
-    response.delete_cookie(
-        key="refresh_token",
-        httponly=True,
-        secure=is_production,
-        samesite="none" if is_production else "lax",
-        path="/",
-    )
+    delete_refresh_token_cookie(response)
 
     return MessageResponse(message="로그아웃되었습니다")
 
@@ -271,8 +247,7 @@ def change_password(
 
     # 새 비밀번호 해시
     current_user.hashed_password = get_password_hash(data.new_password)
-    from datetime import datetime, timezone
-    current_user.updated_at = datetime.now(timezone.utc).isoformat()
+    current_user.updated_at = now_iso()
 
     db.commit()
 
@@ -292,8 +267,7 @@ def update_profile(
     if data.interests is not None:
         current_user.interests = data.interests
 
-    from datetime import datetime, timezone
-    current_user.updated_at = datetime.now(timezone.utc).isoformat()
+    current_user.updated_at = now_iso()
 
     db.commit()
     db.refresh(current_user)

@@ -107,10 +107,10 @@ class ContextExtractor:
                     else:
                         text_to_analyze = f"URL: {source_url}\n\n{fetched_content}"
                         facts_text = fetched_content
-                    facts = await self._call_llm_facts(facts_text)
+                    facts = await self.call_llm_facts(facts_text)
 
             # LLM 호출
-            context = await self._call_llm(text_to_analyze, memo_type)
+            context = await self.call_llm(text_to_analyze, memo_type)
             return context, og_metadata, facts
 
         except Exception as e:
@@ -251,7 +251,7 @@ class ContextExtractor:
 
         return None
 
-    async def _call_llm(self, text: str, memo_type: str) -> Optional[str]:
+    async def call_llm(self, text: str, memo_type: str) -> Optional[str]:
         """
         OpenAI API 호출
 
@@ -297,7 +297,7 @@ class ContextExtractor:
             logger.error(f"LLM API call failed: {e}", exc_info=True)
             return None
 
-    async def _call_llm_facts(self, text: str) -> Optional[list[str]]:
+    async def call_llm_facts(self, text: str) -> Optional[list[str]]:
         """
         OpenAI API 호출 (Facts 추출)
 

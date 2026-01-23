@@ -190,13 +190,13 @@ class AnalysisService:
                 text_to_analyze = f"URL: {source_url}\n\n{fetched_content}"
 
             # context 추출
-            context = await context_extractor._call_llm(
+            context = await context_extractor.call_llm(
                 text_to_analyze, memo.memo_type
             )
 
             # facts 추출
             facts_text = f"사용자 메모: {content}\n\n{fetched_content}" if content else fetched_content
-            facts = await context_extractor._call_llm_facts(facts_text)
+            facts = await context_extractor.call_llm_facts(facts_text)
 
             # 결과 저장
             memo.context = context

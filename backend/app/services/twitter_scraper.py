@@ -25,6 +25,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from app.utils import DEFAULT_USER_AGENT
+
 logger = logging.getLogger(__name__)
 
 # 동시 요청 제한
@@ -75,10 +77,7 @@ class TwitterScraper:
         """
         self.timeout = timeout
         self.headless = headless
-        self.user_agent = (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
+        self.user_agent = DEFAULT_USER_AGENT
 
         # 쿠키 저장 경로 설정
         if cookies_dir is None:

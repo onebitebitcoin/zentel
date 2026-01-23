@@ -3,24 +3,14 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from functools import partial
 from typing import Optional
 
 from sqlalchemy import JSON, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
-from ulid import ULID
 
 from app.database import Base
-
-
-def generate_ulid() -> str:
-    """ULID 생성"""
-    return f"tm_{ULID()}"
-
-
-def now_iso() -> str:
-    """현재 시간을 ISO8601 형식으로 반환 (UTC)"""
-    return datetime.now(timezone.utc).isoformat()
+from app.utils import generate_ulid, now_iso
 
 
 class TempMemo(Base):
@@ -28,7 +18,9 @@ class TempMemo(Base):
 
     __tablename__ = "temp_memos"
 
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=generate_ulid)
+    id: Mapped[str] = mapped_column(
+        String(32), primary_key=True, default=partial(generate_ulid, "tm")
+    )
     memo_type: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

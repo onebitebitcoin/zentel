@@ -19,6 +19,8 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
+from app.utils import DEFAULT_USER_AGENT
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,10 +42,7 @@ class YouTubeScraper:
     """YouTube 스크래핑 서비스"""
 
     def __init__(self) -> None:
-        self.user_agent = (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
+        self.user_agent = DEFAULT_USER_AGENT
 
     def is_youtube_url(self, url: str) -> bool:
         """

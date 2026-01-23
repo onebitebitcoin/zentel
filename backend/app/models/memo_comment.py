@@ -3,24 +3,14 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from functools import partial
 from typing import Optional
 
 from sqlalchemy import ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
-from ulid import ULID
 
 from app.database import Base
-
-
-def generate_comment_ulid() -> str:
-    """Comment ULID 생성"""
-    return f"mc_{ULID()}"
-
-
-def now_iso() -> str:
-    """현재 시간을 ISO8601 형식으로 반환 (UTC)"""
-    return datetime.now(timezone.utc).isoformat()
+from app.utils import generate_ulid, now_iso
 
 
 class MemoComment(Base):
@@ -28,7 +18,9 @@ class MemoComment(Base):
 
     __tablename__ = "memo_comments"
 
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=generate_comment_ulid)
+    id: Mapped[str] = mapped_column(
+        String(32), primary_key=True, default=partial(generate_ulid, "mc")
+    )
     memo_id: Mapped[str] = mapped_column(
         String(32),
         ForeignKey("temp_memos.id", ondelete="CASCADE"),
