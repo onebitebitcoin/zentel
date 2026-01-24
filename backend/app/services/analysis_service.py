@@ -347,16 +347,21 @@ class AnalysisService:
 
         # 결과 저장
         memo.original_language = lang
-        memo.translated_content = translation  # 한국어면 None
+        memo.translated_content = translation  # 한국어면 정리된 텍스트, 외국어면 번역본
         memo.is_summary = is_summary  # 요약 여부
         memo.highlights = highlights
+
+        # display_content 결정: 번역/정리된 텍스트가 있으면 사용, 없으면 원본
+        # 하이라이트는 display_content 기준으로 추출됨
+        memo.display_content = translation if translation else text_to_analyze
 
         logger.info(
             f"[AnalysisService] 번역/하이라이트 완료: "
             f"lang={lang}, "
             f"translation={'Yes' if translation else 'No'}, "
             f"is_summary={is_summary}, "
-            f"highlights={len(highlights) if highlights else 0}"
+            f"highlights={len(highlights) if highlights else 0}, "
+            f"display_content_len={len(memo.display_content) if memo.display_content else 0}"
         )
         detail = f"언어: {lang}"
         if translation:

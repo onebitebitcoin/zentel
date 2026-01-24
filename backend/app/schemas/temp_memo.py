@@ -85,8 +85,9 @@ class TempMemoOut(BaseModel):
     original_language: Optional[str] = None
     translated_content: Optional[str] = None
     fetched_content: Optional[str] = None  # 스크래핑된 원본 컨텐츠 (URL 메모용)
+    display_content: Optional[str] = None  # 최종 표시용 콘텐츠 (번역/정리/단락화 완료)
     is_summary: bool = False  # True면 요약 번역 (긴 글이라 전체 번역 대신 요약)
-    highlights: Optional[List[HighlightItem]] = None
+    highlights: Optional[List[HighlightItem]] = None  # display_content에 맵핑되는 하이라이트
     created_at: str
     updated_at: Optional[str] = None
     comment_count: int = 0

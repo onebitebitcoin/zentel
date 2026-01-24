@@ -106,29 +106,16 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAnalyzing, memo.id]);
 
-  // 본문 보기에 표시할 콘텐츠 결정
+  // 본문 보기에 표시할 콘텐츠 (display_content 사용)
   const displayContent = useMemo(() => {
     if (memo.analysis_status !== 'completed') return null;
+    if (!memo.display_content) return null;
 
-    // 외국어 → 번역본 사용
-    if (memo.original_language && memo.original_language !== 'ko' && memo.translated_content) {
-      return {
-        text: memo.translated_content,
-        isTranslated: true,
-      };
-    }
-
-    // 한국어 또는 원본 → fetched_content 또는 content 사용
-    const originalText = memo.fetched_content || memo.content;
-    if (originalText) {
-      return {
-        text: originalText,
-        isTranslated: false,
-      };
-    }
-
-    return null;
-  }, [memo.analysis_status, memo.original_language, memo.translated_content, memo.fetched_content, memo.content]);
+    return {
+      text: memo.display_content,
+      isTranslated: memo.original_language !== null && memo.original_language !== 'ko',
+    };
+  }, [memo.analysis_status, memo.display_content, memo.original_language]);
 
   // 하이라이트 렌더링 함수
   const renderHighlightedText = useMemo(() => {

@@ -91,6 +91,7 @@ def memo_to_out(
         original_language=memo.original_language,
         translated_content=memo.translated_content,
         fetched_content=memo.fetched_content,
+        display_content=memo.display_content,
         is_summary=memo.is_summary,
         highlights=memo.highlights,
         created_at=memo.created_at,

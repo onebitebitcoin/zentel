@@ -42,12 +42,15 @@ class TempMemo(Base):
     fetched_content: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True
     )  # 스크래핑된 원본 컨텐츠 (URL 메모용)
+    display_content: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # 최종 표시용 콘텐츠 (번역/정리/단락화 완료)
     is_summary: Mapped[bool] = mapped_column(
         default=False
     )  # True면 요약 번역 (긴 글)
     highlights: Mapped[Optional[list[dict]]] = mapped_column(
         JSON, nullable=True
-    )  # 하이라이트 위치 정보
+    )  # 하이라이트 위치 정보 (display_content 기준)
     created_at: Mapped[str] = mapped_column(String(64), nullable=False, default=now_iso)
     updated_at: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
