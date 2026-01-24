@@ -536,7 +536,7 @@ async def _detect_language(client: OpenAI, text: str) -> Optional[str]:
                 "코드만 응답 (예: ko, en, ja, zh)"
             ),
             input=text,
-            max_output_tokens=10,
+            max_output_tokens=16,
         )
 
         result = response.output_text
