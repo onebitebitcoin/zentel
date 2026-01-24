@@ -4,12 +4,12 @@ URL 콘텐츠 가져오기 서비스
 Unix Philosophy:
 - Modularity: URL 콘텐츠 가져오기만 담당
 - Separation: HTTP 요청 로직 분리
+- Simplicity: 단순한 로직 유지
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -35,15 +35,10 @@ INACCESSIBLE_DOMAINS: frozenset[str] = frozenset([
     "www.youtu.be",
 ])
 
-# GitHub blob URL 패턴
-GITHUB_BLOB_PATTERN = re.compile(
-    r"^https?://github\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+)$"
-)
-
 
 def is_inaccessible_url(url: str) -> bool:
     """
-    접근 불가능한 URL인지 확인
+    접근 불가능한 URL인지 확인 (Twitter, YouTube 등)
 
     Args:
         url: 확인할 URL
@@ -59,40 +54,15 @@ def is_inaccessible_url(url: str) -> bool:
         return False
 
 
-def convert_github_to_raw(url: str) -> Optional[str]:
-    """
-    GitHub blob URL을 raw URL로 변환
-
-    Args:
-        url: GitHub blob URL
-
-    Returns:
-        raw.githubusercontent.com URL 또는 None
-    """
-    match = GITHUB_BLOB_PATTERN.match(url)
-    if match:
-        owner, repo, branch, path = match.groups()
-        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}"
-        logger.info(f"GitHub URL 변환: {url} -> {raw_url}")
-        return raw_url
-    return None
-
-
-def is_github_url(url: str) -> bool:
-    """GitHub URL인지 확인"""
-    try:
-        parsed = urlparse(url)
-        return parsed.netloc.lower() in ("github.com", "www.github.com")
-    except Exception:
-        return False
-
-
 async def fetch_url_content(
     url: str,
     max_length: int = 10000,
 ) -> tuple[Optional[str], Optional[OGMetadata]]:
     """
     URL에서 콘텐츠와 OG 메타데이터 가져오기
+
+    - Twitter/YouTube: 접근 불가 메시지 반환 (별도 스크래퍼 사용)
+    - 그 외 모든 URL: trafilatura로 본문 추출
 
     Args:
         url: 대상 URL
@@ -101,27 +71,18 @@ async def fetch_url_content(
     Returns:
         (추출된 텍스트 콘텐츠, OG 메타데이터) 튜플
     """
-    # 접근 불가능한 URL 체크
+    # Twitter/YouTube는 별도 스크래퍼 사용
     if is_inaccessible_url(url):
-        logger.info(f"Inaccessible URL: {url}")
+        logger.info(f"Inaccessible URL (별도 스크래퍼 필요): {url}")
         return None, OGMetadata(
             fetch_failed=True,
             fetch_message="이 링크는 직접 접근이 불가능합니다. 내용을 복사해서 메모에 붙여넣어 주세요.",
         )
 
-    # GitHub blob URL -> raw URL 변환
-    fetch_url = url
-    is_github_raw = False
-    if is_github_url(url):
-        raw_url = convert_github_to_raw(url)
-        if raw_url:
-            fetch_url = raw_url
-            is_github_raw = True
-
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(
-                fetch_url,
+                url,
                 headers={"User-Agent": "Mozilla/5.0 Zentel/1.0"},
                 follow_redirects=True,
             )
@@ -129,57 +90,38 @@ async def fetch_url_content(
 
             html = response.text
 
-            # OG 메타데이터 추출 (원본 URL에서)
-            og_metadata = None
-            if not is_github_raw:
-                og_metadata = extract_og_metadata(html, url)
-            else:
-                # GitHub raw는 OG 메타데이터가 없으므로 원본 URL에서 가져옴
+            # OG 메타데이터 추출
+            og_metadata = extract_og_metadata(html, url)
+
+            # trafilatura로 본문 추출
+            content = trafilatura.extract(
+                html,
+                include_comments=False,
+                include_tables=True,
+                no_fallback=False,
+            )
+
+            # trafilatura 실패 시 fallback
+            if not content:
+                logger.warning(f"trafilatura 추출 실패, fallback 사용: {url}")
                 try:
-                    og_response = await client.get(
-                        url,
-                        headers={"User-Agent": "Mozilla/5.0 Zentel/1.0"},
-                        follow_redirects=True,
-                    )
-                    if og_response.status_code == 200:
-                        og_metadata = extract_og_metadata(og_response.text, url)
-                except Exception as e:
-                    logger.warning(f"GitHub OG 메타데이터 가져오기 실패: {e}")
-
-            # 본문 추출
-            if is_github_raw:
-                # GitHub raw는 이미 텍스트이므로 그대로 사용
-                content = html
-            else:
-                # trafilatura로 본문 추출
-                content = trafilatura.extract(
-                    html,
-                    include_comments=False,
-                    include_tables=True,
-                    no_fallback=False,
-                )
-
-                # trafilatura 실패 시 fallback
-                if not content:
-                    logger.warning(f"trafilatura 추출 실패, fallback 사용: {url}")
-                    # BeautifulSoup fallback
-                    try:
-                        from bs4 import BeautifulSoup
-                        soup = BeautifulSoup(html, "html.parser")
-                        # script, style 제거
-                        for tag in soup(["script", "style", "nav", "footer", "header"]):
-                            tag.decompose()
-                        content = soup.get_text(separator="\n", strip=True)
-                    except Exception:
-                        # 최후의 수단: HTML 그대로
-                        content = html
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(html, "html.parser")
+                    # script, style, nav, footer 등 제거
+                    for tag in soup(["script", "style", "nav", "footer", "header"]):
+                        tag.decompose()
+                    content = soup.get_text(separator="\n", strip=True)
+                except Exception:
+                    # 최후의 수단: HTML 그대로
+                    content = html
 
             # 콘텐츠 길이 제한
             if content and len(content) > max_length:
                 content = content[:max_length] + "..."
 
             logger.info(
-                f"URL 콘텐츠 가져옴: {url}, length={len(content) if content else 0}, "
+                f"URL 콘텐츠 추출 완료: {url}, "
+                f"length={len(content) if content else 0}, "
                 f"og_title={og_metadata.title if og_metadata else None}"
             )
             return content, og_metadata
