@@ -1,11 +1,12 @@
 import { useState, useMemo, Fragment, useEffect, useRef } from 'react';
-import { Pencil, Trash2, ExternalLink, Copy, MessageCircle, ChevronDown, ChevronUp, RefreshCw, Loader2, AlertCircle, FileText, Clock } from 'lucide-react';
+import { Pencil, Trash2, ExternalLink, Copy, MessageCircle, ChevronDown, ChevronUp, RefreshCw, Loader2, AlertCircle, FileText, Clock, Terminal } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemo, HighlightItem } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
 import { getRelativeTime } from '../../utils/date';
 import { CommentList } from './CommentList';
 import { tempMemoApi } from '../../api/client';
+import type { AnalysisProgressEvent } from '../../hooks/useAnalysisSSE';
 
 // 분석 타임아웃 (초) - 스크래핑 + LLM 호출 고려
 const ANALYSIS_TIMEOUT_SEC = 60;
@@ -16,13 +17,15 @@ interface MemoCardProps {
   onDelete: (id: string) => void;
   onCommentChange?: () => void;
   onReanalyze?: (id: string) => void;
+  analysisLogs?: AnalysisProgressEvent[];
 }
 
-export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze }: MemoCardProps) {
+export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze, analysisLogs }: MemoCardProps) {
   const typeInfo = getMemoTypeInfo(memo.memo_type);
   const [contentExpanded, setContentExpanded] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [translationExpanded, setTranslationExpanded] = useState(false);
+  const [logsExpanded, setLogsExpanded] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [analysisTimedOut, setAnalysisTimedOut] = useState(false);
   const [timeoutMessage, setTimeoutMessage] = useState<string | null>(null);
@@ -281,7 +284,30 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
             <Loader2 size={14} className="animate-spin text-primary" />
             <span>AI 분석중...</span>
             <span className="text-gray-400 tabular-nums">{remainingTime}초</span>
+            {analysisLogs && analysisLogs.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setLogsExpanded((prev) => !prev)}
+                className="flex items-center gap-1 ml-auto text-gray-400 hover:text-gray-600"
+              >
+                <Terminal size={12} />
+                <span>로그</span>
+                {logsExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+            )}
           </div>
+          {/* 분석 로그 표시 */}
+          {logsExpanded && analysisLogs && analysisLogs.length > 0 && (
+            <div className="mt-2 p-2 bg-gray-900 rounded-lg text-[10px] font-mono text-gray-300 max-h-32 overflow-y-auto">
+              {analysisLogs.map((log, idx) => (
+                <div key={idx} className="flex gap-2 py-0.5">
+                  <span className="text-gray-500 flex-shrink-0">{log.timestamp}</span>
+                  <span className="text-green-400">{log.message}</span>
+                  {log.detail && <span className="text-gray-500">({log.detail})</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

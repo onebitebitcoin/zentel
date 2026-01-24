@@ -49,7 +49,7 @@ async def notify_analysis_complete(
     error: Optional[str] = None,
 ) -> None:
     """모든 SSE 클라이언트에 분석 완료 알림"""
-    event_data = {"memo_id": memo_id, "status": status}
+    event_data = {"memo_id": memo_id, "status": status, "event_type": "complete"}
     if error:
         event_data["error"] = error
     for client_id, queue in list(_sse_queues.items()):
@@ -57,6 +57,28 @@ async def notify_analysis_complete(
             await queue.put(event_data)
         except Exception as e:
             logger.warning(f"[AnalysisService] SSE 알림 실패 (client={client_id}): {e}")
+
+
+async def notify_analysis_progress(
+    memo_id: str,
+    step: str,
+    message: str,
+    detail: Optional[str] = None,
+) -> None:
+    """모든 SSE 클라이언트에 분석 진행 상황 알림"""
+    event_data = {
+        "memo_id": memo_id,
+        "event_type": "progress",
+        "step": step,
+        "message": message,
+    }
+    if detail:
+        event_data["detail"] = detail
+    for client_id, queue in list(_sse_queues.items()):
+        try:
+            await queue.put(event_data)
+        except Exception as e:
+            logger.warning(f"[AnalysisService] SSE progress 알림 실패 (client={client_id}): {e}")
 
 
 class AnalysisService:
@@ -89,6 +111,9 @@ class AnalysisService:
         memo.analysis_status = "analyzing"
         memo.analysis_error = None
         db.commit()
+
+        # 분석 시작 알림
+        await notify_analysis_progress(memo_id, "start", "분석 시작")
 
         # 재시도 간격 (초)
         retry_delays = [1, 3, 5]
@@ -149,6 +174,7 @@ class AnalysisService:
         # x.com URL인 경우 Playwright로 스크래핑
         if source_url and twitter_scraper.is_twitter_url(source_url):
             logger.info(f"[AnalysisService] Twitter URL 감지, 스크래핑 시작: {source_url}")
+            await notify_analysis_progress(memo.id, "scrape", "Twitter 콘텐츠 추출 중", source_url)
             result = await twitter_scraper.scrape(source_url)
 
             if result.success:
@@ -159,15 +185,24 @@ class AnalysisService:
                     f"[AnalysisService] Twitter 스크래핑 성공: "
                     f"content_length={len(fetched_content or '')}"
                 )
+                await notify_analysis_progress(
+                    memo.id, "scrape_done", "Twitter 콘텐츠 추출 완료",
+                    f"{len(fetched_content or '')} 자"
+                )
             else:
                 logger.warning(
                     f"[AnalysisService] Twitter 스크래핑 실패: {result.error}"
+                )
+                await notify_analysis_progress(
+                    memo.id, "scrape_failed", "Twitter 스크래핑 실패 (메모 내용으로 분석)",
+                    result.error
                 )
                 # 스크래핑 실패해도 계속 진행 (content만으로 분석)
 
         # YouTube URL인 경우 자막 스크래핑
         elif source_url and youtube_scraper.is_youtube_url(source_url):
             logger.info(f"[AnalysisService] YouTube URL 감지, 스크래핑 시작: {source_url}")
+            await notify_analysis_progress(memo.id, "scrape", "YouTube 자막 추출 중", source_url)
             result = await youtube_scraper.scrape(source_url)
 
             if result.success:
@@ -179,9 +214,17 @@ class AnalysisService:
                     f"content_length={len(fetched_content or '')}, "
                     f"language={result.language}"
                 )
+                await notify_analysis_progress(
+                    memo.id, "scrape_done", "YouTube 자막 추출 완료",
+                    f"{len(fetched_content or '')} 자, 언어: {result.language}"
+                )
             else:
                 logger.warning(
                     f"[AnalysisService] YouTube 스크래핑 실패: {result.error}"
+                )
+                await notify_analysis_progress(
+                    memo.id, "scrape_failed", "YouTube 자막 추출 실패 (메모 내용으로 분석)",
+                    result.error
                 )
                 # 스크래핑 실패해도 계속 진행 (content만으로 분석)
 
@@ -189,6 +232,7 @@ class AnalysisService:
         elif source_url:
             from app.services.url_fetcher import fetch_url_content
             logger.info(f"[AnalysisService] 일반 URL 감지, 콘텐츠 추출 시작: {source_url}")
+            await notify_analysis_progress(memo.id, "scrape", "웹페이지 콘텐츠 추출 중", source_url)
             url_content, og_metadata = await fetch_url_content(source_url)
 
             if url_content:
@@ -200,12 +244,20 @@ class AnalysisService:
                     f"[AnalysisService] URL 콘텐츠 추출 성공: "
                     f"content_length={len(fetched_content or '')}"
                 )
+                await notify_analysis_progress(
+                    memo.id, "scrape_done", "웹페이지 콘텐츠 추출 완료",
+                    f"{len(fetched_content or '')} 자"
+                )
             else:
                 logger.warning(
                     f"[AnalysisService] URL 콘텐츠 추출 실패: {source_url}"
                 )
+                await notify_analysis_progress(
+                    memo.id, "scrape_failed", "웹페이지 추출 실패 (메모 내용으로 분석)"
+                )
 
         # LLM 분석
+        await notify_analysis_progress(memo.id, "llm", "AI가 내용을 분석 중")
         if fetched_content:
             # URL 콘텐츠가 있으면 합쳐서 분석
             text_to_analyze = content
@@ -233,17 +285,25 @@ class AnalysisService:
             context = await llm_service.extract_context(content, memo.memo_type)
             memo.context = context
 
+        await notify_analysis_progress(memo.id, "llm_done", "AI 분석 완료")
+
         # 관심사 매핑 (로그인 사용자인 경우)
         if user_id:
             user = db.query(User).filter(User.id == user_id).first()
             if user and user.interests:
                 logger.info(f"[AnalysisService] 관심사 매핑 시작: user_id={user_id}")
+                await notify_analysis_progress(memo.id, "interests", "관심사 매핑 중")
                 interests = await context_extractor.match_interests(
                     content=content,
                     user_interests=user.interests,
                 )
                 memo.interests = interests if interests else None
                 logger.info(f"[AnalysisService] 매핑된 관심사: {interests}")
+                if interests:
+                    await notify_analysis_progress(
+                        memo.id, "interests_done", "관심사 매핑 완료",
+                        ", ".join(interests)
+                    )
 
         # 스크래핑된 컨텐츠 저장 (URL 메모용)
         if fetched_content:
@@ -275,10 +335,12 @@ class AnalysisService:
 
         if not text_to_analyze or len(text_to_analyze.strip()) < 20:
             logger.info("[AnalysisService] 텍스트가 너무 짧아 번역/하이라이트 스킵")
+            await notify_analysis_progress(memo.id, "translate_skip", "텍스트가 짧아 번역 스킵")
             return
 
         # 1회 LLM 호출로 언어감지 + 번역 + 하이라이트 처리
         logger.info("[AnalysisService] 번역/하이라이트 통합 분석 시작 (1회 LLM 호출)")
+        await notify_analysis_progress(memo.id, "translate", "번역 및 하이라이트 추출 중")
         lang, translation, is_summary, highlights = await context_extractor.translate_and_highlight(
             text_to_analyze
         )
@@ -296,6 +358,12 @@ class AnalysisService:
             f"is_summary={is_summary}, "
             f"highlights={len(highlights) if highlights else 0}"
         )
+        detail = f"언어: {lang}"
+        if translation:
+            detail += ", 번역 완료"
+        if highlights:
+            detail += f", 하이라이트 {len(highlights)}개"
+        await notify_analysis_progress(memo.id, "translate_done", "번역/하이라이트 완료", detail)
 
 
 # 싱글톤 인스턴스

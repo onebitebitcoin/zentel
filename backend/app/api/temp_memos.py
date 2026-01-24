@@ -218,10 +218,18 @@ async def analysis_events(request: Request):
                 try:
                     # 5초마다 keepalive ping 전송
                     event = await asyncio.wait_for(queue.get(), timeout=5.0)
-                    yield {
-                        "event": "analysis_complete",
-                        "data": json.dumps(event),
-                    }
+                    # 이벤트 타입에 따라 다른 SSE 이벤트명 사용
+                    event_type = event.get("event_type", "complete")
+                    if event_type == "progress":
+                        yield {
+                            "event": "analysis_progress",
+                            "data": json.dumps(event),
+                        }
+                    else:
+                        yield {
+                            "event": "analysis_complete",
+                            "data": json.dumps(event),
+                        }
                 except asyncio.TimeoutError:
                     # keepalive ping
                     yield {"event": "ping", "data": ""}

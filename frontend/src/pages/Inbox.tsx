@@ -18,22 +18,34 @@ export function Inbox() {
   const [loadingMore, setLoadingMore] = useState(false);
   const limit = 10;
 
-  // SSE로 분석 완료 이벤트 수신
-  const handleAnalysisComplete = useCallback(
-    async (memoId: string, status: string) => {
-      console.log('[Inbox] Analysis complete:', memoId, status);
-      // 해당 메모 새로고침
-      await refreshMemo(memoId);
-      if (status === 'completed') {
-        toast.success('AI 분석이 완료되었습니다.');
-      } else if (status === 'failed') {
-        toast.error('AI 분석에 실패했습니다.');
-      }
-    },
-    [refreshMemo]
+  // SSE 훅 먼저 초기화
+  const { analysisLogs, clearLogs } = useAnalysisSSE(
+    useCallback(
+      async (memoId: string, status: string) => {
+        console.log('[Inbox] Analysis complete:', memoId, status);
+        // 해당 메모 새로고침
+        await refreshMemo(memoId);
+        if (status === 'completed') {
+          toast.success('AI 분석이 완료되었습니다.');
+        } else if (status === 'failed') {
+          toast.error('AI 분석에 실패했습니다.');
+        }
+      },
+      [refreshMemo]
+    )
   );
 
-  useAnalysisSSE(handleAnalysisComplete);
+  // 분석 완료 시 로그 정리를 위한 effect
+  useEffect(() => {
+    // 분석이 완료된 메모의 로그 정리
+    memos.forEach((memo) => {
+      if (memo.analysis_status === 'completed' || memo.analysis_status === 'failed') {
+        if (analysisLogs[memo.id]) {
+          clearLogs(memo.id);
+        }
+      }
+    });
+  }, [memos, analysisLogs, clearLogs]);
 
   useEffect(() => {
     const type = filter === 'ALL' ? undefined : filter;
@@ -172,6 +184,7 @@ export function Inbox() {
                 onDelete={handleDelete}
                 onCommentChange={() => handleCommentChange(memo.id)}
                 onReanalyze={handleReanalyze}
+                analysisLogs={analysisLogs[memo.id]}
               />
             ))}
             {hasMore && (

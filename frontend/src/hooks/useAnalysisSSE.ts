@@ -1,10 +1,23 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
-interface AnalysisEvent {
+interface AnalysisCompleteEvent {
   memo_id: string;
   status: string;
+  error?: string;
+}
+
+export interface AnalysisProgressEvent {
+  memo_id: string;
+  step: string;
+  message: string;
+  detail?: string;
+  timestamp?: string;
+}
+
+export interface AnalysisLogs {
+  [memoId: string]: AnalysisProgressEvent[];
 }
 
 /**
@@ -15,11 +28,26 @@ export function useAnalysisSSE(
 ) {
   const eventSourceRef = useRef<EventSource | null>(null);
   const onAnalysisCompleteRef = useRef(onAnalysisComplete);
+  const [analysisLogs, setAnalysisLogs] = useState<AnalysisLogs>({});
 
   // 콜백 참조 업데이트
   useEffect(() => {
     onAnalysisCompleteRef.current = onAnalysisComplete;
   }, [onAnalysisComplete]);
+
+  // 특정 메모의 로그 초기화
+  const clearLogs = useCallback((memoId: string) => {
+    setAnalysisLogs((prev) => {
+      const newLogs = { ...prev };
+      delete newLogs[memoId];
+      return newLogs;
+    });
+  }, []);
+
+  // 모든 로그 초기화
+  const clearAllLogs = useCallback(() => {
+    setAnalysisLogs({});
+  }, []);
 
   const connect = useCallback(() => {
     // 이미 연결되어 있으면 무시
@@ -30,9 +58,26 @@ export function useAnalysisSSE(
     const eventSource = new EventSource(`${API_BASE_URL}/temp-memos/analysis-events`);
     eventSourceRef.current = eventSource;
 
+    // 분석 진행 상황 이벤트
+    eventSource.addEventListener('analysis_progress', (event) => {
+      try {
+        const data: AnalysisProgressEvent = JSON.parse(event.data);
+        data.timestamp = new Date().toLocaleTimeString('ko-KR');
+        console.log('[SSE] Analysis progress:', data);
+
+        setAnalysisLogs((prev) => ({
+          ...prev,
+          [data.memo_id]: [...(prev[data.memo_id] || []), data],
+        }));
+      } catch (error) {
+        console.error('[SSE] Failed to parse progress event:', error);
+      }
+    });
+
+    // 분석 완료 이벤트
     eventSource.addEventListener('analysis_complete', (event) => {
       try {
-        const data: AnalysisEvent = JSON.parse(event.data);
+        const data: AnalysisCompleteEvent = JSON.parse(event.data);
         console.log('[SSE] Analysis complete:', data);
         onAnalysisCompleteRef.current(data.memo_id, data.status);
       } catch (error) {
@@ -77,5 +122,5 @@ export function useAnalysisSSE(
     };
   }, [connect, disconnect]);
 
-  return { connect, disconnect };
+  return { connect, disconnect, analysisLogs, clearLogs, clearAllLogs };
 }
