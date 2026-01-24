@@ -136,7 +136,6 @@ async def extract_context(text: str, memo_type: str) -> Optional[str]:
             ),
             input=f"다음 내용의 핵심 context를 10단어 이내로 표현해주세요:\n\n{text}",
             max_output_tokens=50,
-            temperature=0.3,
         )
 
         context = response.output_text
@@ -189,7 +188,6 @@ async def match_interests(content: str, user_interests: list[str]) -> list[str]:
                 "명확하게 관련된 관심사가 없으면 '없음'이라고 반환하세요."
             ),
             max_output_tokens=100,
-            temperature=0.2,
         )
 
         raw = response.output_text or ""
@@ -353,7 +351,6 @@ async def _translate_chunk(
             ),
             input=f"다음 텍스트를 한국어로 번역하고 정리하세요:\n\n{chunk}",
             max_output_tokens=4000,
-            temperature=0.3,
         )
 
         result = response.output_text
@@ -434,7 +431,6 @@ async def _format_single_chunk(
             ),
             input=f"다음 텍스트를 읽기 좋게 정리하세요:\n\n{chunk}",
             max_output_tokens=4000,
-            temperature=0.3,
         )
 
         result = response.output_text
@@ -541,7 +537,6 @@ async def _detect_language(client: OpenAI, text: str) -> Optional[str]:
             ),
             input=text,
             max_output_tokens=10,
-            temperature=0.1,
         )
 
         result = response.output_text
@@ -592,7 +587,6 @@ async def _extract_highlights(
             ),
             input=sample_text,
             max_output_tokens=1500,
-            temperature=0.3,
         )
 
         raw = response.output_text or ""
