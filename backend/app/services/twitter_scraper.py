@@ -86,25 +86,44 @@ class TwitterScraper:
         Returns:
             TwitterScrapingResult
         """
+        logger.info(f"[TwitterScraper] 스크래핑 시작: {url}")
         semaphore = _get_semaphore()
         async with semaphore:
             # 1단계: Syndication API 시도
+            logger.info("[TwitterScraper] 1단계: Syndication API 호출")
             syndication_result = await fetch_tweet_metadata(url)
+            logger.info(
+                f"[TwitterScraper] Syndication 결과: success={syndication_result.success}, "
+                f"content_len={len(syndication_result.content)}, "
+                f"screen_name={syndication_result.screen_name}, "
+                f"tweet_id={syndication_result.tweet_id}, "
+                f"article_url={syndication_result.article_url}"
+            )
 
             if syndication_result.success and syndication_result.content:
                 result = self._convert_syndication_result(syndication_result)
+                logger.info(f"[TwitterScraper] Syndication 성공, content: {result.content[:100]}...")
 
                 # 아티클 URL이 있으면 Playwright로 추가 추출
                 if result.article_url and result.screen_name and result.tweet_id:
+                    logger.info("[TwitterScraper] 아티클 URL 감지, Playwright로 추가 추출 시도")
                     article_result = await self._fetch_article_content(result)
                     if article_result:
+                        logger.info(f"[TwitterScraper] 아티클 추출 성공: {len(article_result.content)}자")
                         return self._truncate_content(article_result)
+                    else:
+                        logger.warning("[TwitterScraper] 아티클 추출 실패, Syndication 결과 사용")
 
+                logger.info(f"[TwitterScraper] 최종 반환: {len(result.content)}자")
                 return self._truncate_content(result)
 
             # 2단계: Playwright 폴백
-            logger.info("[TwitterScraper] Syndication 실패, Playwright로 재시도...")
+            logger.info("[TwitterScraper] 2단계: Syndication 실패, Playwright로 재시도...")
             playwright_result = await self.playwright_scraper.scrape(url)
+            logger.info(
+                f"[TwitterScraper] Playwright 결과: success={playwright_result.success}, "
+                f"content_len={len(playwright_result.content)}, error={playwright_result.error}"
+            )
             return self._truncate_content(self._convert_playwright_result(playwright_result))
 
     async def _fetch_article_content(

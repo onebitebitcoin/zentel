@@ -48,13 +48,15 @@ async def fetch_tweet_metadata(url: str) -> SyndicationResult:
     """
     start_time = time.time()
     result = SyndicationResult()
+    logger.info(f"[Syndication] 시작: {url}")
 
     tweet_id = extract_tweet_id(url)
     if not tweet_id:
-        logger.warning("[Syndication] 트윗 ID 추출 실패")
+        logger.warning(f"[Syndication] 트윗 ID 추출 실패: {url}")
         return result
 
     result.tweet_id = tweet_id
+    logger.info(f"[Syndication] 트윗 ID: {tweet_id}")
 
     try:
         api_url = f"https://cdn.syndication.twimg.com/tweet-result?id={tweet_id}&token=x"
@@ -62,16 +64,19 @@ async def fetch_tweet_metadata(url: str) -> SyndicationResult:
             "User-Agent": DEFAULT_USER_AGENT,
             "Accept": "application/json",
         }
+        logger.info(f"[Syndication] API 호출: {api_url}")
 
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
             response = await client.get(api_url, headers=headers)
+            logger.info(f"[Syndication] API 응답: status={response.status_code}")
 
             if response.status_code != 200:
-                logger.warning(f"[Syndication] API 실패: status={response.status_code}")
+                logger.warning(f"[Syndication] API 실패: status={response.status_code}, body={response.text[:200]}")
                 result.elapsed_time = time.time() - start_time
                 return result
 
             data = response.json()
+            logger.info(f"[Syndication] JSON 파싱 성공, keys={list(data.keys())}")
 
             # 트윗 텍스트
             result.content = data.get("text", "")

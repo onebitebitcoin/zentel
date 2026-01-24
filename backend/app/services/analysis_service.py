@@ -240,6 +240,13 @@ class AnalysisService:
         # 스크래핑된 컨텐츠 저장 (URL 메모용)
         if fetched_content:
             memo.fetched_content = fetched_content
+            logger.info(
+                f"[AnalysisService] fetched_content 저장: "
+                f"length={len(fetched_content)}, "
+                f"preview={fetched_content[:100]}..."
+            )
+        else:
+            logger.warning(f"[AnalysisService] fetched_content 없음, source_url={source_url}")
 
         # 번역 및 하이라이트 추출
         await self._process_translation_and_highlights(memo, fetched_content)
