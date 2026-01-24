@@ -186,14 +186,16 @@ async def _call_llm(
                 "- 친근하지만 존중하는 어조 유지"
             ),
             input=input_text,
-            max_output_tokens=500,
+            max_output_tokens=16000,  # 최대값으로 설정
+            reasoning={"effort": "low"},  # reasoning 사용량 줄이기
         )
 
         # 응답 디버깅
         logger.info(f"[CommentAI] LLM 응답 객체: {type(response)}")
+        logger.info(f"[CommentAI] LLM 전체 응답: {response}")
 
         result = response.output_text
-        logger.info(f"[CommentAI] output_text: {result[:100] if result else 'None/Empty'}...")
+        logger.info(f"[CommentAI] output_text 전체: {result!r}")
 
         if result:
             result = result.strip()
