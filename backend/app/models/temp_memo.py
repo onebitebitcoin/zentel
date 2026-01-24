@@ -39,6 +39,9 @@ class TempMemo(Base):
         String(16), nullable=True
     )  # "ko", "en", "ja" 등
     translated_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fetched_content: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # 스크래핑된 원본 컨텐츠 (URL 메모용)
     is_summary: Mapped[bool] = mapped_column(
         default=False
     )  # True면 요약 번역 (긴 글)

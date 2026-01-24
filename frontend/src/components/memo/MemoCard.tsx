@@ -357,7 +357,7 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
           {translationExpanded && (
             <div className="mt-2 p-3 bg-gray-50 rounded-lg">
               <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {renderHighlightedText(memo.content, memo.highlights)}
+                {renderHighlightedText(memo.fetched_content || memo.content, memo.highlights)}
               </p>
             </div>
           )}

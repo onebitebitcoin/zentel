@@ -225,6 +225,10 @@ class AnalysisService:
                 memo.interests = interests if interests else None
                 logger.info(f"[AnalysisService] 매핑된 관심사: {interests}")
 
+        # 스크래핑된 컨텐츠 저장 (URL 메모용)
+        if fetched_content:
+            memo.fetched_content = fetched_content
+
         # 번역 및 하이라이트 추출
         await self._process_translation_and_highlights(memo, fetched_content)
 

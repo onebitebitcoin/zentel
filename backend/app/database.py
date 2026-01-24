@@ -135,3 +135,15 @@ def _run_migrations():
                 )
                 conn.commit()
             logger.info("Migration: 'is_summary' column added successfully")
+
+        # fetched_content 컬럼 추가 (스크래핑된 원본 컨텐츠)
+        if "fetched_content" not in columns:
+            logger.info(
+                "Migration: Adding 'fetched_content' column to temp_memos table"
+            )
+            with engine.connect() as conn:
+                conn.execute(
+                    text("ALTER TABLE temp_memos ADD COLUMN fetched_content TEXT")
+                )
+                conn.commit()
+            logger.info("Migration: 'fetched_content' column added successfully")

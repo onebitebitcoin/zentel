@@ -38,6 +38,7 @@ export interface TempMemo {
   analysis_error: string | null;
   original_language: string | null;
   translated_content: string | null;
+  fetched_content: string | null;  // 스크래핑된 원본 컨텐츠 (URL 메모용)
   is_summary: boolean;  // 요약 번역 여부
   highlights: HighlightItem[] | null;
   created_at: string;
