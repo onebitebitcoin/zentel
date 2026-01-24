@@ -12,7 +12,7 @@ type FilterType = 'ALL' | MemoType;
 
 export function Inbox() {
   const navigate = useNavigate();
-  const { memos, total, loading, error, fetchMemos, deleteMemo, refreshMemo } = useTempMemos();
+  const { memos, total, loading, error, fetchMemos, deleteMemo, refreshMemo, getMemoDetail, fetchMemoDetail, clearDetailCache } = useTempMemos();
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [offset, setOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -50,8 +50,9 @@ export function Inbox() {
   useEffect(() => {
     const type = filter === 'ALL' ? undefined : filter;
     setOffset(0);
+    clearDetailCache(); // 필터 변경 시 캐시 초기화
     fetchMemos(type, limit, 0);
-  }, [filter, fetchMemos]);
+  }, [filter, fetchMemos, clearDetailCache]);
 
   useEffect(() => {
     if (error) {
@@ -185,6 +186,8 @@ export function Inbox() {
                 onCommentChange={() => handleCommentChange(memo.id)}
                 onReanalyze={handleReanalyze}
                 analysisLogs={analysisLogs[memo.id]}
+                cachedDetail={getMemoDetail(memo.id)}
+                onFetchDetail={fetchMemoDetail}
               />
             ))}
             {hasMore && (

@@ -26,6 +26,7 @@ from app.schemas.temp_memo import (
     MemoCommentSummary,
     MemoType,
     TempMemoCreate,
+    TempMemoListItem,
     TempMemoListResponse,
     TempMemoOut,
     TempMemoUpdate,
@@ -58,6 +59,44 @@ def get_memo_comment_info(db: Session, memo_id: str) -> tuple[int, MemoComment |
         .first()
     )
     return count, latest
+
+
+def memo_to_list_item(
+    db: Session,
+    memo: TempMemo,
+    fetch_failed: bool = False,
+    fetch_message: Optional[str] = None,
+) -> TempMemoListItem:
+    """TempMemo를 TempMemoListItem으로 변환 (본문 데이터 제외 - lazy loading용)"""
+    count, latest = get_memo_comment_info(db, memo.id)
+    latest_summary = None
+    if latest:
+        latest_summary = MemoCommentSummary(
+            id=latest.id,
+            content=latest.content,
+            created_at=latest.created_at,
+        )
+    return TempMemoListItem(
+        id=memo.id,
+        memo_type=memo.memo_type,
+        content=memo.content,
+        context=memo.context,
+        interests=memo.interests,
+        source_url=memo.source_url,
+        og_title=memo.og_title,
+        og_image=memo.og_image,
+        fetch_failed=fetch_failed,
+        fetch_message=fetch_message,
+        analysis_status=AnalysisStatus(memo.analysis_status),
+        analysis_error=memo.analysis_error,
+        original_language=memo.original_language,
+        is_summary=memo.is_summary,
+        has_display_content=bool(memo.display_content),
+        created_at=memo.created_at,
+        updated_at=memo.updated_at,
+        comment_count=count,
+        latest_comment=latest_summary,
+    )
 
 
 def memo_to_out(
@@ -194,8 +233,8 @@ def list_temp_memos(
 
     next_offset = offset + limit if offset + limit < total else None
 
-    # 댓글 정보 포함하여 변환
-    items = [memo_to_out(db, memo) for memo in db_items]
+    # 댓글 정보 포함하여 변환 (본문 데이터 제외 - lazy loading)
+    items = [memo_to_list_item(db, memo) for memo in db_items]
 
     logger.info(f"Found {len(items)} memos (total: {total})")
     return TempMemoListResponse(items=items, total=total, next_offset=next_offset)

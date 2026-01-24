@@ -65,8 +65,36 @@ class MemoCommentSummary(BaseModel):
     created_at: str
 
 
+class TempMemoListItem(BaseModel):
+    """목록용 스키마 (본문 데이터 제외 - lazy loading용)"""
+
+    id: str
+    memo_type: MemoType
+    content: str
+    context: Optional[str] = None
+    interests: Optional[List[str]] = None
+    source_url: Optional[str] = None
+    og_title: Optional[str] = None
+    og_image: Optional[str] = None
+    fetch_failed: bool = False
+    fetch_message: Optional[str] = None
+    # AI 분석 상태
+    analysis_status: AnalysisStatus = AnalysisStatus.PENDING
+    analysis_error: Optional[str] = None
+    # 본문 관련 (상세 정보 제외)
+    original_language: Optional[str] = None
+    is_summary: bool = False
+    has_display_content: bool = False  # 본문 존재 여부 플래그
+    created_at: str
+    updated_at: Optional[str] = None
+    comment_count: int = 0
+    latest_comment: Optional[MemoCommentSummary] = None
+
+    model_config = {"from_attributes": True}
+
+
 class TempMemoOut(BaseModel):
-    """임시 메모 응답 스키마"""
+    """임시 메모 응답 스키마 (상세 조회용)"""
 
     id: str
     memo_type: MemoType
@@ -99,6 +127,6 @@ class TempMemoOut(BaseModel):
 class TempMemoListResponse(BaseModel):
     """임시 메모 목록 응답 스키마"""
 
-    items: List[TempMemoOut]
+    items: List[TempMemoListItem]
     total: int
     next_offset: Optional[int] = None

@@ -1,17 +1,21 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { tempMemoApi } from '../api/client';
 import type {
   TempMemo,
+  TempMemoListItem,
   TempMemoCreate,
   TempMemoUpdate,
   MemoType,
 } from '../types/memo';
 
 export function useTempMemos() {
-  const [memos, setMemos] = useState<TempMemo[]>([]);
+  const [memos, setMemos] = useState<TempMemoListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 상세 정보 캐시 (본문 데이터)
+  const detailCacheRef = useRef<Map<string, TempMemo>>(new Map());
 
   const fetchMemos = useCallback(
     async (type?: MemoType, limit = 10, offset = 0) => {
@@ -78,12 +82,69 @@ export function useTempMemos() {
   const refreshMemo = useCallback(async (id: string) => {
     try {
       const updated = await tempMemoApi.get(id);
-      setMemos((prev) => prev.map((m) => (m.id === id ? updated : m)));
+      // 캐시에도 저장
+      detailCacheRef.current.set(id, updated);
+      // 목록 상태 업데이트 (목록용 필드만 추출)
+      setMemos((prev) =>
+        prev.map((m) =>
+          m.id === id
+            ? {
+                ...m,
+                memo_type: updated.memo_type,
+                content: updated.content,
+                context: updated.context,
+                interests: updated.interests,
+                source_url: updated.source_url,
+                og_title: updated.og_title,
+                og_image: updated.og_image,
+                fetch_failed: updated.fetch_failed,
+                fetch_message: updated.fetch_message,
+                analysis_status: updated.analysis_status,
+                analysis_error: updated.analysis_error,
+                original_language: updated.original_language,
+                is_summary: updated.is_summary,
+                has_display_content: Boolean(updated.display_content),
+                updated_at: updated.updated_at,
+                comment_count: updated.comment_count,
+                latest_comment: updated.latest_comment,
+              }
+            : m
+        )
+      );
       return updated;
     } catch (err) {
       console.error('메모 새로고침 실패:', err);
       return undefined;
     }
+  }, []);
+
+  // 캐시에서 상세 정보 조회
+  const getMemoDetail = useCallback((id: string): TempMemo | undefined => {
+    return detailCacheRef.current.get(id);
+  }, []);
+
+  // 상세 정보 가져오기 (캐시 확인 후 API 호출)
+  const fetchMemoDetail = useCallback(async (id: string): Promise<TempMemo | undefined> => {
+    // 캐시에 있으면 반환
+    const cached = detailCacheRef.current.get(id);
+    if (cached) {
+      return cached;
+    }
+
+    // API 호출
+    try {
+      const detail = await tempMemoApi.get(id);
+      detailCacheRef.current.set(id, detail);
+      return detail;
+    } catch (err) {
+      console.error('메모 상세 조회 실패:', err);
+      return undefined;
+    }
+  }, []);
+
+  // 캐시 초기화 (필터 변경 등에 사용)
+  const clearDetailCache = useCallback(() => {
+    detailCacheRef.current.clear();
   }, []);
 
   return {
@@ -96,5 +157,8 @@ export function useTempMemos() {
     updateMemo,
     deleteMemo,
     refreshMemo,
+    getMemoDetail,
+    fetchMemoDetail,
+    clearDetailCache,
   };
 }

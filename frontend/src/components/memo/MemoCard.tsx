@@ -1,7 +1,7 @@
 import { useState, useMemo, Fragment, useEffect, useRef } from 'react';
 import { Pencil, Trash2, ExternalLink, Copy, MessageCircle, ChevronDown, ChevronUp, RefreshCw, Loader2, AlertCircle, FileText, Clock, Terminal } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { TempMemo, HighlightItem } from '../../types/memo';
+import type { TempMemo, TempMemoListItem, HighlightItem } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
 import { getRelativeTime } from '../../utils/date';
 import { CommentList } from './CommentList';
@@ -12,15 +12,18 @@ import type { AnalysisProgressEvent } from '../../hooks/useAnalysisSSE';
 const ANALYSIS_TIMEOUT_SEC = 120;
 
 interface MemoCardProps {
-  memo: TempMemo;
+  memo: TempMemoListItem;
   onEdit: () => void;
   onDelete: (id: string) => void;
   onCommentChange?: () => void;
   onReanalyze?: (id: string) => void;
   analysisLogs?: AnalysisProgressEvent[];
+  // Lazy loading 관련
+  cachedDetail?: TempMemo;
+  onFetchDetail?: (id: string) => Promise<TempMemo | undefined>;
 }
 
-export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze, analysisLogs }: MemoCardProps) {
+export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze, analysisLogs, cachedDetail, onFetchDetail }: MemoCardProps) {
   const typeInfo = getMemoTypeInfo(memo.memo_type);
   const [contentExpanded, setContentExpanded] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
@@ -34,6 +37,10 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze,
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Lazy loading 상태
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [loadedDetail, setLoadedDetail] = useState<TempMemo | undefined>(cachedDetail);
+
   const isAnalyzing = memo.analysis_status === 'pending' || memo.analysis_status === 'analyzing';
   const isAnalysisFailed = memo.analysis_status === 'failed';
 
@@ -41,6 +48,7 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze,
   const displayLogs = useMemo(() => {
     const initialLog: AnalysisProgressEvent = {
       memo_id: memo.id,
+      step: 'init',
       message: '분석 요청 시작',
       timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     };
@@ -119,16 +127,27 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAnalyzing, memo.id]);
 
-  // 본문 보기에 표시할 콘텐츠 (display_content 사용)
+  // cachedDetail이 변경되면 loadedDetail도 업데이트
+  useEffect(() => {
+    if (cachedDetail) {
+      setLoadedDetail(cachedDetail);
+    }
+  }, [cachedDetail]);
+
+  // 본문 보기에 표시할 콘텐츠 (loadedDetail에서 가져옴)
   const displayContent = useMemo(() => {
     if (memo.analysis_status !== 'completed') return null;
-    if (!memo.display_content) return null;
+    if (!loadedDetail?.display_content) return null;
 
     return {
-      text: memo.display_content,
+      text: loadedDetail.display_content,
+      highlights: loadedDetail.highlights,
       isTranslated: memo.original_language !== null && memo.original_language !== 'ko',
     };
-  }, [memo.analysis_status, memo.display_content, memo.original_language]);
+  }, [memo.analysis_status, memo.original_language, loadedDetail]);
+
+  // 본문이 있는지 여부 (lazy loading 전에도 버튼 표시용)
+  const hasDisplayContent = memo.has_display_content;
 
   // 하이라이트 렌더링 함수
   const renderHighlightedText = useMemo(() => {
@@ -229,6 +248,29 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze,
   // 본문이 길면 더보기 표시 (150자 또는 3줄 이상)
   const bodyLines = body.split('\n');
   const isLongContent = body.length > 150 || bodyLines.length > 3;
+
+  // 본문 보기 클릭 핸들러 (lazy loading)
+  const handleToggleContent = async () => {
+    if (translationExpanded) {
+      // 닫기
+      setTranslationExpanded(false);
+      return;
+    }
+
+    // 열기 - 상세 정보가 없으면 가져오기
+    if (!loadedDetail && onFetchDetail) {
+      setDetailLoading(true);
+      try {
+        const detail = await onFetchDetail(memo.id);
+        if (detail) {
+          setLoadedDetail(detail);
+        }
+      } finally {
+        setDetailLoading(false);
+      }
+    }
+    setTranslationExpanded(true);
+  };
 
   const handleCopy = async () => {
     try {
@@ -387,19 +429,24 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze,
         </div>
       )}
 
-      {/* 본문 보기 (추출된 콘텐츠 확인 + 하이라이트) */}
-      {displayContent && (
+      {/* 본문 보기 (추출된 콘텐츠 확인 + 하이라이트) - lazy loading */}
+      {memo.analysis_status === 'completed' && hasDisplayContent && (
         <div className="border-t border-gray-100 pt-2">
           <button
             type="button"
-            onClick={() => setTranslationExpanded((prev) => !prev)}
-            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-600"
+            onClick={handleToggleContent}
+            disabled={detailLoading}
+            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-600 disabled:opacity-50"
           >
-            <FileText size={14} />
-            <span>본문 보기</span>
-            {translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            {detailLoading ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <FileText size={14} />
+            )}
+            <span>{detailLoading ? '불러오는 중...' : '본문 보기'}</span>
+            {!detailLoading && (translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
           </button>
-          {translationExpanded && (
+          {translationExpanded && displayContent && (
             <div className="mt-2 p-3 bg-gray-50 rounded-lg">
               {displayContent.isTranslated && (
                 <p className="text-[10px] text-blue-600 mb-2">
@@ -407,7 +454,7 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze,
                 </p>
               )}
               <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {renderHighlightedText(displayContent.text, memo.highlights)}
+                {renderHighlightedText(displayContent.text, displayContent.highlights)}
               </p>
             </div>
           )}
