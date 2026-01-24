@@ -147,3 +147,15 @@ def _run_migrations():
                 )
                 conn.commit()
             logger.info("Migration: 'fetched_content' column added successfully")
+
+        # display_content 컬럼 추가 (최종 표시용 콘텐츠)
+        if "display_content" not in columns:
+            logger.info(
+                "Migration: Adding 'display_content' column to temp_memos table"
+            )
+            with engine.connect() as conn:
+                conn.execute(
+                    text("ALTER TABLE temp_memos ADD COLUMN display_content TEXT")
+                )
+                conn.commit()
+            logger.info("Migration: 'display_content' column added successfully")
