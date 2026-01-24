@@ -321,7 +321,7 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
             className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-600"
           >
             <Languages size={14} />
-            <span>{memo.is_summary ? '요약 번역 보기' : '번역 보기'}</span>
+            <span>{memo.is_summary ? '요약 보기' : '번역 보기'}</span>
             {translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
           {translationExpanded && memo.translated_content && (
@@ -339,22 +339,28 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
         </div>
       )}
 
-      {/* 하이라이트 (한국어 컨텐츠 - 번역 없이 원문에 하이라이트) */}
+      {/* 본문 보기 (한국어 컨텐츠 - 전체 본문에 하이라이트 적용) */}
       {memo.analysis_status === 'completed' &&
        memo.original_language === 'ko' &&
        memo.highlights &&
        memo.highlights.length > 0 && (
         <div className="border-t border-gray-100 pt-2">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wide">Highlights</span>
-          <div className="mt-1 text-xs text-gray-700 space-y-1">
-            {memo.highlights.slice(0, 3).map((highlight, index) => (
-              <p key={`${memo.id}-highlight-${index}`} className="break-words">
-                <span className="bg-yellow-200 cursor-help" title={highlight.reason}>
-                  {highlight.text.length > 100 ? `${highlight.text.slice(0, 100)}...` : highlight.text}
-                </span>
+          <button
+            type="button"
+            onClick={() => setTranslationExpanded((prev) => !prev)}
+            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-600"
+          >
+            <Languages size={14} />
+            <span>본문 보기</span>
+            {translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
+          {translationExpanded && (
+            <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
+                {renderHighlightedText(memo.content, memo.highlights)}
               </p>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
