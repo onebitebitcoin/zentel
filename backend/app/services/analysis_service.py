@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.models.temp_memo import TempMemo
 from app.models.user import User
+from app.services import llm_service
 from app.services.context_extractor import context_extractor
 from app.services.twitter_scraper import twitter_scraper
 from app.services.youtube_scraper import youtube_scraper
@@ -190,7 +191,7 @@ class AnalysisService:
                 text_to_analyze = f"URL: {source_url}\n\n{fetched_content}"
 
             # context 추출
-            context = await context_extractor.call_llm(
+            context = await llm_service.extract_context(
                 text_to_analyze, memo.memo_type
             )
 
