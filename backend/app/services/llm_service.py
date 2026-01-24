@@ -127,27 +127,19 @@ async def extract_context(text: str, memo_type: str) -> Optional[str]:
         logger.info(f"[LLM] 텍스트 truncate: {max_chars}자")
 
     try:
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model=settings.OPENAI_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "10단어 이내의 짧은 문구로 이 메모의 핵심 맥락(context)을 한 줄로 표현하세요. "
-                        "마크다운 형식 없이 순수한 텍스트로만 응답하세요. "
-                        "반드시 한국어로 응답하세요."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": f"다음 내용의 핵심 context를 10단어 이내로 표현해주세요:\n\n{text}",
-                },
-            ],
-            max_tokens=50,
+            instructions=(
+                "10단어 이내의 짧은 문구로 이 메모의 핵심 맥락(context)을 한 줄로 표현하세요. "
+                "마크다운 형식 없이 순수한 텍스트로만 응답하세요. "
+                "반드시 한국어로 응답하세요."
+            ),
+            input=f"다음 내용의 핵심 context를 10단어 이내로 표현해주세요:\n\n{text}",
+            max_output_tokens=50,
             temperature=0.3,
         )
 
-        context = response.choices[0].message.content
+        context = response.output_text
         if context:
             context = context.strip()
             logger.info(f"[LLM] context 추출: {len(context)} chars")
@@ -181,34 +173,26 @@ async def match_interests(content: str, user_interests: list[str]) -> list[str]:
     try:
         interests_str = ", ".join(user_interests)
 
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model=settings.OPENAI_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "당신은 텍스트 분류 전문가입니다. "
-                        "주어진 메모 내용이 어떤 관심사와 관련이 있는지 판단합니다. "
-                        "반드시 제공된 관심사 목록에서만 선택해야 합니다. "
-                        "관련된 관심사가 없으면 반드시 '없음'이라고 응답하세요. "
-                        "마크다운이나 다른 형식 없이 관심사 이름만 반환하세요."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        f"관심사 목록: {interests_str}\n\n"
-                        f"메모 내용:\n{content}\n\n"
-                        "관련된 관심사를 쉼표로 구분하여 반환하세요. "
-                        "명확하게 관련된 관심사가 없으면 '없음'이라고 반환하세요."
-                    ),
-                },
-            ],
-            max_tokens=100,
+            instructions=(
+                "당신은 텍스트 분류 전문가입니다. "
+                "주어진 메모 내용이 어떤 관심사와 관련이 있는지 판단합니다. "
+                "반드시 제공된 관심사 목록에서만 선택해야 합니다. "
+                "관련된 관심사가 없으면 반드시 '없음'이라고 응답하세요. "
+                "마크다운이나 다른 형식 없이 관심사 이름만 반환하세요."
+            ),
+            input=(
+                f"관심사 목록: {interests_str}\n\n"
+                f"메모 내용:\n{content}\n\n"
+                "관련된 관심사를 쉼표로 구분하여 반환하세요. "
+                "명확하게 관련된 관심사가 없으면 '없음'이라고 반환하세요."
+            ),
+            max_output_tokens=100,
             temperature=0.2,
         )
 
-        raw = response.choices[0].message.content or ""
+        raw = response.output_text or ""
         raw = raw.strip()
 
         # "없음" 체크
@@ -348,36 +332,31 @@ async def _translate_chunk(
         if not is_first:
             context_msg = f"(이것은 긴 문서의 {chunk_index + 1}/{total_chunks} 부분입니다. 이어지는 내용을 자연스럽게 번역하세요.)"
 
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model=settings.OPENAI_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "당신은 전문 번역가이자 편집자입니다. "
-                        "주어진 텍스트를 한국어로 번역하고 읽기 좋게 정리하세요.\n\n"
-                        "번역 규칙:\n"
-                        "- 원문의 의미를 정확하게 전달\n"
-                        "- 자연스러운 한국어 표현 사용\n"
-                        "- 요약하지 말고 전체 내용을 번역\n"
-                        "- 번역 결과만 출력 (설명이나 거부 메시지 없이)\n"
-                        "- '번역할 수 없습니다' 같은 거부 응답 금지\n\n"
-                        "정리 규칙:\n"
-                        "- 불필요한 특수문자, 이모지, 장식 기호 제거 (>, *, #, = 등)\n"
-                        "- 내용을 논리적인 문단으로 구분 (문단 사이 빈 줄)\n"
-                        "- 서술형 문장으로 자연스럽게 연결\n"
-                        "- 리스트는 문장으로 풀어서 설명\n"
-                        "- 제목/소제목은 굵게 표시하지 말고 문단 첫 문장으로 자연스럽게 통합\n"
-                        + context_msg
-                    ),
-                },
-                {"role": "user", "content": f"다음 텍스트를 한국어로 번역하고 정리하세요:\n\n{chunk}"},
-            ],
-            max_tokens=4000,
+            instructions=(
+                "당신은 전문 번역가이자 편집자입니다. "
+                "주어진 텍스트를 한국어로 번역하고 읽기 좋게 정리하세요.\n\n"
+                "번역 규칙:\n"
+                "- 원문의 의미를 정확하게 전달\n"
+                "- 자연스러운 한국어 표현 사용\n"
+                "- 요약하지 말고 전체 내용을 번역\n"
+                "- 번역 결과만 출력 (설명이나 거부 메시지 없이)\n"
+                "- '번역할 수 없습니다' 같은 거부 응답 금지\n\n"
+                "정리 규칙:\n"
+                "- 불필요한 특수문자, 이모지, 장식 기호 제거 (>, *, #, = 등)\n"
+                "- 내용을 논리적인 문단으로 구분 (문단 사이 빈 줄)\n"
+                "- 서술형 문장으로 자연스럽게 연결\n"
+                "- 리스트는 문장으로 풀어서 설명\n"
+                "- 제목/소제목은 굵게 표시하지 말고 문단 첫 문장으로 자연스럽게 통합\n"
+                + context_msg
+            ),
+            input=f"다음 텍스트를 한국어로 번역하고 정리하세요:\n\n{chunk}",
+            max_output_tokens=4000,
             temperature=0.3,
         )
 
-        result = response.choices[0].message.content
+        result = response.output_text
         if result:
             result = result.strip()
             logger.info(f"[LLM] 청크 {chunk_index + 1}/{total_chunks} 번역 완료: {len(result)}자")
@@ -439,31 +418,26 @@ async def _format_single_chunk(
         if chunk_index > 0:
             context_msg = f"(이것은 긴 문서의 {chunk_index + 1}/{total_chunks} 부분입니다.)"
 
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model=settings.OPENAI_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "당신은 텍스트 편집자입니다. 주어진 텍스트를 읽기 좋게 정리하세요.\n\n"
-                        "정리 규칙:\n"
-                        "- 내용은 그대로 유지 (삭제하거나 요약하지 말 것)\n"
-                        "- 불필요한 특수문자, 이모지, 장식 기호 제거 (>, *, #, = 등)\n"
-                        "- 내용을 논리적인 문단으로 구분 (문단 사이 빈 줄)\n"
-                        "- 서술형 문장으로 자연스럽게 연결\n"
-                        "- 리스트는 문장으로 풀어서 설명\n"
-                        "- 제목/소제목은 문단 첫 문장으로 자연스럽게 통합\n"
-                        "- 정리된 결과만 출력 (설명 없이)\n"
-                        + context_msg
-                    ),
-                },
-                {"role": "user", "content": f"다음 텍스트를 읽기 좋게 정리하세요:\n\n{chunk}"},
-            ],
-            max_tokens=4000,
+            instructions=(
+                "당신은 텍스트 편집자입니다. 주어진 텍스트를 읽기 좋게 정리하세요.\n\n"
+                "정리 규칙:\n"
+                "- 내용은 그대로 유지 (삭제하거나 요약하지 말 것)\n"
+                "- 불필요한 특수문자, 이모지, 장식 기호 제거 (>, *, #, = 등)\n"
+                "- 내용을 논리적인 문단으로 구분 (문단 사이 빈 줄)\n"
+                "- 서술형 문장으로 자연스럽게 연결\n"
+                "- 리스트는 문장으로 풀어서 설명\n"
+                "- 제목/소제목은 문단 첫 문장으로 자연스럽게 통합\n"
+                "- 정리된 결과만 출력 (설명 없이)\n"
+                + context_msg
+            ),
+            input=f"다음 텍스트를 읽기 좋게 정리하세요:\n\n{chunk}",
+            max_output_tokens=4000,
             temperature=0.3,
         )
 
-        result = response.choices[0].message.content
+        result = response.output_text
         if result:
             result = result.strip()
             logger.info(f"[LLM] 텍스트 정리 완료: {len(result)}자")
@@ -559,23 +533,18 @@ async def _detect_language(client: OpenAI, text: str) -> Optional[str]:
         ISO 639-1 언어 코드
     """
     try:
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model=settings.OPENAI_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "텍스트의 주요 언어를 ISO 639-1 코드로 응답하세요. "
-                        "코드만 응답 (예: ko, en, ja, zh)"
-                    ),
-                },
-                {"role": "user", "content": text},
-            ],
-            max_tokens=10,
+            instructions=(
+                "텍스트의 주요 언어를 ISO 639-1 코드로 응답하세요. "
+                "코드만 응답 (예: ko, en, ja, zh)"
+            ),
+            input=text,
+            max_output_tokens=10,
             temperature=0.1,
         )
 
-        result = response.choices[0].message.content
+        result = response.output_text
         if result:
             language = result.strip().lower()[:2]
             logger.info(f"[LLM] 언어 감지: {language}")
@@ -607,31 +576,26 @@ async def _extract_highlights(
     sample_text = text[:4000] if len(text) > 4000 else text
 
     try:
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model=settings.OPENAI_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        f"텍스트에서 핵심 문장을 최대 {max_highlights}개 추출하세요.\n\n"
-                        "유형:\n"
-                        "- claim: 핵심 주장\n"
-                        "- fact: 흥미로운 사실\n\n"
-                        "JSON 형식으로만 응답:\n"
-                        "```json\n"
-                        "[\n"
-                        '  {"type": "claim", "text": "원문에서 발췌한 문장", "reason": "선정 이유"}\n'
-                        "]\n"
-                        "```"
-                    ),
-                },
-                {"role": "user", "content": sample_text},
-            ],
-            max_tokens=1500,
+            instructions=(
+                f"텍스트에서 핵심 문장을 최대 {max_highlights}개 추출하세요.\n\n"
+                "유형:\n"
+                "- claim: 핵심 주장\n"
+                "- fact: 흥미로운 사실\n\n"
+                "JSON 형식으로만 응답:\n"
+                "```json\n"
+                "[\n"
+                '  {"type": "claim", "text": "원문에서 발췌한 문장", "reason": "선정 이유"}\n'
+                "]\n"
+                "```"
+            ),
+            input=sample_text,
+            max_output_tokens=1500,
             temperature=0.3,
         )
 
-        raw = response.choices[0].message.content or ""
+        raw = response.output_text or ""
         raw = raw.strip()
 
         # 마크다운 코드 블록 제거
