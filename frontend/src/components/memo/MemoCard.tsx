@@ -1,5 +1,5 @@
 import { useState, useMemo, Fragment, useEffect, useRef } from 'react';
-import { Pencil, Trash2, ExternalLink, Copy, MessageCircle, ChevronDown, ChevronUp, RefreshCw, Loader2, AlertCircle, Languages, Clock } from 'lucide-react';
+import { Pencil, Trash2, ExternalLink, Copy, MessageCircle, ChevronDown, ChevronUp, RefreshCw, Loader2, AlertCircle, FileText, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemo, HighlightItem } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
@@ -80,8 +80,31 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAnalyzing, memo.id]);
 
-  // 번역 가능 여부 (한국어가 아니고 번역본이 있는 경우)
-  const hasTranslation = memo.original_language && memo.original_language !== 'ko' && memo.translated_content;
+  // 본문 보기에 표시할 콘텐츠 결정
+  const displayContent = useMemo(() => {
+    if (memo.analysis_status !== 'completed') return null;
+
+    // 외국어 → 번역본 사용
+    if (memo.original_language && memo.original_language !== 'ko' && memo.translated_content) {
+      return {
+        text: memo.translated_content,
+        isTranslated: true,
+        isSummary: memo.is_summary,
+      };
+    }
+
+    // 한국어 또는 원본 → fetched_content 또는 content 사용
+    const originalText = memo.fetched_content || memo.content;
+    if (originalText) {
+      return {
+        text: originalText,
+        isTranslated: false,
+        isSummary: false,
+      };
+    }
+
+    return null;
+  }, [memo.analysis_status, memo.original_language, memo.translated_content, memo.is_summary, memo.fetched_content, memo.content]);
 
   // 하이라이트 렌더링 함수
   const renderHighlightedText = useMemo(() => {
@@ -312,52 +335,32 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
         </div>
       )}
 
-      {/* 번역 섹션 (한국어가 아닌 컨텐츠에만 표시) */}
-      {memo.analysis_status === 'completed' && hasTranslation && (
+      {/* 본문 보기 (추출된 콘텐츠 확인 + 하이라이트) */}
+      {displayContent && (
         <div className="border-t border-gray-100 pt-2">
           <button
             type="button"
             onClick={() => setTranslationExpanded((prev) => !prev)}
             className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-600"
           >
-            <Languages size={14} />
-            <span>{memo.is_summary ? '요약 보기' : '번역 보기'}</span>
-            {translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </button>
-          {translationExpanded && memo.translated_content && (
-            <div className="mt-2 p-3 bg-gray-50 rounded-lg">
-              {memo.is_summary && (
-                <p className="text-[10px] text-amber-600 mb-2">
-                  원문이 길어 핵심 내용만 요약했습니다
-                </p>
-              )}
-              <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {renderHighlightedText(memo.translated_content, memo.highlights)}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 본문 보기 (한국어 컨텐츠 - 전체 본문에 하이라이트 적용) */}
-      {memo.analysis_status === 'completed' &&
-       memo.original_language === 'ko' &&
-       memo.highlights &&
-       memo.highlights.length > 0 && (
-        <div className="border-t border-gray-100 pt-2">
-          <button
-            type="button"
-            onClick={() => setTranslationExpanded((prev) => !prev)}
-            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-600"
-          >
-            <Languages size={14} />
+            <FileText size={14} />
             <span>본문 보기</span>
             {translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
           {translationExpanded && (
             <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+              {displayContent.isSummary && (
+                <p className="text-[10px] text-amber-600 mb-2">
+                  원문이 길어 핵심 내용만 요약했습니다
+                </p>
+              )}
+              {displayContent.isTranslated && !displayContent.isSummary && (
+                <p className="text-[10px] text-blue-600 mb-2">
+                  번역된 내용입니다
+                </p>
+              )}
               <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {renderHighlightedText(memo.fetched_content || memo.content, memo.highlights)}
+                {renderHighlightedText(displayContent.text, memo.highlights)}
               </p>
             </div>
           )}
