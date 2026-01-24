@@ -354,18 +354,24 @@ async def _translate_chunk(
                 {
                     "role": "system",
                     "content": (
-                        "당신은 전문 번역가입니다. 주어진 텍스트의 내용을 한국어로 번역하세요.\n\n"
-                        "규칙:\n"
+                        "당신은 전문 번역가이자 편집자입니다. "
+                        "주어진 텍스트를 한국어로 번역하고 읽기 좋게 정리하세요.\n\n"
+                        "번역 규칙:\n"
                         "- 원문의 의미를 정확하게 전달\n"
                         "- 자연스러운 한국어 표현 사용\n"
                         "- 요약하지 말고 전체 내용을 번역\n"
                         "- 번역 결과만 출력 (설명이나 거부 메시지 없이)\n"
-                        "- 기술 문서, 코드, URL 등 어떤 형식이든 내용 자체를 번역\n"
-                        "- '번역할 수 없습니다' 같은 거부 응답 금지\n"
+                        "- '번역할 수 없습니다' 같은 거부 응답 금지\n\n"
+                        "정리 규칙:\n"
+                        "- 불필요한 특수문자, 이모지, 장식 기호 제거 (>, *, #, = 등)\n"
+                        "- 내용을 논리적인 문단으로 구분 (문단 사이 빈 줄)\n"
+                        "- 서술형 문장으로 자연스럽게 연결\n"
+                        "- 리스트는 문장으로 풀어서 설명\n"
+                        "- 제목/소제목은 굵게 표시하지 말고 문단 첫 문장으로 자연스럽게 통합\n"
                         + context_msg
                     ),
                 },
-                {"role": "user", "content": f"다음 텍스트를 한국어로 번역하세요:\n\n{chunk}"},
+                {"role": "user", "content": f"다음 텍스트를 한국어로 번역하고 정리하세요:\n\n{chunk}"},
             ],
             max_tokens=4000,
             temperature=0.3,
@@ -379,6 +385,92 @@ async def _translate_chunk(
 
     except Exception as e:
         logger.error(f"[LLM] 청크 {chunk_index + 1} 번역 실패: {e}")
+        return None
+
+
+async def _format_text(client: OpenAI, text: str) -> Optional[str]:
+    """
+    텍스트를 읽기 좋게 정리 (한국어 원문용)
+
+    Args:
+        client: OpenAI 클라이언트
+        text: 정리할 텍스트
+
+    Returns:
+        정리된 텍스트
+    """
+    # 텍스트가 너무 길면 청크로 분할
+    if len(text) > CHUNK_SIZE:
+        chunks = _split_into_chunks(text)
+        formatted_chunks = []
+
+        for i, chunk in enumerate(chunks):
+            formatted = await _format_single_chunk(client, chunk, i, len(chunks))
+            if formatted:
+                formatted_chunks.append(formatted)
+            else:
+                formatted_chunks.append(chunk)
+
+        return _merge_translations(formatted_chunks) if formatted_chunks else None
+
+    return await _format_single_chunk(client, text, 0, 1)
+
+
+async def _format_single_chunk(
+    client: OpenAI,
+    chunk: str,
+    chunk_index: int,
+    total_chunks: int,
+) -> Optional[str]:
+    """
+    단일 청크 텍스트 정리
+
+    Args:
+        client: OpenAI 클라이언트
+        chunk: 정리할 텍스트 청크
+        chunk_index: 청크 인덱스
+        total_chunks: 전체 청크 수
+
+    Returns:
+        정리된 텍스트
+    """
+    try:
+        context_msg = ""
+        if chunk_index > 0:
+            context_msg = f"(이것은 긴 문서의 {chunk_index + 1}/{total_chunks} 부분입니다.)"
+
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "당신은 텍스트 편집자입니다. 주어진 텍스트를 읽기 좋게 정리하세요.\n\n"
+                        "정리 규칙:\n"
+                        "- 내용은 그대로 유지 (삭제하거나 요약하지 말 것)\n"
+                        "- 불필요한 특수문자, 이모지, 장식 기호 제거 (>, *, #, = 등)\n"
+                        "- 내용을 논리적인 문단으로 구분 (문단 사이 빈 줄)\n"
+                        "- 서술형 문장으로 자연스럽게 연결\n"
+                        "- 리스트는 문장으로 풀어서 설명\n"
+                        "- 제목/소제목은 문단 첫 문장으로 자연스럽게 통합\n"
+                        "- 정리된 결과만 출력 (설명 없이)\n"
+                        + context_msg
+                    ),
+                },
+                {"role": "user", "content": f"다음 텍스트를 읽기 좋게 정리하세요:\n\n{chunk}"},
+            ],
+            max_tokens=4000,
+            temperature=0.3,
+        )
+
+        result = response.choices[0].message.content
+        if result:
+            result = result.strip()
+            logger.info(f"[LLM] 텍스트 정리 완료: {len(result)}자")
+        return result
+
+    except Exception as e:
+        logger.error(f"[LLM] 텍스트 정리 실패: {e}")
         return None
 
 
@@ -410,11 +502,12 @@ async def translate_and_highlight(
     sample_text = text[:500]
     language = await _detect_language(client, sample_text)
 
-    # 한국어면 번역 스킵, 하이라이트만 추출
+    # 한국어면 번역 스킵, 정리 + 하이라이트만 추출
     if language == "ko":
-        logger.info("[LLM] 한국어 감지, 번역 스킵")
-        highlights = await _extract_highlights(client, text)
-        return language, None, False, highlights
+        logger.info("[LLM] 한국어 감지, 정리만 수행")
+        formatted_text = await _format_text(client, text)
+        highlights = await _extract_highlights(client, formatted_text or text)
+        return language, formatted_text, False, highlights
 
     # 2단계: 청크 분할 및 번역
     chunks = _split_into_chunks(text)
