@@ -339,10 +339,14 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
       )}
 
       {/* Context (분석 완료 시에만 표시) */}
-      {memo.analysis_status === 'completed' && memo.context && (
+      {memo.analysis_status === 'completed' && (
         <div className="border-t border-gray-100 pt-2">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-gray-400 uppercase tracking-wide">Context</span>
+            {memo.context ? (
+              <span className="text-[10px] text-gray-400 uppercase tracking-wide">Context</span>
+            ) : (
+              <span className="text-[10px] text-gray-400">분석 완료 (context 없음)</span>
+            )}
             <button
               type="button"
               onClick={handleReanalyze}
@@ -353,7 +357,9 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
               다시 분석
             </button>
           </div>
-          <p className="text-xs text-gray-700 line-clamp-2">{memo.context}</p>
+          {memo.context && (
+            <p className="text-xs text-gray-700 line-clamp-2">{memo.context}</p>
+          )}
         </div>
       )}
 
