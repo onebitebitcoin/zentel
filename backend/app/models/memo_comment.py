@@ -42,6 +42,10 @@ class MemoComment(Base):
     )  # pending | generating | completed | failed
     response_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # AI 페르소나 정보
+    ai_persona_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    ai_persona_color: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+
     __table_args__ = (
         Index("idx_memo_comments_memo_id", "memo_id"),
         Index("idx_memo_comments_created_at", "created_at"),

@@ -13,6 +13,7 @@ class AIPersona(BaseModel):
 
     name: str = Field(min_length=1, max_length=50)
     description: Optional[str] = None
+    color: Optional[str] = None  # hex color (예: #FF5733)
 
 
 class UserRegister(BaseModel):

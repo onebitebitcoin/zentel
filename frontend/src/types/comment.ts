@@ -12,6 +12,8 @@ export interface MemoComment {
   parent_comment_id: string | null;
   response_status: 'pending' | 'generating' | 'completed' | 'failed' | null;
   response_error: string | null;
+  ai_persona_name: string | null;
+  ai_persona_color: string | null;
 }
 
 export interface MemoCommentCreate {

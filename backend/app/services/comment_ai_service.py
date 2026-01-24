@@ -142,12 +142,14 @@ async def generate_ai_response(
             persona=persona,
         )
 
-        # 4. AI 댓글 저장
+        # 5. AI 댓글 저장 (페르소나 정보 포함)
         ai_comment = MemoComment(
             memo_id=user_comment.memo_id,
             content=ai_content,
             is_ai_response=True,
             parent_comment_id=comment_id,
+            ai_persona_name=persona.get("name") if persona else None,
+            ai_persona_color=persona.get("color") if persona else None,
         )
         db.add(ai_comment)
 

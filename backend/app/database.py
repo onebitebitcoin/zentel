@@ -212,6 +212,26 @@ def _run_migrations():
                 conn.commit()
             logger.info("Migration: 'response_error' column added successfully")
 
+        # ai_persona_name 컬럼 추가
+        if "ai_persona_name" not in columns:
+            logger.info("Migration: Adding 'ai_persona_name' column to memo_comments")
+            with engine.connect() as conn:
+                conn.execute(
+                    text("ALTER TABLE memo_comments ADD COLUMN ai_persona_name VARCHAR(50)")
+                )
+                conn.commit()
+            logger.info("Migration: 'ai_persona_name' column added successfully")
+
+        # ai_persona_color 컬럼 추가
+        if "ai_persona_color" not in columns:
+            logger.info("Migration: Adding 'ai_persona_color' column to memo_comments")
+            with engine.connect() as conn:
+                conn.execute(
+                    text("ALTER TABLE memo_comments ADD COLUMN ai_persona_color VARCHAR(16)")
+                )
+                conn.commit()
+            logger.info("Migration: 'ai_persona_color' column added successfully")
+
     # users 테이블에 ai_personas 컬럼 추가
     if "users" in inspector.get_table_names():
         columns = [col["name"] for col in inspector.get_columns("users")]

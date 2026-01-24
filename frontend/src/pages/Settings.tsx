@@ -7,6 +7,30 @@ import { authService } from '../api/auth';
 import { formatDate } from '../utils/date';
 import type { AIPersona } from '../types/auth';
 
+// AI 페르소나 색상 팔레트
+const PERSONA_COLORS = [
+  '#EF4444', // red
+  '#F97316', // orange
+  '#F59E0B', // amber
+  '#84CC16', // lime
+  '#22C55E', // green
+  '#14B8A6', // teal
+  '#06B6D4', // cyan
+  '#0EA5E9', // sky
+  '#3B82F6', // blue
+  '#6366F1', // indigo
+  '#8B5CF6', // violet
+  '#A855F7', // purple
+  '#D946EF', // fuchsia
+  '#EC4899', // pink
+  '#F43F5E', // rose
+];
+
+// 랜덤 색상 생성
+const getRandomColor = () => {
+  return PERSONA_COLORS[Math.floor(Math.random() * PERSONA_COLORS.length)];
+};
+
 export function Settings() {
   const navigate = useNavigate();
   const { user, logout, setUser } = useAuth();
@@ -121,6 +145,7 @@ export function Settings() {
     const newPersona: AIPersona = {
       name: trimmedName,
       description: newPersonaDesc.trim() || undefined,
+      color: getRandomColor(),
     };
     const newPersonas = [...personas, newPersona];
     setPersonas(newPersonas);
@@ -175,7 +200,7 @@ export function Settings() {
     }
     const newPersonas = personas.map((p, i) =>
       i === editingPersonaIndex
-        ? { name: trimmedName, description: editPersonaDesc.trim() || undefined }
+        ? { name: trimmedName, description: editPersonaDesc.trim() || undefined, color: p.color || getRandomColor() }
         : p
     );
     setPersonas(newPersonas);
@@ -336,8 +361,16 @@ export function Settings() {
                     </div>
                   ) : (
                     <>
+                      {/* 색상 인디케이터 */}
+                      <div
+                        className="flex-shrink-0 w-6 h-6 rounded-full"
+                        style={{ backgroundColor: persona.color || '#6366F1' }}
+                      />
                       <div className="flex-1">
-                        <span className="text-sm font-medium text-primary">
+                        <span
+                          className="text-sm font-medium"
+                          style={{ color: persona.color || '#6366F1' }}
+                        >
                           @{persona.name}
                         </span>
                         {persona.description && (

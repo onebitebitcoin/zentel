@@ -5,6 +5,7 @@
 export interface AIPersona {
   name: string;
   description?: string;
+  color?: string;  // hex color (예: #FF5733)
 }
 
 export interface User {

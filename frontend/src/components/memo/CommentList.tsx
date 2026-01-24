@@ -135,13 +135,18 @@ export function CommentList({ memoId, onCommentChange }: CommentListProps) {
           {comments.map((comment) => {
             const isAI = comment.is_ai_response;
             const isWaiting = isWaitingForAI(comment.id);
+            const personaColor = comment.ai_persona_color || '#3B82F6';
 
             return (
               <div
                 key={comment.id}
                 className={`p-3 rounded-lg ${
-                  isAI ? 'bg-blue-50 border border-blue-100' : 'bg-gray-50'
+                  isAI ? 'border' : 'bg-gray-50'
                 }`}
+                style={isAI ? {
+                  backgroundColor: `${personaColor}10`,
+                  borderColor: `${personaColor}30`
+                } : undefined}
               >
                 {editingId === comment.id ? (
                   <div className="space-y-2">
@@ -171,12 +176,24 @@ export function CommentList({ memoId, onCommentChange }: CommentListProps) {
                     <div className="flex items-start gap-2">
                       <div
                         className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                          isAI ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-500'
+                          !isAI ? 'bg-gray-200 text-gray-500' : ''
                         }`}
+                        style={isAI ? {
+                          backgroundColor: `${personaColor}20`,
+                          color: personaColor
+                        } : undefined}
                       >
                         {isAI ? <Bot size={14} /> : <User size={14} />}
                       </div>
                       <div className="flex-1 min-w-0">
+                        {isAI && comment.ai_persona_name && (
+                          <p
+                            className="text-xs font-medium mb-1"
+                            style={{ color: personaColor }}
+                          >
+                            @{comment.ai_persona_name}
+                          </p>
+                        )}
                         <p className="text-sm text-gray-700 whitespace-pre-wrap">
                           {comment.content}
                         </p>
@@ -194,22 +211,22 @@ export function CommentList({ memoId, onCommentChange }: CommentListProps) {
                           </span>
                         )}
                       </div>
-                      {!isAI && (
-                        <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1">
+                        {!isAI && (
                           <button
                             onClick={() => startEdit(comment.id, comment.content)}
                             className="p-1 text-gray-400 hover:text-primary"
                           >
                             <Pencil size={14} />
                           </button>
-                          <button
-                            onClick={() => handleDelete(comment.id)}
-                            className="p-1 text-gray-400 hover:text-red-500"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      )}
+                        )}
+                        <button
+                          onClick={() => handleDelete(comment.id)}
+                          className="p-1 text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   </>
                 )}

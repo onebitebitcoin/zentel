@@ -198,10 +198,7 @@ def delete_comment(
         logger.warning(f"Comment not found: id={comment_id}")
         raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
 
-    # AI 댓글은 삭제 불가
-    if db_comment.is_ai_response:
-        raise HTTPException(status_code=403, detail="AI 댓글은 삭제할 수 없습니다.")
-
+    # AI 댓글도 삭제 가능
     db.delete(db_comment)
     db.commit()
 

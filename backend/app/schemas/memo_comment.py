@@ -32,6 +32,8 @@ class MemoCommentOut(BaseModel):
     parent_comment_id: Optional[str] = None
     response_status: Optional[str] = None
     response_error: Optional[str] = None
+    ai_persona_name: Optional[str] = None
+    ai_persona_color: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
