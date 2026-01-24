@@ -321,11 +321,16 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
             className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-600"
           >
             <Languages size={14} />
-            <span>번역 보기</span>
+            <span>{memo.is_summary ? '요약 번역 보기' : '번역 보기'}</span>
             {translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
           {translationExpanded && memo.translated_content && (
             <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+              {memo.is_summary && (
+                <p className="text-[10px] text-amber-600 mb-2">
+                  원문이 길어 핵심 내용만 요약했습니다
+                </p>
+              )}
               <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
                 {renderHighlightedText(memo.translated_content, memo.highlights)}
               </p>

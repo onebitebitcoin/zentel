@@ -247,19 +247,21 @@ class AnalysisService:
 
         # 1회 LLM 호출로 언어감지 + 번역 + 하이라이트 처리
         logger.info("[AnalysisService] 번역/하이라이트 통합 분석 시작 (1회 LLM 호출)")
-        lang, translation, highlights = await context_extractor.translate_and_highlight(
+        lang, translation, is_summary, highlights = await context_extractor.translate_and_highlight(
             text_to_analyze
         )
 
         # 결과 저장
         memo.original_language = lang
         memo.translated_content = translation  # 한국어면 None
+        memo.is_summary = is_summary  # 요약 여부
         memo.highlights = highlights
 
         logger.info(
             f"[AnalysisService] 번역/하이라이트 완료: "
             f"lang={lang}, "
             f"translation={'Yes' if translation else 'No'}, "
+            f"is_summary={is_summary}, "
             f"highlights={len(highlights) if highlights else 0}"
         )
 

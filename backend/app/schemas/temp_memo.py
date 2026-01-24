@@ -84,6 +84,7 @@ class TempMemoOut(BaseModel):
     # 번역 및 하이라이트
     original_language: Optional[str] = None
     translated_content: Optional[str] = None
+    is_summary: bool = False  # True면 요약 번역 (긴 글이라 전체 번역 대신 요약)
     highlights: Optional[List[HighlightItem]] = None
     created_at: str
     updated_at: Optional[str] = None

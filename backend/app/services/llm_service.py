@@ -236,7 +236,7 @@ async def match_interests(content: str, user_interests: list[str]) -> list[str]:
 async def translate_and_highlight(
     text: str,
     max_retries: int = 2,
-) -> tuple[Optional[str], Optional[str], Optional[list[dict]]]:
+) -> tuple[Optional[str], Optional[str], bool, Optional[list[dict]]]:
     """
     언어 감지 + 번역 + 하이라이트 추출 (검증 포함)
 
@@ -245,14 +245,14 @@ async def translate_and_highlight(
         max_retries: 검증 실패 시 최대 재시도 횟수
 
     Returns:
-        (언어코드, 번역본, 하이라이트 목록) 튜플
+        (언어코드, 번역본, 요약여부, 하이라이트 목록) 튜플
     """
     client = get_openai_client()
     if not client:
-        return None, None, None
+        return None, None, False, None
 
     if len(text.strip()) < 20:
-        return None, None, None
+        return None, None, False, None
 
     # 텍스트 길이 제한
     max_chars = 6000
@@ -372,22 +372,31 @@ async def translate_and_highlight(
                 })
 
             korean_ratio = _get_korean_ratio(translation) if translation else 0
+
+            # 요약 여부 판단: 원문이 500자 이상이고, 번역이 원문의 50% 미만이면 요약
+            is_summary = False
+            if translation and language != "ko":
+                original_len = len(truncated_text.strip())
+                translation_len = len(translation.strip())
+                if original_len >= 500 and translation_len < original_len * 0.5:
+                    is_summary = True
+
             logger.info(
                 f"[LLM] translate_and_highlight: language={language}, "
                 f"translation={'Yes' if translation else 'No'}, "
-                f"korean_ratio={korean_ratio:.1%}, highlights={len(highlights)}, "
-                f"attempt={attempt + 1}"
+                f"korean_ratio={korean_ratio:.1%}, is_summary={is_summary}, "
+                f"highlights={len(highlights)}, attempt={attempt + 1}"
             )
 
-            return language, translation, highlights if highlights else None
+            return language, translation, is_summary, highlights if highlights else None
 
         except json.JSONDecodeError as e:
             logger.error(f"[LLM] JSON 파싱 실패 (시도 {attempt + 1}): {e}")
             if attempt < max_retries:
                 continue
-            return None, None, None
+            return None, None, False, None
         except Exception as e:
             logger.error(f"[LLM] translate_and_highlight 실패: {e}", exc_info=True)
-            return None, None, None
+            return None, None, False, None
 
-    return None, None, None
+    return None, None, False, None

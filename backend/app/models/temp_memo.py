@@ -39,6 +39,9 @@ class TempMemo(Base):
         String(16), nullable=True
     )  # "ko", "en", "ja" 등
     translated_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_summary: Mapped[bool] = mapped_column(
+        default=False
+    )  # True면 요약 번역 (긴 글)
     highlights: Mapped[Optional[list[dict]]] = mapped_column(
         JSON, nullable=True
     )  # 하이라이트 위치 정보

@@ -85,7 +85,7 @@ class ContextExtractor:
 
     async def translate_and_highlight(
         self, text: str
-    ) -> tuple[Optional[str], Optional[str], Optional[list[dict]]]:
+    ) -> tuple[Optional[str], Optional[str], bool, Optional[list[dict]]]:
         """
         언어 감지 + 번역 + 하이라이트 추출
 
@@ -93,7 +93,7 @@ class ContextExtractor:
             text: 분석할 텍스트
 
         Returns:
-            (언어코드, 번역본, 하이라이트 목록) 튜플
+            (언어코드, 번역본, 요약여부, 하이라이트 목록) 튜플
         """
         return await llm_service.translate_and_highlight(text)
 

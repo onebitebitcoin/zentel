@@ -38,6 +38,7 @@ export interface TempMemo {
   analysis_error: string | null;
   original_language: string | null;
   translated_content: string | null;
+  is_summary: boolean;  // 요약 번역 여부
   highlights: HighlightItem[] | null;
   created_at: string;
   updated_at: string | null;
