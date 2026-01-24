@@ -123,3 +123,15 @@ def _run_migrations():
                     )
                 conn.commit()
             logger.info("Migration: 'highlights' column added successfully")
+
+        # is_summary 컬럼 추가
+        if "is_summary" not in columns:
+            logger.info("Migration: Adding 'is_summary' column to temp_memos table")
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE temp_memos ADD COLUMN is_summary BOOLEAN DEFAULT FALSE"
+                    )
+                )
+                conn.commit()
+            logger.info("Migration: 'is_summary' column added successfully")

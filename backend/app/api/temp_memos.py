@@ -90,6 +90,7 @@ def memo_to_out(
         analysis_error=memo.analysis_error,
         original_language=memo.original_language,
         translated_content=memo.translated_content,
+        is_summary=memo.is_summary,
         highlights=memo.highlights,
         created_at=memo.created_at,
         updated_at=memo.updated_at,
