@@ -177,9 +177,29 @@ class AnalysisService:
                 )
                 # 스크래핑 실패해도 계속 진행 (content만으로 분석)
 
-        # LLM 분석 (context_extractor 사용)
+        # 일반 URL인 경우 (GitHub, 웹페이지 등)
+        elif source_url:
+            from app.services.url_fetcher import fetch_url_content
+            logger.info(f"[AnalysisService] 일반 URL 감지, 콘텐츠 추출 시작: {source_url}")
+            url_content, og_metadata = await fetch_url_content(source_url)
+
+            if url_content:
+                fetched_content = url_content
+                if og_metadata:
+                    og_title = og_metadata.title
+                    og_image = og_metadata.image
+                logger.info(
+                    f"[AnalysisService] URL 콘텐츠 추출 성공: "
+                    f"content_length={len(fetched_content or '')}"
+                )
+            else:
+                logger.warning(
+                    f"[AnalysisService] URL 콘텐츠 추출 실패: {source_url}"
+                )
+
+        # LLM 분석
         if fetched_content:
-            # Twitter 컨텐츠가 있으면 합쳐서 분석
+            # URL 콘텐츠가 있으면 합쳐서 분석
             text_to_analyze = content
             if content and content.strip():
                 text_to_analyze = (
@@ -201,17 +221,9 @@ class AnalysisService:
             memo.og_image = og_image or memo.og_image
 
         else:
-            # Twitter 컨텐츠 없이 일반 분석
-            context, og_metadata = await context_extractor.extract_context(
-                content=content,
-                memo_type=memo.memo_type,
-                source_url=source_url,
-            )
-
+            # URL이 없는 일반 텍스트 메모
+            context = await llm_service.extract_context(content, memo.memo_type)
             memo.context = context
-            if og_metadata:
-                memo.og_title = og_metadata.title or memo.og_title
-                memo.og_image = og_metadata.image or memo.og_image
 
         # 관심사 매핑 (로그인 사용자인 경우)
         if user_id:
