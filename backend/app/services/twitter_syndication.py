@@ -34,6 +34,7 @@ class SyndicationResult:
     article_url: Optional[str] = None
     success: bool = False
     elapsed_time: float = 0.0
+    has_note_tweet: bool = False  # 긴 트윗(Note) 여부
 
 
 async def fetch_tweet_metadata(url: str) -> SyndicationResult:
@@ -91,6 +92,11 @@ async def fetch_tweet_metadata(url: str) -> SyndicationResult:
             if media:
                 result.og_image = media[0].get("media_url_https", "")
 
+            # note_tweet 체크 (긴 트윗)
+            if data.get("note_tweet"):
+                result.has_note_tweet = True
+                logger.info("[Syndication] note_tweet 감지 - 긴 트윗, Playwright 필요")
+
             # t.co 링크 리다이렉트 확인
             if result.content and "t.co/" in result.content:
                 article_url = await _resolve_tco_link(client, result.content)
@@ -100,7 +106,10 @@ async def fetch_tweet_metadata(url: str) -> SyndicationResult:
                         result.article_url = article_url
 
             result.success = bool(result.content)
-            logger.info(f"[Syndication] 성공: content_length={len(result.content)}")
+            logger.info(
+                f"[Syndication] 성공: content_length={len(result.content)}, "
+                f"has_note_tweet={result.has_note_tweet}"
+            )
 
     except Exception as e:
         logger.warning(f"[Syndication] 실패: {e}")

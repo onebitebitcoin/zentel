@@ -97,22 +97,29 @@ class TwitterScraper:
                 f"content_len={len(syndication_result.content)}, "
                 f"screen_name={syndication_result.screen_name}, "
                 f"tweet_id={syndication_result.tweet_id}, "
-                f"article_url={syndication_result.article_url}"
+                f"article_url={syndication_result.article_url}, "
+                f"has_note_tweet={syndication_result.has_note_tweet}"
             )
 
             if syndication_result.success and syndication_result.content:
                 result = self._convert_syndication_result(syndication_result)
                 logger.info(f"[TwitterScraper] Syndication 성공, content: {result.content[:100]}...")
 
-                # 아티클 URL이 있으면 Playwright로 추가 추출
-                if result.article_url and result.screen_name and result.tweet_id:
-                    logger.info("[TwitterScraper] 아티클 URL 감지, Playwright로 추가 추출 시도")
-                    article_result = await self._fetch_article_content(result)
-                    if article_result:
-                        logger.info(f"[TwitterScraper] 아티클 추출 성공: {len(article_result.content)}자")
-                        return self._truncate_content(article_result)
+                # 아티클 URL이 있거나 긴 트윗(note_tweet)인 경우 Playwright로 전체 내용 추출
+                needs_playwright = (
+                    (result.article_url and result.screen_name and result.tweet_id)
+                    or syndication_result.has_note_tweet
+                )
+
+                if needs_playwright and result.screen_name and result.tweet_id:
+                    reason = "아티클 URL" if result.article_url else "긴 트윗(note_tweet)"
+                    logger.info(f"[TwitterScraper] {reason} 감지, Playwright로 전체 내용 추출 시도")
+                    full_content_result = await self._fetch_full_content(result)
+                    if full_content_result:
+                        logger.info(f"[TwitterScraper] 전체 내용 추출 성공: {len(full_content_result.content)}자")
+                        return self._truncate_content(full_content_result)
                     else:
-                        logger.warning("[TwitterScraper] 아티클 추출 실패, Syndication 결과 사용")
+                        logger.warning("[TwitterScraper] 전체 내용 추출 실패, Syndication 결과 사용")
 
                 logger.info(f"[TwitterScraper] 최종 반환: {len(result.content)}자")
                 return self._truncate_content(result)
@@ -126,12 +133,12 @@ class TwitterScraper:
             )
             return self._truncate_content(self._convert_playwright_result(playwright_result))
 
-    async def _fetch_article_content(
+    async def _fetch_full_content(
         self, result: TwitterScrapingResult
     ) -> Optional[TwitterScrapingResult]:
-        """아티클 콘텐츠 추출"""
+        """Playwright로 전체 콘텐츠 추출 (아티클 또는 긴 트윗)"""
         web_url = build_tweet_url(result.screen_name, result.tweet_id)
-        logger.info(f"[TwitterScraper] 아티클 발견, 정규 URL로 접근: {web_url}")
+        logger.info(f"[TwitterScraper] 정규 URL로 전체 내용 추출: {web_url}")
 
         playwright_result = await self.playwright_scraper.scrape(web_url)
 
