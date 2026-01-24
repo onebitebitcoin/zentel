@@ -51,22 +51,31 @@ def _run_ai_response_task(comment_id: str, memo_id: str) -> None:
                     status="completed",
                 )
             else:
-                # AI 응답 생성 실패
+                # AI 응답 생성 실패 - DB에서 에러 메시지 조회
+                user_comment = db.query(MemoComment).filter(
+                    MemoComment.id == comment_id
+                ).first()
+                error_msg = (
+                    user_comment.response_error
+                    if user_comment and user_comment.response_error
+                    else "AI 응답 생성 실패"
+                )
                 await notify_comment_ai_response(
                     memo_id=memo_id,
                     comment_id="",
                     parent_comment_id=comment_id,
                     status="failed",
-                    error="AI 응답 생성 실패",
+                    error=error_msg,
                 )
         except Exception as e:
-            logger.error(f"AI 응답 생성 에러: {e}", exc_info=True)
+            error_msg = str(e)
+            logger.error(f"AI 응답 생성 에러: {error_msg}", exc_info=True)
             await notify_comment_ai_response(
                 memo_id=memo_id,
                 comment_id="",
                 parent_comment_id=comment_id,
                 status="failed",
-                error=str(e),
+                error=error_msg,
             )
         finally:
             db.close()
