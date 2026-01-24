@@ -10,6 +10,7 @@ Unix Philosophy:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import re
 from typing import Optional
@@ -26,18 +27,23 @@ logger = logging.getLogger(__name__)
 MIN_CONTENT_LENGTH = 200
 
 # 직접 접근 불가능한 도메인 (별도 스크래퍼 사용)
+# Twitter/X는 Playwright로 처리 가능하므로 제외
 INACCESSIBLE_DOMAINS: frozenset[str] = frozenset([
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com",
+    "youtu.be",
+    "www.youtu.be",
+])
+
+# Twitter/X 도메인 (Playwright 필수)
+TWITTER_DOMAINS: frozenset[str] = frozenset([
     "twitter.com",
     "x.com",
     "www.twitter.com",
     "www.x.com",
     "mobile.twitter.com",
     "mobile.x.com",
-    "youtube.com",
-    "www.youtube.com",
-    "m.youtube.com",
-    "youtu.be",
-    "www.youtu.be",
 ])
 
 # GitHub blob URL 패턴 (JS 렌더링이라 raw URL 변환 필요)
@@ -47,11 +53,21 @@ GITHUB_BLOB_PATTERN = re.compile(
 
 
 def is_inaccessible_url(url: str) -> bool:
-    """Twitter/YouTube 등 별도 스크래퍼 필요한 URL"""
+    """YouTube 등 별도 스크래퍼 필요한 URL"""
     try:
         parsed = urlparse(url)
         domain = parsed.netloc.lower()
         return domain in INACCESSIBLE_DOMAINS
+    except Exception:
+        return False
+
+
+def is_twitter_url(url: str) -> bool:
+    """Twitter/X URL인지 확인 (Playwright 필수)"""
+    try:
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+        return domain in TWITTER_DOMAINS
     except Exception:
         return False
 
@@ -103,14 +119,23 @@ def extract_text_from_html(html: str) -> Optional[str]:
     return content  # 짧더라도 반환
 
 
-async def fetch_with_playwright(url: str) -> Optional[str]:
+async def fetch_with_playwright(
+    url: str,
+    wait_until: str = "networkidle",
+    wait_time: float = 1.0,
+) -> Optional[str]:
     """
     Playwright로 JS 렌더링 후 HTML 가져오기
+
+    Args:
+        url: 대상 URL
+        wait_until: 페이지 로드 대기 조건 (networkidle, domcontentloaded, load)
+        wait_time: 추가 대기 시간 (초)
     """
     try:
         from playwright.async_api import async_playwright
 
-        logger.info(f"[Playwright] JS 렌더링 시작: {url}")
+        logger.info(f"[Playwright] JS 렌더링 시작: {url} (wait_until={wait_until})")
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
@@ -122,10 +147,10 @@ async def fetch_with_playwright(url: str) -> Optional[str]:
             page = await context.new_page()
 
             # 페이지 로드 (최대 30초)
-            await page.goto(url, wait_until="networkidle", timeout=30000)
+            await page.goto(url, wait_until=wait_until, timeout=30000)
 
-            # 약간 대기 (동적 콘텐츠 로드)
-            await asyncio.sleep(1)
+            # 동적 콘텐츠 로드 대기
+            await asyncio.sleep(wait_time)
 
             # HTML 가져오기
             html = await page.content()
@@ -148,10 +173,11 @@ async def fetch_url_content(
     URL에서 콘텐츠와 OG 메타데이터 가져오기
 
     처리 순서:
-    1. Twitter/YouTube → 별도 스크래퍼 필요 메시지
-    2. GitHub blob → raw URL로 변환하여 텍스트 그대로 사용
-    3. 일반 URL → trafilatura로 본문 추출
-    4. 결과 부실 시 → Playwright JS 렌더링 후 재시도
+    1. YouTube → 별도 스크래퍼 필요 메시지
+    2. Twitter/X → Playwright로 직접 처리
+    3. GitHub blob → raw URL로 변환하여 텍스트 그대로 사용
+    4. 일반 URL → trafilatura로 본문 추출
+    5. 결과 부실 시 → Playwright JS 렌더링 후 재시도
 
     Args:
         url: 대상 URL
@@ -160,7 +186,7 @@ async def fetch_url_content(
     Returns:
         (추출된 텍스트 콘텐츠, OG 메타데이터) 튜플
     """
-    # 1. Twitter/YouTube는 별도 스크래퍼 사용
+    # 1. YouTube는 별도 스크래퍼 필요
     if is_inaccessible_url(url):
         logger.info(f"Inaccessible URL (별도 스크래퍼 필요): {url}")
         return None, OGMetadata(
@@ -168,14 +194,101 @@ async def fetch_url_content(
             fetch_message="이 링크는 직접 접근이 불가능합니다. 내용을 복사해서 메모에 붙여넣어 주세요.",
         )
 
-    # 2. GitHub blob URL은 raw URL로 변환
+    # 2. Twitter/X URL은 Playwright로 직접 처리
+    if is_twitter_url(url):
+        logger.info(f"Twitter URL 감지, Playwright로 처리: {url}")
+        return await _fetch_twitter_content(url, max_length)
+
+    # 3. GitHub blob URL은 raw URL로 변환
     github_raw_url = convert_github_blob_to_raw(url)
     if github_raw_url:
         logger.info(f"GitHub blob → raw 변환: {url}")
         return await _fetch_raw_text(url, github_raw_url, max_length)
 
-    # 3. 일반 URL 처리
+    # 4. 일반 URL 처리
     return await _fetch_html_content(url, max_length)
+
+
+async def _fetch_twitter_content(
+    url: str,
+    max_length: int,
+) -> tuple[Optional[str], Optional[OGMetadata]]:
+    """
+    Twitter/X URL에서 콘텐츠 가져오기 (Playwright 사용)
+
+    Twitter는 정적 HTTP로 접근 불가, Playwright로 렌더링 필요
+    - domcontentloaded + 3초 대기로 콘텐츠 로드
+    - article 태그에서 트윗 본문 추출
+    """
+    try:
+        from playwright.async_api import async_playwright
+
+        logger.info(f"[Twitter] Playwright 렌더링 시작: {url}")
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                           "AppleWebKit/537.36 (KHTML, like Gecko) "
+                           "Chrome/120.0.0.0 Safari/537.36"
+            )
+            page = await context.new_page()
+
+            # Twitter는 domcontentloaded + 대기 필요 (networkidle은 타임아웃)
+            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            await asyncio.sleep(3)
+
+            # 최종 URL (리다이렉트 후)
+            final_url = page.url
+            logger.info(f"[Twitter] 최종 URL: {final_url}")
+
+            # HTML 가져오기
+            html = await page.content()
+
+            # article 태그에서 트윗 텍스트 추출 시도
+            content = None
+            with contextlib.suppress(Exception):
+                content = await page.inner_text("article")
+
+            # article 없으면 body에서 추출
+            if not content:
+                with contextlib.suppress(Exception):
+                    content = await page.inner_text("body")
+
+            await browser.close()
+
+            # OG 메타데이터 추출
+            og_metadata = extract_og_metadata(html, final_url)
+
+            # 콘텐츠 정리 및 길이 제한
+            if content:
+                # 불필요한 UI 텍스트 제거
+                lines = content.split("\n")
+                cleaned_lines = [
+                    line.strip() for line in lines
+                    if line.strip() and not line.strip().startswith("Log in")
+                    and not line.strip().startswith("Sign up")
+                    and line.strip() != "Article"
+                    and line.strip() != "See new posts"
+                    and line.strip() != "Conversation"
+                ]
+                content = "\n".join(cleaned_lines)
+
+                if len(content) > max_length:
+                    content = content[:max_length] + "..."
+
+            logger.info(
+                f"[Twitter] 추출 완료: {url}, "
+                f"length={len(content) if content else 0}"
+            )
+            return content, og_metadata
+
+    except Exception as e:
+        logger.error(f"[Twitter] 콘텐츠 가져오기 실패: {url}, error={e}")
+        return None, OGMetadata(
+            fetch_failed=True,
+            fetch_message=f"트위터 콘텐츠를 가져오는데 실패했습니다: {str(e)}",
+        )
 
 
 async def _fetch_raw_text(
