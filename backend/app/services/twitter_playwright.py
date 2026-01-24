@@ -128,12 +128,28 @@ class TwitterPlaywrightScraper:
         await page.goto("https://x.com/home", timeout=self.timeout, wait_until="load")
         await page.wait_for_timeout(2000)
 
+        # 현재 URL 로깅
+        current_url = page.url
+        logger.info(f"[Playwright] 현재 URL: {current_url}")
+
         is_logged_in = await self._check_login_status(page)
         if is_logged_in:
             logger.info("[Playwright] 이미 로그인됨")
             return
 
-        logger.info("[Playwright] 로그인 필요. 로그인 시도 중...")
+        # 환경변수 설정 여부 확인
+        has_credentials = bool(self.twitter_username and self.twitter_password)
+        logger.warning(
+            f"[Playwright] 로그인 필요. "
+            f"TWITTER_USERNAME 설정: {bool(self.twitter_username)}, "
+            f"TWITTER_PASSWORD 설정: {bool(self.twitter_password)}"
+        )
+
+        if not has_credentials:
+            logger.warning("[Playwright] 환경변수 미설정으로 로그인 스킵. 공개 콘텐츠만 추출 시도...")
+            return
+
+        logger.info("[Playwright] 로그인 시도 중...")
         login_success = await self._login(page)
         if login_success:
             logger.info("[Playwright] 로그인 성공!")
@@ -156,14 +172,18 @@ class TwitterPlaywrightScraper:
             return False
 
         try:
+            logger.info("[Playwright] 로그인 페이지로 이동...")
             await page.goto("https://x.com/i/flow/login", timeout=self.timeout)
             await page.wait_for_timeout(3000)
+            logger.info(f"[Playwright] 로그인 페이지 URL: {page.url}")
 
             # 이메일/사용자명 입력
+            logger.info("[Playwright] 사용자명 입력 필드 대기 중...")
             username_input = await page.wait_for_selector(
                 'input[autocomplete="username"]', timeout=15000
             )
             await username_input.fill(self.twitter_username)
+            logger.info(f"[Playwright] 사용자명 입력 완료: {self.twitter_username[:3]}***")
             await page.wait_for_timeout(500)
 
             # "다음" 버튼 클릭
@@ -171,16 +191,20 @@ class TwitterPlaywrightScraper:
                 page, ["Next", "다음"]
             )
             if next_button:
+                logger.info("[Playwright] '다음' 버튼 클릭")
                 await next_button.click()
             else:
+                logger.info("[Playwright] '다음' 버튼 없음, Enter 키 입력")
                 await username_input.press("Enter")
             await page.wait_for_timeout(2000)
 
             # 비밀번호 입력
+            logger.info("[Playwright] 비밀번호 입력 필드 대기 중...")
             password_input = await page.wait_for_selector(
                 'input[type="password"]', timeout=15000
             )
             await password_input.fill(self.twitter_password)
+            logger.info("[Playwright] 비밀번호 입력 완료")
             await page.wait_for_timeout(500)
 
             # "로그인" 버튼 클릭
@@ -188,15 +212,23 @@ class TwitterPlaywrightScraper:
                 page, ["Log in", "로그인"], data_testid="LoginForm_Login_Button"
             )
             if login_button:
+                logger.info("[Playwright] '로그인' 버튼 클릭")
                 await login_button.click()
             else:
+                logger.info("[Playwright] '로그인' 버튼 없음, Enter 키 입력")
                 await password_input.press("Enter")
             await page.wait_for_timeout(3000)
 
-            return await self._check_login_status(page)
+            # 로그인 결과 확인
+            final_url = page.url
+            logger.info(f"[Playwright] 로그인 후 URL: {final_url}")
+
+            is_logged_in = await self._check_login_status(page)
+            logger.info(f"[Playwright] 로그인 상태 확인: {is_logged_in}")
+            return is_logged_in
 
         except Exception as e:
-            logger.error(f"[Playwright] 로그인 실패: {e}")
+            logger.error(f"[Playwright] 로그인 실패: {e}", exc_info=True)
             return False
 
     async def _find_button(
