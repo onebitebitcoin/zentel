@@ -68,11 +68,6 @@ async def generate_ai_response(
             memo_content=memo.display_content or memo.content,
         )
 
-        if not ai_content:
-            logger.warning(f"[CommentAI] LLM 응답 없음: comment_id={comment_id}")
-            _update_comment_status(user_comment, db, "failed", "AI 응답 생성 실패")
-            return None
-
         # 4. AI 댓글 저장
         ai_comment = MemoComment(
             memo_id=user_comment.memo_id,
@@ -122,7 +117,7 @@ async def _call_llm(
     user_comment: str,
     memo_context: Optional[str],
     memo_content: Optional[str],
-) -> Optional[str]:
+) -> str:
     """
     LLM 호출하여 AI 응답 생성
 
@@ -133,11 +128,15 @@ async def _call_llm(
 
     Returns:
         AI 응답 텍스트
+
+    Raises:
+        LLMError: API 키 미설정, 빈 응답, 호출 실패 시
     """
     client = get_openai_client()
     if not client:
-        logger.warning("[CommentAI] OpenAI API key not configured")
-        return None
+        error_msg = "OpenAI API 키가 설정되지 않았습니다"
+        logger.error(f"[CommentAI] {error_msg}")
+        raise LLMError(error_msg)
 
     # 동의/반론 비율 결정 (70% 동의, 30% 반론)
     should_agree = random.random() < 0.7
@@ -189,9 +188,14 @@ async def _call_llm(
             logger.info(f"[CommentAI] LLM 응답 생성: {len(result)}자")
             return result
 
-        return None
+        # 빈 응답
+        error_msg = "LLM이 빈 응답을 반환했습니다"
+        logger.error(f"[CommentAI] {error_msg}")
+        raise LLMError(error_msg)
 
+    except LLMError:
+        raise
     except Exception as e:
-        error_msg = f"[CommentAI] LLM 호출 실패: {e}"
-        logger.error(error_msg, exc_info=True)
+        error_msg = f"LLM 호출 실패: {e}"
+        logger.error(f"[CommentAI] {error_msg}", exc_info=True)
         raise LLMError(error_msg) from e
