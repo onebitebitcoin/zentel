@@ -316,8 +316,27 @@ class AnalysisService:
         else:
             logger.warning(f"[AnalysisService] fetched_content 없음, source_url={source_url}")
 
-        # 번역 및 하이라이트 추출
-        await self._process_translation_and_highlights(memo, fetched_content)
+        # 번역 및 하이라이트 추출 (EXTERNAL_SOURCE + URL + 스크래핑 성공 시에만)
+        should_process_content = (
+            memo.memo_type == "EXTERNAL_SOURCE" and
+            memo.source_url and
+            fetched_content
+        )
+
+        if should_process_content:
+            await self._process_translation_and_highlights(memo, fetched_content)
+        else:
+            # 그 외 메모는 번역/하이라이트 스킵 (context만 저장됨)
+            logger.info(
+                f"[AnalysisService] 번역/하이라이트 스킵: "
+                f"memo_type={memo.memo_type}, "
+                f"source_url={'있음' if memo.source_url else '없음'}, "
+                f"fetched_content={'있음' if fetched_content else '없음'}"
+            )
+            await notify_analysis_progress(
+                memo.id, "translate_skip",
+                "이 메모 타입은 본문 처리를 건너뜁니다"
+            )
 
     async def _process_translation_and_highlights(
         self,
