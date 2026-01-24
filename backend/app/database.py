@@ -211,3 +211,17 @@ def _run_migrations():
                 )
                 conn.commit()
             logger.info("Migration: 'response_error' column added successfully")
+
+    # users 테이블에 ai_personas 컬럼 추가
+    if "users" in inspector.get_table_names():
+        columns = [col["name"] for col in inspector.get_columns("users")]
+        if "ai_personas" not in columns:
+            logger.info("Migration: Adding 'ai_personas' column to users table")
+            with engine.connect() as conn:
+                if settings.DATABASE_URL.startswith("sqlite"):
+                    conn.execute(text("ALTER TABLE users ADD COLUMN ai_personas TEXT"))
+                else:
+                    # PostgreSQL
+                    conn.execute(text("ALTER TABLE users ADD COLUMN ai_personas JSONB"))
+                conn.commit()
+            logger.info("Migration: 'ai_personas' column added successfully")

@@ -25,6 +25,7 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(128), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     interests: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+    ai_personas: Mapped[Optional[list[dict]]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[str] = mapped_column(String(64), nullable=False, default=now_iso)
     updated_at: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 

@@ -4,28 +4,97 @@
 사용자가 메모에 댓글을 달면 LLM이 비동기로 답변 댓글을 자동 생성합니다.
 - 질문 → 메모 내용 바탕으로 답변
 - 주장/의견 → 동의(70%) 또는 반론(30%)
+- 페르소나 지정 가능 (@페르소나명 태그 또는 랜덤 선택)
 """
 
 from __future__ import annotations
 
 import logging
 import random
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models.memo_comment import MemoComment
 from app.models.temp_memo import TempMemo
-from app.services.llm_service import get_openai_client, LLMError
-from app.config import settings
+from app.models.user import User
+from app.services.llm_service import LLMError, get_openai_client
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_persona_from_mention(content: str) -> Optional[str]:
+    """
+    댓글 내용에서 @페르소나명 추출
+
+    Args:
+        content: 댓글 내용
+
+    Returns:
+        페르소나 이름 또는 None
+    """
+    # @로 시작하고 공백이나 문장 끝까지의 문자열 추출
+    match = re.search(r"@(\S+)", content)
+    if match:
+        return match.group(1)
+    return None
+
+
+def _get_persona_for_response(
+    user_id: Optional[str],
+    comment_content: str,
+    db: Session,
+) -> Optional[dict]:
+    """
+    AI 응답에 사용할 페르소나 결정
+
+    우선순위:
+    1. 댓글에 @페르소나명 태그가 있으면 해당 페르소나
+    2. 없으면 사용자의 페르소나 중 랜덤 선택
+    3. 페르소나가 없으면 None (기본 응답)
+
+    Args:
+        user_id: 사용자 ID
+        comment_content: 댓글 내용
+        db: 데이터베이스 세션
+
+    Returns:
+        선택된 페르소나 dict 또는 None
+    """
+    if not user_id:
+        return None
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not user.ai_personas:
+        return None
+
+    personas = user.ai_personas
+    if not personas:
+        return None
+
+    # @태그로 특정 페르소나 호출 확인
+    mentioned_name = _extract_persona_from_mention(comment_content)
+    if mentioned_name:
+        for persona in personas:
+            if persona.get("name") == mentioned_name:
+                logger.info(f"[CommentAI] 태그로 페르소나 선택: {mentioned_name}")
+                return persona
+        # 태그된 페르소나가 없으면 랜덤
+        logger.info(f"[CommentAI] 태그된 페르소나 '{mentioned_name}'를 찾을 수 없음, 랜덤 선택")
+
+    # 랜덤 선택
+    selected = random.choice(personas)
+    logger.info(f"[CommentAI] 랜덤 페르소나 선택: {selected.get('name')}")
+    return selected
 
 
 async def generate_ai_response(
     comment_id: str,
     db: Session,
+    user_id: Optional[str] = None,
 ) -> Optional[MemoComment]:
     """
     사용자 댓글에 대한 AI 응답 생성
@@ -33,11 +102,12 @@ async def generate_ai_response(
     Args:
         comment_id: 사용자 댓글 ID
         db: 데이터베이스 세션
+        user_id: 사용자 ID (페르소나 조회용)
 
     Returns:
         생성된 AI 댓글 또는 None
     """
-    logger.info(f"[CommentAI] AI 응답 생성 시작: comment_id={comment_id}")
+    logger.info(f"[CommentAI] AI 응답 생성 시작: comment_id={comment_id}, user_id={user_id}")
 
     # 1. 원본 댓글 조회
     user_comment = db.query(MemoComment).filter(MemoComment.id == comment_id).first()
@@ -57,15 +127,19 @@ async def generate_ai_response(
         _update_comment_status(user_comment, db, "failed", "메모를 찾을 수 없습니다")
         return None
 
+    # 3. 페르소나 결정
+    persona = _get_persona_for_response(user_id, user_comment.content, db)
+
     # 응답 상태 업데이트
     _update_comment_status(user_comment, db, "generating")
 
     try:
-        # 3. LLM 호출
+        # 4. LLM 호출
         ai_content = await _call_llm(
             user_comment=user_comment.content,
             memo_context=memo.context,
             memo_content=memo.display_content or memo.content,
+            persona=persona,
         )
 
         # 4. AI 댓글 저장
@@ -117,6 +191,7 @@ async def _call_llm(
     user_comment: str,
     memo_context: Optional[str],
     memo_content: Optional[str],
+    persona: Optional[dict] = None,
 ) -> str:
     """
     LLM 호출하여 AI 응답 생성
@@ -125,6 +200,7 @@ async def _call_llm(
         user_comment: 사용자 댓글 내용
         memo_context: 메모의 context (요약)
         memo_content: 메모 본문
+        persona: AI 페르소나 (name, description)
 
     Returns:
         AI 응답 텍스트
@@ -159,6 +235,17 @@ async def _call_llm(
     if not memo_info:
         memo_info = "(메모 내용 없음)"
 
+    # 페르소나 설정
+    persona_instruction = ""
+    if persona:
+        persona_name = persona.get("name", "")
+        persona_desc = persona.get("description", "")
+        if persona_name:
+            persona_instruction = f"\n\n페르소나: {persona_name}"
+            if persona_desc:
+                persona_instruction += f"\n성격/스타일: {persona_desc}"
+            persona_instruction += "\n위 페르소나의 성격과 스타일로 응답하세요."
+
     try:
         input_text = (
             f"[메모 정보]\n{memo_info}\n\n"
@@ -168,7 +255,8 @@ async def _call_llm(
 
         logger.info(
             f"[CommentAI] LLM 호출: model={settings.OPENAI_MODEL}, "
-            f"input_length={len(input_text)}, memo_info_length={len(memo_info)}"
+            f"input_length={len(input_text)}, memo_info_length={len(memo_info)}, "
+            f"persona={persona.get('name') if persona else 'None'}"
         )
 
         response = client.responses.create(
@@ -179,11 +267,12 @@ async def _call_llm(
                 "- 사용자의 댓글이 질문이면 → 메모 내용을 바탕으로 답변\n"
                 f"- 사용자의 댓글이 의견/주장이면 → {response_style}\n\n"
                 "규칙:\n"
-                "- 2-3문장으로 간결하게 응답\n"
+                "- 1-2문장으로 핵심만 응답\n"
                 "- 한국어로 응답\n"
-                "- 마지막에 사고를 확장할 수 있는 질문 하나 추가\n"
+                "- 질문은 추가하지 않음\n"
                 "- 마크다운 형식 없이 순수 텍스트로만 응답\n"
                 "- 친근하지만 존중하는 어조 유지"
+                f"{persona_instruction}"
             ),
             input=input_text,
             max_output_tokens=16000,  # 최대값으로 설정

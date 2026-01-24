@@ -6,22 +6,25 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from app.database import get_db, SessionLocal
+from app.core.deps import get_current_user_optional
+from app.database import SessionLocal, get_db
 from app.models.memo_comment import MemoComment
 from app.models.temp_memo import TempMemo
+from app.models.user import User
 from app.schemas.memo_comment import (
     MemoCommentCreate,
     MemoCommentListResponse,
     MemoCommentOut,
     MemoCommentUpdate,
 )
-from app.services.comment_ai_service import generate_ai_response
 from app.services.analysis_service import notify_comment_ai_response
+from app.services.comment_ai_service import generate_ai_response
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +40,14 @@ def get_memo_or_404(memo_id: str, db: Session) -> TempMemo:
     return memo
 
 
-def _run_ai_response_task(comment_id: str, memo_id: str) -> None:
+def _run_ai_response_task(
+    comment_id: str, memo_id: str, user_id: Optional[str] = None
+) -> None:
     """백그라운드에서 AI 응답 생성 실행"""
     async def _async_task():
         db = SessionLocal()
         try:
-            ai_comment = await generate_ai_response(comment_id, db)
+            ai_comment = await generate_ai_response(comment_id, db, user_id)
             if ai_comment:
                 await notify_comment_ai_response(
                     memo_id=memo_id,
@@ -84,11 +89,12 @@ def _run_ai_response_task(comment_id: str, memo_id: str) -> None:
 
 
 @router.post("/{memo_id}/comments", response_model=MemoCommentOut, status_code=201)
-def create_comment(
+async def create_comment(
     memo_id: str,
     comment: MemoCommentCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """댓글 작성"""
     logger.info(f"Creating comment for memo: {memo_id}")
@@ -107,8 +113,9 @@ def create_comment(
 
     logger.info(f"Created comment: id={db_comment.id}")
 
-    # 백그라운드에서 AI 응답 생성
-    background_tasks.add_task(_run_ai_response_task, db_comment.id, memo_id)
+    # 백그라운드에서 AI 응답 생성 (user_id 전달)
+    user_id = current_user.id if current_user else None
+    background_tasks.add_task(_run_ai_response_task, db_comment.id, memo_id, user_id)
 
     return db_comment
 

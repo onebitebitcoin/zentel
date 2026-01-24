@@ -261,11 +261,14 @@ def update_profile(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """프로필(관심사) 업데이트"""
+    """프로필(관심사, AI 페르소나) 업데이트"""
     logger.info(f"Profile update: {current_user.id}")
 
     if data.interests is not None:
         current_user.interests = data.interests
+
+    if data.ai_personas is not None:
+        current_user.ai_personas = data.ai_personas
 
     current_user.updated_at = now_iso()
 

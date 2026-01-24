@@ -8,6 +8,13 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 
+class AIPersona(BaseModel):
+    """AI 페르소나 스키마"""
+
+    name: str = Field(min_length=1, max_length=50)
+    description: Optional[str] = None
+
+
 class UserRegister(BaseModel):
     """회원가입 요청 스키마"""
 
@@ -37,6 +44,7 @@ class UserOut(BaseModel):
     username: str
     is_active: bool
     interests: Optional[List[str]] = None
+    ai_personas: Optional[List[dict]] = None
     created_at: str
     updated_at: Optional[str] = None
 
@@ -81,3 +89,4 @@ class UserUpdate(BaseModel):
     """사용자 프로필 업데이트 스키마"""
 
     interests: Optional[List[str]] = None
+    ai_personas: Optional[List[dict]] = None
