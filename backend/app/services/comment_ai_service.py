@@ -160,6 +160,17 @@ async def _call_llm(
         memo_info = "(메모 내용 없음)"
 
     try:
+        input_text = (
+            f"[메모 정보]\n{memo_info}\n\n"
+            f"[사용자 댓글]\n{user_comment}\n\n"
+            "위 댓글에 적절히 응답해주세요."
+        )
+
+        logger.info(
+            f"[CommentAI] LLM 호출: model={settings.OPENAI_MODEL}, "
+            f"input_length={len(input_text)}, memo_info_length={len(memo_info)}"
+        )
+
         response = client.responses.create(
             model=settings.OPENAI_MODEL,
             instructions=(
@@ -174,23 +185,24 @@ async def _call_llm(
                 "- 마크다운 형식 없이 순수 텍스트로만 응답\n"
                 "- 친근하지만 존중하는 어조 유지"
             ),
-            input=(
-                f"[메모 정보]\n{memo_info}\n\n"
-                f"[사용자 댓글]\n{user_comment}\n\n"
-                "위 댓글에 적절히 응답해주세요."
-            ),
+            input=input_text,
             max_output_tokens=500,
         )
 
+        # 응답 디버깅
+        logger.info(f"[CommentAI] LLM 응답 객체: {type(response)}")
+
         result = response.output_text
+        logger.info(f"[CommentAI] output_text: {result[:100] if result else 'None/Empty'}...")
+
         if result:
             result = result.strip()
             logger.info(f"[CommentAI] LLM 응답 생성: {len(result)}자")
             return result
 
-        # 빈 응답
-        error_msg = "LLM이 빈 응답을 반환했습니다"
-        logger.error(f"[CommentAI] {error_msg}")
+        # 빈 응답 - 더 자세한 정보 로깅
+        error_msg = f"LLM이 빈 응답을 반환했습니다 (output_text={result!r})"
+        logger.error(f"[CommentAI] {error_msg}, response={response}")
         raise LLMError(error_msg)
 
     except LLMError:
