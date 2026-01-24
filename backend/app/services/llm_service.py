@@ -23,6 +23,11 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
+class LLMError(Exception):
+    """LLM API 호출 에러"""
+    pass
+
+
 @lru_cache(maxsize=1)
 def get_openai_client() -> Optional[OpenAI]:
     """OpenAI 클라이언트 (싱글톤)"""
@@ -135,7 +140,7 @@ async def extract_context(text: str, memo_type: str) -> Optional[str]:
                 "반드시 한국어로 응답하세요."
             ),
             input=f"다음 내용의 핵심 context를 10단어 이내로 표현해주세요:\n\n{text}",
-            max_output_tokens=50,
+            max_output_tokens=1000,
         )
 
         context = response.output_text
@@ -147,8 +152,9 @@ async def extract_context(text: str, memo_type: str) -> Optional[str]:
         return None
 
     except Exception as e:
-        logger.error(f"[LLM] API 호출 실패: {e}", exc_info=True)
-        return None
+        error_msg = f"[LLM] context 추출 실패: {e}"
+        logger.error(error_msg, exc_info=True)
+        raise LLMError(error_msg) from e
 
 
 async def match_interests(content: str, user_interests: list[str]) -> list[str]:
@@ -187,7 +193,7 @@ async def match_interests(content: str, user_interests: list[str]) -> list[str]:
                 "관련된 관심사를 쉼표로 구분하여 반환하세요. "
                 "명확하게 관련된 관심사가 없으면 '없음'이라고 반환하세요."
             ),
-            max_output_tokens=100,
+            max_output_tokens=1000,
         )
 
         raw = response.output_text or ""
@@ -211,8 +217,9 @@ async def match_interests(content: str, user_interests: list[str]) -> list[str]:
         return matched
 
     except Exception as e:
-        logger.error(f"[LLM] 관심사 매칭 실패: {e}", exc_info=True)
-        return []
+        error_msg = f"[LLM] 관심사 매칭 실패: {e}"
+        logger.error(error_msg, exc_info=True)
+        raise LLMError(error_msg) from e
 
 
 # 청크 분할 설정
@@ -350,7 +357,7 @@ async def _translate_chunk(
                 + context_msg
             ),
             input=f"다음 텍스트를 한국어로 번역하고 정리하세요:\n\n{chunk}",
-            max_output_tokens=4000,
+            max_output_tokens=16000,
         )
 
         result = response.output_text
@@ -360,8 +367,9 @@ async def _translate_chunk(
         return result
 
     except Exception as e:
-        logger.error(f"[LLM] 청크 {chunk_index + 1} 번역 실패: {e}")
-        return None
+        error_msg = f"[LLM] 청크 {chunk_index + 1} 번역 실패: {e}"
+        logger.error(error_msg, exc_info=True)
+        raise LLMError(error_msg) from e
 
 
 async def _format_text(client: OpenAI, text: str) -> Optional[str]:
@@ -430,7 +438,7 @@ async def _format_single_chunk(
                 + context_msg
             ),
             input=f"다음 텍스트를 읽기 좋게 정리하세요:\n\n{chunk}",
-            max_output_tokens=4000,
+            max_output_tokens=16000,
         )
 
         result = response.output_text
@@ -440,8 +448,9 @@ async def _format_single_chunk(
         return result
 
     except Exception as e:
-        logger.error(f"[LLM] 텍스트 정리 실패: {e}")
-        return None
+        error_msg = f"[LLM] 텍스트 정리 실패: {e}"
+        logger.error(error_msg, exc_info=True)
+        raise LLMError(error_msg) from e
 
 
 async def translate_and_highlight(
@@ -536,7 +545,7 @@ async def _detect_language(client: OpenAI, text: str) -> Optional[str]:
                 "코드만 응답 (예: ko, en, ja, zh)"
             ),
             input=text,
-            max_output_tokens=16,
+            max_output_tokens=100,
         )
 
         result = response.output_text
@@ -547,8 +556,9 @@ async def _detect_language(client: OpenAI, text: str) -> Optional[str]:
         return None
 
     except Exception as e:
-        logger.error(f"[LLM] 언어 감지 실패: {e}")
-        return None
+        error_msg = f"[LLM] 언어 감지 실패: {e}"
+        logger.error(error_msg, exc_info=True)
+        raise LLMError(error_msg) from e
 
 
 async def _extract_highlights(
@@ -586,7 +596,7 @@ async def _extract_highlights(
                 "```"
             ),
             input=sample_text,
-            max_output_tokens=1500,
+            max_output_tokens=4000,
         )
 
         raw = response.output_text or ""
@@ -628,8 +638,10 @@ async def _extract_highlights(
         return highlights if highlights else None
 
     except json.JSONDecodeError as e:
-        logger.error(f"[LLM] 하이라이트 JSON 파싱 실패: {e}")
-        return None
+        error_msg = f"[LLM] 하이라이트 JSON 파싱 실패: {e}"
+        logger.error(error_msg, exc_info=True)
+        raise LLMError(error_msg) from e
     except Exception as e:
-        logger.error(f"[LLM] 하이라이트 추출 실패: {e}")
-        return None
+        error_msg = f"[LLM] 하이라이트 추출 실패: {e}"
+        logger.error(error_msg, exc_info=True)
+        raise LLMError(error_msg) from e

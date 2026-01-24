@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.models.temp_memo import TempMemo
 from app.models.user import User
 from app.services import llm_service
+from app.services.llm_service import LLMError
 from app.services.context_extractor import context_extractor
 from app.services.twitter_scraper import twitter_scraper
 from app.services.youtube_scraper import youtube_scraper
@@ -42,9 +43,15 @@ def unregister_sse_client(client_id: str) -> None:
         logger.info(f"[AnalysisService] SSE 클라이언트 등록 해제: {client_id}")
 
 
-async def notify_analysis_complete(memo_id: str, status: str) -> None:
+async def notify_analysis_complete(
+    memo_id: str,
+    status: str,
+    error: Optional[str] = None,
+) -> None:
     """모든 SSE 클라이언트에 분석 완료 알림"""
     event_data = {"memo_id": memo_id, "status": status}
+    if error:
+        event_data["error"] = error
     for client_id, queue in list(_sse_queues.items()):
         try:
             await queue.put(event_data)
@@ -115,15 +122,16 @@ class AnalysisService:
                     await asyncio.sleep(delay)
                 else:
                     # 최종 실패 - 상태를 'failed'로 변경
+                    error_msg = str(e)
                     memo.analysis_status = "failed"
-                    memo.analysis_error = str(e)
+                    memo.analysis_error = error_msg
                     memo.updated_at = datetime.now(timezone.utc).isoformat()
                     db.commit()
 
-                    logger.error(f"[AnalysisService] 분석 최종 실패: memo_id={memo_id}")
+                    logger.error(f"[AnalysisService] 분석 최종 실패: memo_id={memo_id}, error={error_msg}")
 
-                    # SSE로 실패 알림
-                    await notify_analysis_complete(memo_id, "failed")
+                    # SSE로 실패 알림 (에러 메시지 포함)
+                    await notify_analysis_complete(memo_id, "failed", error=error_msg)
 
     async def _do_analysis(
         self,
