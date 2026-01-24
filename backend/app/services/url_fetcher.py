@@ -4,11 +4,12 @@ URL 콘텐츠 가져오기 서비스
 Unix Philosophy:
 - Modularity: URL 콘텐츠 가져오기만 담당
 - Separation: HTTP 요청 로직 분리
-- Simplicity: 단순한 로직 유지
+- Robustness: 정적/동적 페이지 모두 처리
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Optional
@@ -20,6 +21,9 @@ import trafilatura
 from app.services.og_metadata import OGMetadata, extract_og_metadata
 
 logger = logging.getLogger(__name__)
+
+# 최소 유효 콘텐츠 길이 (이보다 짧으면 JS 렌더링 필요로 판단)
+MIN_CONTENT_LENGTH = 200
 
 # 직접 접근 불가능한 도메인 (별도 스크래퍼 사용)
 INACCESSIBLE_DOMAINS: frozenset[str] = frozenset([
@@ -43,9 +47,7 @@ GITHUB_BLOB_PATTERN = re.compile(
 
 
 def is_inaccessible_url(url: str) -> bool:
-    """
-    접근 불가능한 URL인지 확인 (Twitter, YouTube 등)
-    """
+    """Twitter/YouTube 등 별도 스크래퍼 필요한 URL"""
     try:
         parsed = urlparse(url)
         domain = parsed.netloc.lower()
@@ -69,6 +71,75 @@ def convert_github_blob_to_raw(url: str) -> Optional[str]:
     return None
 
 
+def extract_text_from_html(html: str) -> Optional[str]:
+    """
+    HTML에서 본문 텍스트 추출
+    1차: trafilatura
+    2차: BeautifulSoup fallback
+    """
+    # trafilatura 시도
+    content = trafilatura.extract(
+        html,
+        include_comments=False,
+        include_tables=True,
+        no_fallback=False,
+    )
+
+    if content and len(content) >= MIN_CONTENT_LENGTH:
+        return content
+
+    # BeautifulSoup fallback
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+            tag.decompose()
+        fallback = soup.get_text(separator="\n", strip=True)
+        if fallback and len(fallback) >= MIN_CONTENT_LENGTH:
+            return fallback
+    except Exception:
+        pass
+
+    return content  # 짧더라도 반환
+
+
+async def fetch_with_playwright(url: str) -> Optional[str]:
+    """
+    Playwright로 JS 렌더링 후 HTML 가져오기
+    """
+    try:
+        from playwright.async_api import async_playwright
+
+        logger.info(f"[Playwright] JS 렌더링 시작: {url}")
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                           "AppleWebKit/537.36 (KHTML, like Gecko) "
+                           "Chrome/120.0.0.0 Safari/537.36"
+            )
+            page = await context.new_page()
+
+            # 페이지 로드 (최대 30초)
+            await page.goto(url, wait_until="networkidle", timeout=30000)
+
+            # 약간 대기 (동적 콘텐츠 로드)
+            await asyncio.sleep(1)
+
+            # HTML 가져오기
+            html = await page.content()
+
+            await browser.close()
+
+            logger.info(f"[Playwright] 렌더링 완료: {len(html):,} bytes")
+            return html
+
+    except Exception as e:
+        logger.error(f"[Playwright] 렌더링 실패: {url}, error={e}")
+        return None
+
+
 async def fetch_url_content(
     url: str,
     max_length: int = 10000,
@@ -76,9 +147,11 @@ async def fetch_url_content(
     """
     URL에서 콘텐츠와 OG 메타데이터 가져오기
 
-    - Twitter/YouTube: 접근 불가 (별도 스크래퍼 사용)
-    - GitHub blob: raw URL로 변환 후 텍스트 그대로 사용
-    - 그 외: trafilatura로 본문 추출
+    처리 순서:
+    1. Twitter/YouTube → 별도 스크래퍼 필요 메시지
+    2. GitHub blob → raw URL로 변환하여 텍스트 그대로 사용
+    3. 일반 URL → trafilatura로 본문 추출
+    4. 결과 부실 시 → Playwright JS 렌더링 후 재시도
 
     Args:
         url: 대상 URL
@@ -87,7 +160,7 @@ async def fetch_url_content(
     Returns:
         (추출된 텍스트 콘텐츠, OG 메타데이터) 튜플
     """
-    # Twitter/YouTube는 별도 스크래퍼 사용
+    # 1. Twitter/YouTube는 별도 스크래퍼 사용
     if is_inaccessible_url(url):
         logger.info(f"Inaccessible URL (별도 스크래퍼 필요): {url}")
         return None, OGMetadata(
@@ -95,74 +168,111 @@ async def fetch_url_content(
             fetch_message="이 링크는 직접 접근이 불가능합니다. 내용을 복사해서 메모에 붙여넣어 주세요.",
         )
 
-    # GitHub blob URL은 raw URL로 변환
-    fetch_url = url
-    is_raw_text = False
+    # 2. GitHub blob URL은 raw URL로 변환
     github_raw_url = convert_github_blob_to_raw(url)
     if github_raw_url:
-        fetch_url = github_raw_url
-        is_raw_text = True
-        logger.info(f"GitHub blob → raw 변환: {url} → {fetch_url}")
+        logger.info(f"GitHub blob → raw 변환: {url}")
+        return await _fetch_raw_text(url, github_raw_url, max_length)
 
+    # 3. 일반 URL 처리
+    return await _fetch_html_content(url, max_length)
+
+
+async def _fetch_raw_text(
+    original_url: str,
+    raw_url: str,
+    max_length: int,
+) -> tuple[Optional[str], Optional[OGMetadata]]:
+    """
+    Raw 텍스트 URL에서 콘텐츠 가져오기 (GitHub raw 등)
+    """
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
+            # raw 텍스트 가져오기
             response = await client.get(
-                fetch_url,
+                raw_url,
                 headers={"User-Agent": "Mozilla/5.0 Zentel/1.0"},
                 follow_redirects=True,
             )
             response.raise_for_status()
+            content = response.text
 
-            html = response.text
-
-            # OG 메타데이터 (원본 URL에서 가져옴)
+            # OG 메타데이터는 원본 URL에서 가져옴
             og_metadata = None
-            if is_raw_text:
-                # raw URL은 OG 없으므로 원본에서 가져옴
-                try:
-                    og_resp = await client.get(url, follow_redirects=True)
-                    if og_resp.status_code == 200:
-                        og_metadata = extract_og_metadata(og_resp.text, url)
-                except Exception as e:
-                    logger.warning(f"OG 메타데이터 가져오기 실패: {e}")
-            else:
-                og_metadata = extract_og_metadata(html, url)
-
-            # 본문 추출
-            if is_raw_text:
-                # raw 텍스트는 그대로 사용
-                content = html
-            else:
-                # trafilatura로 본문 추출
-                content = trafilatura.extract(
-                    html,
-                    include_comments=False,
-                    include_tables=True,
-                    no_fallback=False,
-                )
-
-                # trafilatura 실패 시 fallback
-                if not content:
-                    logger.warning(f"trafilatura 추출 실패, fallback 사용: {url}")
-                    try:
-                        from bs4 import BeautifulSoup
-                        soup = BeautifulSoup(html, "html.parser")
-                        for tag in soup(["script", "style", "nav", "footer", "header"]):
-                            tag.decompose()
-                        content = soup.get_text(separator="\n", strip=True)
-                    except Exception:
-                        content = html
+            try:
+                og_response = await client.get(original_url, follow_redirects=True)
+                if og_response.status_code == 200:
+                    og_metadata = extract_og_metadata(og_response.text, original_url)
+            except Exception as e:
+                logger.warning(f"OG 메타데이터 가져오기 실패: {e}")
 
             # 콘텐츠 길이 제한
             if content and len(content) > max_length:
                 content = content[:max_length] + "..."
 
             logger.info(
-                f"URL 콘텐츠 추출 완료: {url}, "
-                f"length={len(content) if content else 0}, "
-                f"is_raw={is_raw_text}"
+                f"Raw 텍스트 추출 완료: {original_url}, "
+                f"length={len(content) if content else 0}"
             )
             return content, og_metadata
+
+    except Exception as e:
+        logger.error(f"Raw 텍스트 가져오기 실패: {original_url}, error={e}")
+        return None, None
+
+
+async def _fetch_html_content(
+    url: str,
+    max_length: int,
+) -> tuple[Optional[str], Optional[OGMetadata]]:
+    """
+    일반 HTML 페이지에서 콘텐츠 가져오기
+    정적 추출 실패 시 Playwright로 JS 렌더링
+    """
+    try:
+        # 1단계: 일반 HTTP 요청
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 Zentel/1.0"},
+                follow_redirects=True,
+            )
+            response.raise_for_status()
+            html = response.text
+
+        # OG 메타데이터 추출
+        og_metadata = extract_og_metadata(html, url)
+
+        # 2단계: 정적 HTML에서 본문 추출 시도
+        content = extract_text_from_html(html)
+        used_playwright = False
+
+        # 3단계: 결과 부실 시 Playwright로 재시도
+        if not content or len(content) < MIN_CONTENT_LENGTH:
+            logger.info(
+                f"정적 추출 부실 ({len(content) if content else 0}자), "
+                f"Playwright 시도: {url}"
+            )
+
+            rendered_html = await fetch_with_playwright(url)
+            if rendered_html:
+                rendered_content = extract_text_from_html(rendered_html)
+                if rendered_content and len(rendered_content) > len(content or ""):
+                    content = rendered_content
+                    used_playwright = True
+                    # 렌더링된 HTML에서 OG 재추출
+                    og_metadata = extract_og_metadata(rendered_html, url) or og_metadata
+
+        # 콘텐츠 길이 제한
+        if content and len(content) > max_length:
+            content = content[:max_length] + "..."
+
+        logger.info(
+            f"URL 콘텐츠 추출 완료: {url}, "
+            f"length={len(content) if content else 0}, "
+            f"playwright={used_playwright}"
+        )
+        return content, og_metadata
 
     except Exception as e:
         logger.error(f"URL 콘텐츠 가져오기 실패: {url}, error={e}")
