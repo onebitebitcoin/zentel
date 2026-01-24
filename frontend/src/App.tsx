@@ -15,7 +15,7 @@ import { Register } from './pages/Register';
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-full bg-gray-50">
+    <div className="flex h-full bg-gray-50 overflow-x-hidden">
       {/* PC: 사이드바 */}
       <Sidebar className="hidden md:flex" />
 

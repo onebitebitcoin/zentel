@@ -187,7 +187,7 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze,
           >
             {text.slice(highlight.start, highlight.end)}
             {highlight.reason && (
-              <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-[10px] bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+              <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-[10px] bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity max-w-[200px] break-words text-center pointer-events-none z-10">
                 {highlight.reason}
               </span>
             )}
@@ -338,12 +338,12 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze,
           </div>
           {/* 분석 로그 표시 */}
           {logsExpanded && displayLogs.length > 0 && (
-            <div className="mt-2 p-2 bg-gray-900 rounded-lg text-[10px] font-mono text-gray-300 max-h-32 overflow-y-auto">
+            <div className="mt-2 p-2 bg-gray-900 rounded-lg text-[10px] font-mono text-gray-300 max-h-32 overflow-auto">
               {displayLogs.map((log, idx) => (
                 <div key={idx} className="flex gap-2 py-0.5">
                   <span className="text-gray-500 flex-shrink-0">{log.timestamp}</span>
-                  <span className="text-green-400">{log.message}</span>
-                  {log.detail && <span className="text-gray-500">({log.detail})</span>}
+                  <span className="text-green-400 break-all">{log.message}</span>
+                  {log.detail && <span className="text-gray-500 break-all">({log.detail})</span>}
                 </div>
               ))}
             </div>
