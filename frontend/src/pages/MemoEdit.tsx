@@ -328,12 +328,16 @@ export function MemoEdit() {
           )}
 
           {/* Context (분석 완료 시에만 표시) */}
-          {memo.analysis_status === 'completed' && memo.context && (
+          {memo.analysis_status === 'completed' && (
             <div className="border-t border-gray-100 pt-3 space-y-1">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                  Context
-                </span>
+                {memo.context ? (
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    Context
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">분석 완료 (context 없음)</span>
+                )}
                 <button
                   type="button"
                   onClick={handleReanalyze}
@@ -344,7 +348,7 @@ export function MemoEdit() {
                   다시 분석
                 </button>
               </div>
-              <p className="text-sm text-gray-700">{memo.context}</p>
+              {memo.context && <p className="text-sm text-gray-700">{memo.context}</p>}
             </div>
           )}
 
