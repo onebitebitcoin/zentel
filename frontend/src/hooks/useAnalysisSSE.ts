@@ -8,6 +8,14 @@ interface AnalysisCompleteEvent {
   error?: string;
 }
 
+export interface CommentAIResponseEvent {
+  memo_id: string;
+  comment_id: string;
+  parent_comment_id: string;
+  status: 'completed' | 'failed';
+  error?: string;
+}
+
 export interface AnalysisProgressEvent {
   memo_id: string;
   step: string;
@@ -24,16 +32,22 @@ export interface AnalysisLogs {
  * AI 분석 완료 SSE 이벤트를 수신하는 훅
  */
 export function useAnalysisSSE(
-  onAnalysisComplete: (memoId: string, status: string) => void
+  onAnalysisComplete: (memoId: string, status: string) => void,
+  onCommentAIResponse?: (event: CommentAIResponseEvent) => void
 ) {
   const eventSourceRef = useRef<EventSource | null>(null);
   const onAnalysisCompleteRef = useRef(onAnalysisComplete);
+  const onCommentAIResponseRef = useRef(onCommentAIResponse);
   const [analysisLogs, setAnalysisLogs] = useState<AnalysisLogs>({});
 
   // 콜백 참조 업데이트
   useEffect(() => {
     onAnalysisCompleteRef.current = onAnalysisComplete;
   }, [onAnalysisComplete]);
+
+  useEffect(() => {
+    onCommentAIResponseRef.current = onCommentAIResponse;
+  }, [onCommentAIResponse]);
 
   // 특정 메모의 로그 초기화
   const clearLogs = useCallback((memoId: string) => {
@@ -82,6 +96,17 @@ export function useAnalysisSSE(
         onAnalysisCompleteRef.current(data.memo_id, data.status);
       } catch (error) {
         console.error('[SSE] Failed to parse event:', error);
+      }
+    });
+
+    // AI 댓글 응답 이벤트
+    eventSource.addEventListener('comment_ai_response', (event) => {
+      try {
+        const data: CommentAIResponseEvent = JSON.parse(event.data);
+        console.log('[SSE] Comment AI response:', data);
+        onCommentAIResponseRef.current?.(data);
+      } catch (error) {
+        console.error('[SSE] Failed to parse comment AI response:', error);
       }
     });
 

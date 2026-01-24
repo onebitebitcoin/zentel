@@ -3,14 +3,15 @@
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models.memo_comment import MemoComment
 from app.models.temp_memo import TempMemo
 from app.schemas.memo_comment import (
@@ -19,6 +20,8 @@ from app.schemas.memo_comment import (
     MemoCommentOut,
     MemoCommentUpdate,
 )
+from app.services.comment_ai_service import generate_ai_response
+from app.services.analysis_service import notify_comment_ai_response
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +37,48 @@ def get_memo_or_404(memo_id: str, db: Session) -> TempMemo:
     return memo
 
 
+def _run_ai_response_task(comment_id: str, memo_id: str) -> None:
+    """백그라운드에서 AI 응답 생성 실행"""
+    async def _async_task():
+        db = SessionLocal()
+        try:
+            ai_comment = await generate_ai_response(comment_id, db)
+            if ai_comment:
+                await notify_comment_ai_response(
+                    memo_id=memo_id,
+                    comment_id=ai_comment.id,
+                    parent_comment_id=comment_id,
+                    status="completed",
+                )
+            else:
+                # AI 응답 생성 실패
+                await notify_comment_ai_response(
+                    memo_id=memo_id,
+                    comment_id="",
+                    parent_comment_id=comment_id,
+                    status="failed",
+                    error="AI 응답 생성 실패",
+                )
+        except Exception as e:
+            logger.error(f"AI 응답 생성 에러: {e}", exc_info=True)
+            await notify_comment_ai_response(
+                memo_id=memo_id,
+                comment_id="",
+                parent_comment_id=comment_id,
+                status="failed",
+                error=str(e),
+            )
+        finally:
+            db.close()
+
+    asyncio.run(_async_task())
+
+
 @router.post("/{memo_id}/comments", response_model=MemoCommentOut, status_code=201)
 def create_comment(
     memo_id: str,
     comment: MemoCommentCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """댓글 작성"""
@@ -49,12 +90,17 @@ def create_comment(
     db_comment = MemoComment(
         memo_id=memo_id,
         content=comment.content,
+        response_status="pending",  # AI 응답 대기 상태
     )
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)
 
     logger.info(f"Created comment: id={db_comment.id}")
+
+    # 백그라운드에서 AI 응답 생성
+    background_tasks.add_task(_run_ai_response_task, db_comment.id, memo_id)
+
     return db_comment
 
 
@@ -99,6 +145,10 @@ def update_comment(
         logger.warning(f"Comment not found: id={comment_id}")
         raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
 
+    # AI 댓글은 수정 불가
+    if db_comment.is_ai_response:
+        raise HTTPException(status_code=403, detail="AI 댓글은 수정할 수 없습니다.")
+
     if comment.content is not None:
         db_comment.content = comment.content
 
@@ -131,6 +181,10 @@ def delete_comment(
     if not db_comment:
         logger.warning(f"Comment not found: id={comment_id}")
         raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+
+    # AI 댓글은 삭제 불가
+    if db_comment.is_ai_response:
+        raise HTTPException(status_code=403, detail="AI 댓글은 삭제할 수 없습니다.")
 
     db.delete(db_comment)
     db.commit()

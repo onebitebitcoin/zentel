@@ -266,6 +266,11 @@ async def analysis_events(request: Request):
                             "event": "analysis_progress",
                             "data": json.dumps(event),
                         }
+                    elif event_type == "comment_ai_response":
+                        yield {
+                            "event": "comment_ai_response",
+                            "data": json.dumps(event),
+                        }
                     else:
                         yield {
                             "event": "analysis_complete",

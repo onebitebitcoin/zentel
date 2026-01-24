@@ -28,6 +28,10 @@ class MemoCommentOut(BaseModel):
     content: str
     created_at: str
     updated_at: Optional[str] = None
+    is_ai_response: bool = False
+    parent_comment_id: Optional[str] = None
+    response_status: Optional[str] = None
+    response_error: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

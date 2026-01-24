@@ -8,6 +8,10 @@ export interface MemoComment {
   content: string;
   created_at: string;
   updated_at: string | null;
+  is_ai_response: boolean;
+  parent_comment_id: string | null;
+  response_status: 'pending' | 'generating' | 'completed' | 'failed' | null;
+  response_error: string | null;
 }
 
 export interface MemoCommentCreate {

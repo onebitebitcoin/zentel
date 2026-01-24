@@ -30,7 +30,20 @@ class MemoComment(Base):
     created_at: Mapped[str] = mapped_column(String(64), nullable=False, default=now_iso)
     updated_at: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
+    # AI 댓글 관련 필드
+    is_ai_response: Mapped[bool] = mapped_column(default=False)
+    parent_comment_id: Mapped[Optional[str]] = mapped_column(
+        String(32),
+        ForeignKey("memo_comments.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    response_status: Mapped[Optional[str]] = mapped_column(
+        String(32), nullable=True
+    )  # pending | generating | completed | failed
+    response_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     __table_args__ = (
         Index("idx_memo_comments_memo_id", "memo_id"),
         Index("idx_memo_comments_created_at", "created_at"),
+        Index("idx_memo_comments_parent_id", "parent_comment_id"),
     )

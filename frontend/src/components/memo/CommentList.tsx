@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Send, Trash2, Pencil, X, Check } from 'lucide-react';
+import { Send, Trash2, Pencil, X, Check, Bot, User, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useComments } from '../../hooks/useComments';
+import { useAnalysisSSE, CommentAIResponseEvent } from '../../hooks/useAnalysisSSE';
 import { getRelativeTime } from '../../utils/date';
 
 interface CommentListProps {
@@ -17,12 +18,27 @@ export function CommentList({ memoId, onCommentChange }: CommentListProps) {
     createComment,
     updateComment,
     deleteComment,
+    handleAIResponse,
+    isWaitingForAI,
   } = useComments(memoId);
 
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+
+  // SSE 연결 (AI 댓글 응답 수신)
+  useAnalysisSSE(
+    () => {}, // 분석 완료 이벤트는 여기서 사용하지 않음
+    (event: CommentAIResponseEvent) => {
+      if (event.memo_id === memoId) {
+        handleAIResponse(event);
+        if (event.status === 'completed') {
+          toast.success('AI가 답변을 작성했습니다.');
+        }
+      }
+    }
+  );
 
   useEffect(() => {
     fetchComments();
@@ -116,62 +132,90 @@ export function CommentList({ memoId, onCommentChange }: CommentListProps) {
         </p>
       ) : (
         <div className="space-y-3">
-          {comments.map((comment) => (
-            <div
-              key={comment.id}
-              className="p-3 bg-gray-50 rounded-lg"
-            >
-              {editingId === comment.id ? (
-                <div className="space-y-2">
-                  <textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full p-2 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:border-primary"
-                    rows={2}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={cancelEdit}
-                      className="p-1.5 text-gray-400 hover:text-gray-600"
-                    >
-                      <X size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleUpdate(comment.id)}
-                      className="p-1.5 text-primary hover:text-primary-600"
-                    >
-                      <Check size={16} />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                    {comment.content}
-                  </p>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-gray-400">
-                      {getRelativeTime(comment.created_at)}
-                    </span>
-                    <div className="flex items-center gap-1">
+          {comments.map((comment) => {
+            const isAI = comment.is_ai_response;
+            const isWaiting = isWaitingForAI(comment.id);
+
+            return (
+              <div
+                key={comment.id}
+                className={`p-3 rounded-lg ${
+                  isAI ? 'bg-blue-50 border border-blue-100' : 'bg-gray-50'
+                }`}
+              >
+                {editingId === comment.id ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      className="w-full p-2 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:border-primary"
+                      rows={2}
+                    />
+                    <div className="flex justify-end gap-2">
                       <button
-                        onClick={() => startEdit(comment.id, comment.content)}
-                        className="p-1 text-gray-400 hover:text-primary"
+                        onClick={cancelEdit}
+                        className="p-1.5 text-gray-400 hover:text-gray-600"
                       >
-                        <Pencil size={14} />
+                        <X size={16} />
                       </button>
                       <button
-                        onClick={() => handleDelete(comment.id)}
-                        className="p-1 text-gray-400 hover:text-red-500"
+                        onClick={() => handleUpdate(comment.id)}
+                        className="p-1.5 text-primary hover:text-primary-600"
                       >
-                        <Trash2 size={14} />
+                        <Check size={16} />
                       </button>
                     </div>
                   </div>
-                </>
-              )}
-            </div>
-          ))}
+                ) : (
+                  <>
+                    <div className="flex items-start gap-2">
+                      <div
+                        className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                          isAI ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-500'
+                        }`}
+                      >
+                        {isAI ? <Bot size={14} /> : <User size={14} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                          {comment.content}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-2 pl-8">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">
+                          {isAI ? 'AI' : ''} {getRelativeTime(comment.created_at)}
+                        </span>
+                        {isWaiting && (
+                          <span className="flex items-center gap-1 text-xs text-blue-500">
+                            <Loader2 size={12} className="animate-spin" />
+                            AI 응답 대기 중
+                          </span>
+                        )}
+                      </div>
+                      {!isAI && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => startEdit(comment.id, comment.content)}
+                            className="p-1 text-gray-400 hover:text-primary"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(comment.id)}
+                            className="p-1 text-gray-400 hover:text-red-500"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

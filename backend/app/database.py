@@ -159,3 +159,55 @@ def _run_migrations():
                 )
                 conn.commit()
             logger.info("Migration: 'display_content' column added successfully")
+
+    # memo_comments 테이블에 AI 댓글 관련 컬럼 추가
+    if "memo_comments" in inspector.get_table_names():
+        columns = [col["name"] for col in inspector.get_columns("memo_comments")]
+
+        # is_ai_response 컬럼 추가
+        if "is_ai_response" not in columns:
+            logger.info("Migration: Adding 'is_ai_response' column to memo_comments")
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE memo_comments ADD COLUMN is_ai_response "
+                        "BOOLEAN DEFAULT FALSE"
+                    )
+                )
+                conn.commit()
+            logger.info("Migration: 'is_ai_response' column added successfully")
+
+        # parent_comment_id 컬럼 추가
+        if "parent_comment_id" not in columns:
+            logger.info("Migration: Adding 'parent_comment_id' column to memo_comments")
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE memo_comments ADD COLUMN parent_comment_id "
+                        "VARCHAR(32) REFERENCES memo_comments(id) ON DELETE CASCADE"
+                    )
+                )
+                conn.commit()
+            logger.info("Migration: 'parent_comment_id' column added successfully")
+
+        # response_status 컬럼 추가
+        if "response_status" not in columns:
+            logger.info("Migration: Adding 'response_status' column to memo_comments")
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE memo_comments ADD COLUMN response_status VARCHAR(32)"
+                    )
+                )
+                conn.commit()
+            logger.info("Migration: 'response_status' column added successfully")
+
+        # response_error 컬럼 추가
+        if "response_error" not in columns:
+            logger.info("Migration: Adding 'response_error' column to memo_comments")
+            with engine.connect() as conn:
+                conn.execute(
+                    text("ALTER TABLE memo_comments ADD COLUMN response_error TEXT")
+                )
+                conn.commit()
+            logger.info("Migration: 'response_error' column added successfully")

@@ -81,6 +81,31 @@ async def notify_analysis_progress(
             logger.warning(f"[AnalysisService] SSE progress 알림 실패 (client={client_id}): {e}")
 
 
+async def notify_comment_ai_response(
+    memo_id: str,
+    comment_id: str,
+    parent_comment_id: str,
+    status: str,
+    error: Optional[str] = None,
+) -> None:
+    """모든 SSE 클라이언트에 AI 댓글 응답 알림"""
+    event_data = {
+        "memo_id": memo_id,
+        "comment_id": comment_id,
+        "parent_comment_id": parent_comment_id,
+        "status": status,
+        "event_type": "comment_ai_response",
+    }
+    if error:
+        event_data["error"] = error
+    for client_id, queue in list(_sse_queues.items()):
+        try:
+            await queue.put(event_data)
+            logger.info(f"[AnalysisService] AI 댓글 응답 알림 전송: {comment_id}")
+        except Exception as e:
+            logger.warning(f"[AnalysisService] AI 댓글 응답 알림 실패 (client={client_id}): {e}")
+
+
 class AnalysisService:
     """비동기 AI 분석 서비스"""
 

@@ -4,12 +4,14 @@
 import { useState, useCallback } from 'react';
 import { commentApi } from '../api/client';
 import type { MemoComment, MemoCommentCreate, MemoCommentUpdate } from '../types/comment';
+import type { CommentAIResponseEvent } from './useAnalysisSSE';
 
 export function useComments(memoId: string) {
   const [comments, setComments] = useState<MemoComment[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingAIResponses, setPendingAIResponses] = useState<Set<string>>(new Set());
 
   const fetchComments = useCallback(async () => {
     setLoading(true);
@@ -31,6 +33,8 @@ export function useComments(memoId: string) {
       const newComment = await commentApi.create(memoId, data);
       setComments((prev) => [newComment, ...prev]);
       setTotal((prev) => prev + 1);
+      // AI 응답 대기 중으로 표시
+      setPendingAIResponses((prev) => new Set(prev).add(newComment.id));
       return newComment;
     },
     [memoId]
@@ -56,6 +60,30 @@ export function useComments(memoId: string) {
     [memoId]
   );
 
+  // SSE를 통해 AI 댓글 응답 수신 시 호출
+  const handleAIResponse = useCallback(
+    (event: CommentAIResponseEvent) => {
+      if (event.memo_id !== memoId) return;
+
+      // 대기 상태 해제
+      setPendingAIResponses((prev) => {
+        const next = new Set(prev);
+        next.delete(event.parent_comment_id);
+        return next;
+      });
+
+      // 댓글 목록 갱신
+      fetchComments();
+    },
+    [memoId, fetchComments]
+  );
+
+  // 특정 댓글이 AI 응답 대기 중인지 확인
+  const isWaitingForAI = useCallback(
+    (commentId: string) => pendingAIResponses.has(commentId),
+    [pendingAIResponses]
+  );
+
   return {
     comments,
     total,
@@ -65,5 +93,7 @@ export function useComments(memoId: string) {
     createComment,
     updateComment,
     deleteComment,
+    handleAIResponse,
+    isWaitingForAI,
   };
 }
