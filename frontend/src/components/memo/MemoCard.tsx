@@ -27,7 +27,9 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
   const [analysisTimedOut, setAnalysisTimedOut] = useState(false);
   const [timeoutMessage, setTimeoutMessage] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [remainingTime, setRemainingTime] = useState(ANALYSIS_TIMEOUT_SEC);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isAnalyzing = memo.analysis_status === 'pending' || memo.analysis_status === 'analyzing';
   const isAnalysisFailed = memo.analysis_status === 'failed';
@@ -52,9 +54,22 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
     }
   };
 
-  // 분석 타임아웃 처리
+  // 분석 타임아웃 및 카운트다운 처리
   useEffect(() => {
     if (isAnalyzing && !analysisTimedOut) {
+      // 카운트다운 초기화
+      setRemainingTime(ANALYSIS_TIMEOUT_SEC);
+
+      // 1초마다 카운트다운
+      countdownRef.current = setInterval(() => {
+        setRemainingTime((prev) => {
+          if (prev <= 1) {
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
       // 타임아웃 설정
       timeoutRef.current = setTimeout(async () => {
         setAnalysisTimedOut(true);
@@ -63,18 +78,26 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
         await checkServerStatus();
       }, ANALYSIS_TIMEOUT_SEC * 1000);
     } else if (!isAnalyzing) {
-      // 분석 완료되면 타임아웃 해제
+      // 분석 완료되면 타임아웃 및 카운트다운 해제
       setAnalysisTimedOut(false);
       setTimeoutMessage(null);
+      setRemainingTime(ANALYSIS_TIMEOUT_SEC);
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
+      }
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
       }
     }
 
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+      }
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -257,6 +280,7 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <Loader2 size={14} className="animate-spin text-primary" />
             <span>AI 분석중...</span>
+            <span className="text-gray-400 tabular-nums">{remainingTime}초</span>
           </div>
         </div>
       )}
