@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Send, Trash2, Pencil, X, Check, Bot, User, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useComments } from '../../hooks/useComments';
 import { useAnalysisSSE, CommentAIResponseEvent } from '../../hooks/useAnalysisSSE';
+import { useAuth } from '../../hooks/useAuth';
 import { getRelativeTime } from '../../utils/date';
 
 interface CommentListProps {
@@ -22,10 +23,25 @@ export function CommentList({ memoId, onCommentChange }: CommentListProps) {
     isWaitingForAI,
   } = useComments(memoId);
 
+  const { user } = useAuth();
+  const personas = user?.ai_personas || [];
+
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+
+  // 페르소나 자동완성 상태
+  const [showPersonaDropdown, setShowPersonaDropdown] = useState(false);
+  const [personaFilter, setPersonaFilter] = useState('');
+  const [selectedPersonaIndex, setSelectedPersonaIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // 필터링된 페르소나 목록
+  const filteredPersonas = personas.filter((p) =>
+    p.name.toLowerCase().includes(personaFilter.toLowerCase())
+  );
 
   // SSE 연결 (AI 댓글 응답 수신)
   useAnalysisSSE(
@@ -95,23 +111,128 @@ export function CommentList({ memoId, onCommentChange }: CommentListProps) {
     setEditContent('');
   };
 
+  // 댓글 입력 변경 핸들러
+  const handleCommentChange = (value: string) => {
+    setNewComment(value);
+
+    // @ 입력 감지
+    const lastAtIndex = value.lastIndexOf('@');
+    if (lastAtIndex !== -1 && personas.length > 0) {
+      const afterAt = value.slice(lastAtIndex + 1);
+      // @ 뒤에 공백이 없으면 자동완성 표시
+      if (!afterAt.includes(' ')) {
+        setPersonaFilter(afterAt);
+        setShowPersonaDropdown(true);
+        setSelectedPersonaIndex(0);
+        return;
+      }
+    }
+    setShowPersonaDropdown(false);
+  };
+
+  // 페르소나 선택 핸들러
+  const handleSelectPersona = (personaName: string) => {
+    const lastAtIndex = newComment.lastIndexOf('@');
+    if (lastAtIndex !== -1) {
+      const before = newComment.slice(0, lastAtIndex);
+      setNewComment(`${before}@${personaName} `);
+    }
+    setShowPersonaDropdown(false);
+    inputRef.current?.focus();
+  };
+
+  // 키보드 네비게이션
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (showPersonaDropdown && filteredPersonas.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedPersonaIndex((prev) =>
+          prev < filteredPersonas.length - 1 ? prev + 1 : 0
+        );
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedPersonaIndex((prev) =>
+          prev > 0 ? prev - 1 : filteredPersonas.length - 1
+        );
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        handleSelectPersona(filteredPersonas[selectedPersonaIndex].name);
+      } else if (e.key === 'Escape') {
+        setShowPersonaDropdown(false);
+      }
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(e.target as Node)
+      ) {
+        setShowPersonaDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <div className="space-y-4">
       {/* 댓글 입력 */}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSubmit();
-            }
-          }}
-          placeholder="의견을 남겨보세요..."
-          className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
-        />
+      <div className="relative flex gap-2">
+        <div className="relative flex-1">
+          <input
+            ref={inputRef}
+            type="text"
+            value={newComment}
+            onChange={(e) => handleCommentChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={personas.length > 0 ? "@페르소나로 AI 호출..." : "의견을 남겨보세요..."}
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary"
+          />
+
+          {/* 페르소나 자동완성 드롭다운 */}
+          {showPersonaDropdown && filteredPersonas.length > 0 && (
+            <div
+              ref={dropdownRef}
+              className="absolute left-0 right-0 bottom-full mb-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-10"
+            >
+              {filteredPersonas.map((persona, index) => (
+                <button
+                  key={persona.name}
+                  onClick={() => handleSelectPersona(persona.name)}
+                  className={`w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-gray-50 ${
+                    index === selectedPersonaIndex ? 'bg-gray-100' : ''
+                  }`}
+                >
+                  <div
+                    className="w-5 h-5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: persona.color || '#6366F1' }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span
+                      className="text-sm font-medium"
+                      style={{ color: persona.color || '#6366F1' }}
+                    >
+                      @{persona.name}
+                    </span>
+                    {persona.description && (
+                      <p className="text-xs text-gray-400 truncate">
+                        {persona.description}
+                      </p>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button
           onClick={handleSubmit}
           disabled={!newComment.trim() || submitting}
@@ -188,7 +309,7 @@ export function CommentList({ memoId, onCommentChange }: CommentListProps) {
                       <div className="flex-1 min-w-0">
                         {isAI && comment.ai_persona_name && (
                           <p
-                            className="text-xs font-medium mb-1"
+                            className="text-xs font-bold mb-1"
                             style={{ color: personaColor }}
                           >
                             @{comment.ai_persona_name}
