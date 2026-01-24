@@ -89,7 +89,6 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
       return {
         text: memo.translated_content,
         isTranslated: true,
-        isSummary: memo.is_summary,
       };
     }
 
@@ -99,12 +98,11 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
       return {
         text: originalText,
         isTranslated: false,
-        isSummary: false,
       };
     }
 
     return null;
-  }, [memo.analysis_status, memo.original_language, memo.translated_content, memo.is_summary, memo.fetched_content, memo.content]);
+  }, [memo.analysis_status, memo.original_language, memo.translated_content, memo.fetched_content, memo.content]);
 
   // 하이라이트 렌더링 함수
   const renderHighlightedText = useMemo(() => {
@@ -349,12 +347,7 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze 
           </button>
           {translationExpanded && (
             <div className="mt-2 p-3 bg-gray-50 rounded-lg">
-              {displayContent.isSummary && (
-                <p className="text-[10px] text-amber-600 mb-2">
-                  원문이 길어 핵심 내용만 요약했습니다
-                </p>
-              )}
-              {displayContent.isTranslated && !displayContent.isSummary && (
+              {displayContent.isTranslated && (
                 <p className="text-[10px] text-blue-600 mb-2">
                   번역된 내용입니다
                 </p>

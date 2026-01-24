@@ -233,19 +233,169 @@ async def match_interests(content: str, user_interests: list[str]) -> list[str]:
         return []
 
 
+# 청크 분할 설정
+CHUNK_SIZE = 3000  # 청크 크기 (문자)
+CHUNK_OVERLAP = 200  # 청크 간 겹침 (문자) - 문장 잘림 방지
+
+
+def _split_into_chunks(text: str) -> list[str]:
+    """
+    텍스트를 청크로 분할 (문장 단위, 겹침 적용)
+
+    Args:
+        text: 분할할 텍스트
+
+    Returns:
+        청크 리스트
+    """
+    if len(text) <= CHUNK_SIZE:
+        return [text]
+
+    chunks = []
+    current_pos = 0
+
+    while current_pos < len(text):
+        # 청크 끝 위치 계산
+        end_pos = min(current_pos + CHUNK_SIZE, len(text))
+
+        # 마지막 청크가 아니면 문장 경계에서 자르기
+        if end_pos < len(text):
+            # 문장 끝 찾기 (. ! ? 다음 공백 또는 줄바꿈)
+            sentence_end = -1
+            for i in range(end_pos - 1, max(current_pos + CHUNK_SIZE // 2, current_pos), -1):
+                if text[i] in ".!?。！？" and i + 1 < len(text) and text[i + 1] in " \n\t":
+                    sentence_end = i + 1
+                    break
+                # 줄바꿈도 문장 경계로 처리
+                if text[i] == "\n":
+                    sentence_end = i + 1
+                    break
+
+            if sentence_end > current_pos:
+                end_pos = sentence_end
+
+        chunk = text[current_pos:end_pos].strip()
+        if chunk:
+            chunks.append(chunk)
+
+        # 다음 청크 시작 위치 (겹침 적용)
+        current_pos = max(end_pos - CHUNK_OVERLAP, end_pos)
+        if current_pos >= len(text):
+            break
+
+    logger.info(f"[LLM] 텍스트 분할: {len(text)}자 → {len(chunks)}개 청크")
+    return chunks
+
+
+def _merge_translations(translations: list[str]) -> str:
+    """
+    여러 청크의 번역 결과를 합치기 (중복 제거)
+
+    Args:
+        translations: 번역된 청크 리스트
+
+    Returns:
+        합쳐진 번역 결과
+    """
+    if len(translations) == 1:
+        return translations[0]
+
+    merged = translations[0]
+
+    for i in range(1, len(translations)):
+        current = translations[i]
+
+        # 이전 번역과 현재 번역에서 겹치는 부분 찾기
+        # 마지막 50자와 처음 50자 비교
+        overlap_found = False
+
+        for overlap_len in range(min(100, len(merged), len(current)), 10, -5):
+            if merged[-overlap_len:] == current[:overlap_len]:
+                merged += current[overlap_len:]
+                overlap_found = True
+                break
+
+        if not overlap_found:
+            # 겹침을 찾지 못하면 줄바꿈으로 연결
+            merged += "\n\n" + current
+
+    return merged
+
+
+async def _translate_chunk(
+    client: OpenAI,
+    chunk: str,
+    chunk_index: int,
+    total_chunks: int,
+    detected_language: Optional[str] = None,
+) -> Optional[str]:
+    """
+    단일 청크 번역
+
+    Args:
+        client: OpenAI 클라이언트
+        chunk: 번역할 텍스트 청크
+        chunk_index: 청크 인덱스
+        total_chunks: 전체 청크 수
+        detected_language: 이미 감지된 언어 코드
+
+    Returns:
+        번역된 텍스트
+    """
+    try:
+        is_first = chunk_index == 0
+        context_msg = ""
+        if not is_first:
+            context_msg = f"(이것은 긴 문서의 {chunk_index + 1}/{total_chunks} 부분입니다. 이어지는 내용을 자연스럽게 번역하세요.)"
+
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "당신은 전문 번역가입니다. 주어진 텍스트를 한국어로 번역하세요.\n\n"
+                        "규칙:\n"
+                        "- 원문의 의미를 정확하게 전달\n"
+                        "- 자연스러운 한국어 표현 사용\n"
+                        "- 요약하지 말고 전체 내용을 번역\n"
+                        "- 번역 결과만 출력 (설명 없이)\n"
+                        + context_msg
+                    ),
+                },
+                {"role": "user", "content": chunk},
+            ],
+            max_tokens=4000,
+            temperature=0.3,
+        )
+
+        result = response.choices[0].message.content
+        if result:
+            result = result.strip()
+            logger.info(f"[LLM] 청크 {chunk_index + 1}/{total_chunks} 번역 완료: {len(result)}자")
+        return result
+
+    except Exception as e:
+        logger.error(f"[LLM] 청크 {chunk_index + 1} 번역 실패: {e}")
+        return None
+
+
 async def translate_and_highlight(
     text: str,
     max_retries: int = 2,
 ) -> tuple[Optional[str], Optional[str], bool, Optional[list[dict]]]:
     """
-    언어 감지 + 번역 + 하이라이트 추출 (검증 포함)
+    언어 감지 + 번역 + 하이라이트 추출
+
+    긴 텍스트는 청크로 분할하여 여러 번 번역 후 결과를 합칩니다.
 
     Args:
         text: 분석할 텍스트
         max_retries: 검증 실패 시 최대 재시도 횟수
 
     Returns:
-        (언어코드, 번역본, 요약여부, 하이라이트 목록) 튜플
+        (언어코드, 번역본, False, 하이라이트 목록) 튜플
+        - is_summary는 항상 False (요약 없이 전체 번역)
     """
     client = get_openai_client()
     if not client:
@@ -254,149 +404,179 @@ async def translate_and_highlight(
     if len(text.strip()) < 20:
         return None, None, False, None
 
-    # 텍스트 길이 제한
-    max_chars = 6000
-    truncated_text = text[:max_chars] if len(text) > max_chars else text
+    # 1단계: 언어 감지 (첫 500자로 빠르게 감지)
+    sample_text = text[:500]
+    language = await _detect_language(client, sample_text)
 
-    # 재시도 루프
-    for attempt in range(max_retries + 1):
-        is_retry = attempt > 0
-        retry_instruction = ""
+    # 한국어면 번역 스킵, 하이라이트만 추출
+    if language == "ko":
+        logger.info("[LLM] 한국어 감지, 번역 스킵")
+        highlights = await _extract_highlights(client, text)
+        return language, None, False, highlights
 
-        if is_retry:
-            retry_instruction = (
-                "\n\n[중요] 이전 응답이 검증에 실패했습니다. "
-                "반드시 한국어로 번역해야 합니다. "
-                "영어나 다른 언어로 응답하지 마세요."
-            )
+    # 2단계: 청크 분할 및 번역
+    chunks = _split_into_chunks(text)
+    translations = []
 
-        try:
-            response = client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "당신은 텍스트 분석 전문가입니다. 다음 작업을 수행하세요:\n\n"
-                            "1. **언어 감지**: ISO 639-1 코드로 감지 (ko, en, ja, zh 등)\n\n"
-                            "2. **번역**: \n"
-                            "   - 한국어(ko)가 아닌 모든 언어는 반드시 한국어로 번역\n"
-                            "   - 한국어(ko)인 경우에만 translation을 null로\n"
-                            "   - 긴 글이면 핵심 내용을 요약하여 번역 (500-1500자)\n"
-                            "   - [중요] 번역 결과는 반드시 한국어여야 함\n\n"
-                            "3. **하이라이트 추출**: 최대 5개\n"
-                            "   - claim: 핵심 주장\n"
-                            "   - fact: 흥미로운 사실\n"
-                            "   - 번역본(한국어)에서 문장 추출\n\n"
-                            "JSON 형식으로만 응답:\n"
-                            "```json\n"
-                            "{\n"
-                            '  "language": "en",\n'
-                            '  "translation": "한국어 번역/요약 내용",\n'
-                            '  "highlights": [\n'
-                            '    {"type": "claim", "text": "한국어 문장", "reason": "선정 이유"}\n'
-                            "  ]\n"
-                            "}\n"
-                            "```"
-                            + retry_instruction
-                        ),
-                    },
-                    {"role": "user", "content": truncated_text},
-                ],
-                max_tokens=4500,
-                temperature=0.3 if not is_retry else 0.5,  # 재시도 시 temperature 증가
-            )
+    for i, chunk in enumerate(chunks):
+        translated = await _translate_chunk(client, chunk, i, len(chunks), language)
+        if translated:
+            translations.append(translated)
+        else:
+            # 번역 실패 시 원문 유지
+            translations.append(chunk)
 
-            raw = response.choices[0].message.content or ""
-            raw = raw.strip()
+    # 3단계: 번역 결과 합치기
+    full_translation = _merge_translations(translations) if translations else None
 
-            # 마크다운 코드 블록 제거
-            if raw.startswith("```"):
-                raw = re.sub(r"^```(?:json)?\n?", "", raw)
-                raw = re.sub(r"\n?```$", "", raw)
+    # 4단계: 번역 검증
+    if full_translation:
+        is_valid, validation_msg = _validate_translation_result(
+            source_language=language or "unknown",
+            translation=full_translation,
+            original_text=text,
+        )
+        if not is_valid:
+            logger.warning(f"[LLM] 번역 검증 실패: {validation_msg}")
 
-            result = json.loads(raw)
+    # 5단계: 하이라이트 추출 (번역본 기준)
+    highlight_target = full_translation if full_translation else text
+    highlights = await _extract_highlights(client, highlight_target)
 
-            # 언어 코드
-            language = result.get("language")
-            if language:
-                language = language.strip().lower()[:2]
+    logger.info(
+        f"[LLM] translate_and_highlight 완료: language={language}, "
+        f"translation_len={len(full_translation) if full_translation else 0}, "
+        f"chunks={len(chunks)}, highlights={len(highlights) if highlights else 0}"
+    )
 
-            # 번역본
-            translation = result.get("translation")
-            if translation:
-                translation = translation.strip()
+    return language, full_translation, False, highlights
 
-            # 번역 결과 검증
-            is_valid, validation_msg = _validate_translation_result(
-                source_language=language or "unknown",
-                translation=translation,
-                original_text=truncated_text,
-            )
 
-            if not is_valid:
-                logger.warning(
-                    f"[LLM] 번역 검증 실패 (시도 {attempt + 1}/{max_retries + 1}): {validation_msg}"
-                )
-                if attempt < max_retries:
-                    continue  # 재시도
-                else:
-                    logger.error(f"[LLM] 번역 검증 최종 실패: {validation_msg}")
-                    # 검증 실패해도 결과 반환 (None보다는 나음)
+async def _detect_language(client: OpenAI, text: str) -> Optional[str]:
+    """
+    텍스트 언어 감지
 
-            # 하이라이트 처리
-            highlights_raw = result.get("highlights", [])
-            highlight_target = translation if translation else text
+    Args:
+        client: OpenAI 클라이언트
+        text: 감지할 텍스트
 
-            highlights = []
-            for item in highlights_raw:
-                if not isinstance(item, dict):
-                    continue
-                highlight_text = item.get("text", "")
-                if not highlight_text:
-                    continue
+    Returns:
+        ISO 639-1 언어 코드
+    """
+    try:
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "텍스트의 주요 언어를 ISO 639-1 코드로 응답하세요. "
+                        "코드만 응답 (예: ko, en, ja, zh)"
+                    ),
+                },
+                {"role": "user", "content": text},
+            ],
+            max_tokens=10,
+            temperature=0.1,
+        )
 
-                start = highlight_target.find(highlight_text)
-                if start == -1:
-                    short_text = highlight_text[:50]
-                    start = highlight_target.find(short_text)
+        result = response.choices[0].message.content
+        if result:
+            language = result.strip().lower()[:2]
+            logger.info(f"[LLM] 언어 감지: {language}")
+            return language
+        return None
 
-                end = start + len(highlight_text) if start != -1 else -1
+    except Exception as e:
+        logger.error(f"[LLM] 언어 감지 실패: {e}")
+        return None
 
-                highlights.append({
-                    "type": item.get("type", "fact"),
-                    "text": highlight_text,
-                    "start": start,
-                    "end": end,
-                    "reason": item.get("reason"),
-                })
 
-            korean_ratio = _get_korean_ratio(translation) if translation else 0
+async def _extract_highlights(
+    client: OpenAI,
+    text: str,
+    max_highlights: int = 5,
+) -> Optional[list[dict]]:
+    """
+    텍스트에서 하이라이트 추출
 
-            # 요약 여부 판단: 원문이 500자 이상이고, 번역이 원문의 50% 미만이면 요약
-            is_summary = False
-            if translation and language != "ko":
-                original_len = len(truncated_text.strip())
-                translation_len = len(translation.strip())
-                if original_len >= 500 and translation_len < original_len * 0.5:
-                    is_summary = True
+    Args:
+        client: OpenAI 클라이언트
+        text: 분석할 텍스트
+        max_highlights: 최대 하이라이트 수
 
-            logger.info(
-                f"[LLM] translate_and_highlight: language={language}, "
-                f"translation={'Yes' if translation else 'No'}, "
-                f"korean_ratio={korean_ratio:.1%}, is_summary={is_summary}, "
-                f"highlights={len(highlights)}, attempt={attempt + 1}"
-            )
+    Returns:
+        하이라이트 목록
+    """
+    # 하이라이트 추출을 위해 텍스트 길이 제한
+    sample_text = text[:4000] if len(text) > 4000 else text
 
-            return language, translation, is_summary, highlights if highlights else None
+    try:
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        f"텍스트에서 핵심 문장을 최대 {max_highlights}개 추출하세요.\n\n"
+                        "유형:\n"
+                        "- claim: 핵심 주장\n"
+                        "- fact: 흥미로운 사실\n\n"
+                        "JSON 형식으로만 응답:\n"
+                        "```json\n"
+                        "[\n"
+                        '  {"type": "claim", "text": "원문에서 발췌한 문장", "reason": "선정 이유"}\n'
+                        "]\n"
+                        "```"
+                    ),
+                },
+                {"role": "user", "content": sample_text},
+            ],
+            max_tokens=1500,
+            temperature=0.3,
+        )
 
-        except json.JSONDecodeError as e:
-            logger.error(f"[LLM] JSON 파싱 실패 (시도 {attempt + 1}): {e}")
-            if attempt < max_retries:
+        raw = response.choices[0].message.content or ""
+        raw = raw.strip()
+
+        # 마크다운 코드 블록 제거
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(?:json)?\n?", "", raw)
+            raw = re.sub(r"\n?```$", "", raw)
+
+        highlights_raw = json.loads(raw)
+
+        highlights = []
+        for item in highlights_raw:
+            if not isinstance(item, dict):
                 continue
-            return None, None, False, None
-        except Exception as e:
-            logger.error(f"[LLM] translate_and_highlight 실패: {e}", exc_info=True)
-            return None, None, False, None
+            highlight_text = item.get("text", "")
+            if not highlight_text:
+                continue
 
-    return None, None, False, None
+            # 원문에서 위치 찾기
+            start = text.find(highlight_text)
+            if start == -1:
+                # 짧은 버전으로 재시도
+                short_text = highlight_text[:50]
+                start = text.find(short_text)
+
+            end = start + len(highlight_text) if start != -1 else -1
+
+            highlights.append({
+                "type": item.get("type", "fact"),
+                "text": highlight_text,
+                "start": start,
+                "end": end,
+                "reason": item.get("reason"),
+            })
+
+        logger.info(f"[LLM] 하이라이트 추출: {len(highlights)}개")
+        return highlights if highlights else None
+
+    except json.JSONDecodeError as e:
+        logger.error(f"[LLM] 하이라이트 JSON 파싱 실패: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"[LLM] 하이라이트 추출 실패: {e}")
+        return None
