@@ -30,6 +30,8 @@ openai>=1.0.0
 # Web Scraping
 playwright==1.40.0
 youtube-transcript-api==1.2.3
+trafilatura>=1.6.0  # 웹 페이지 본문 추출
+beautifulsoup4>=4.12.0  # fallback 본문 추출
 
 # SSE (Server-Sent Events)
 sse-starlette==2.0.0
