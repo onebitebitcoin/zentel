@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+const ANALYSIS_LOGS_STORAGE_KEY = 'zentel_analysis_logs';
 
 interface AnalysisCompleteEvent {
   memo_id: string;
@@ -38,7 +39,28 @@ export function useAnalysisSSE(
   const eventSourceRef = useRef<EventSource | null>(null);
   const onAnalysisCompleteRef = useRef(onAnalysisComplete);
   const onCommentAIResponseRef = useRef(onCommentAIResponse);
-  const [analysisLogs, setAnalysisLogs] = useState<AnalysisLogs>({});
+
+  // localStorage에서 로그 복원
+  const [analysisLogs, setAnalysisLogs] = useState<AnalysisLogs>(() => {
+    try {
+      const stored = localStorage.getItem(ANALYSIS_LOGS_STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('[useAnalysisSSE] Failed to load logs from localStorage:', error);
+    }
+    return {};
+  });
+
+  // 로그 변경 시 localStorage에 저장
+  useEffect(() => {
+    try {
+      localStorage.setItem(ANALYSIS_LOGS_STORAGE_KEY, JSON.stringify(analysisLogs));
+    } catch (error) {
+      console.error('[useAnalysisSSE] Failed to save logs to localStorage:', error);
+    }
+  }, [analysisLogs]);
 
   // 콜백 참조 업데이트
   useEffect(() => {
@@ -94,6 +116,15 @@ export function useAnalysisSSE(
         const data: AnalysisCompleteEvent = JSON.parse(event.data);
         console.log('[SSE] Analysis complete:', data);
         onAnalysisCompleteRef.current(data.memo_id, data.status);
+
+        // 분석 완료 시 해당 메모의 로그 정리
+        if (data.status === 'completed' || data.status === 'failed') {
+          setAnalysisLogs((prev) => {
+            const newLogs = { ...prev };
+            delete newLogs[data.memo_id];
+            return newLogs;
+          });
+        }
       } catch (error) {
         console.error('[SSE] Failed to parse event:', error);
       }
