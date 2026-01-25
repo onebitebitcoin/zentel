@@ -1,0 +1,11 @@
+# LLM Translator 의존성
+
+# OpenAI API 클라이언트
+openai>=1.0.0
+
+# 환경 변수 로드 (선택 사항)
+python-dotenv>=1.0.0
+
+# 테스트용
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
