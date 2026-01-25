@@ -114,17 +114,31 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze,
   // 본문 보기에 표시할 콘텐츠 (loadedDetail에서 가져옴)
   const displayContent = useMemo(() => {
     if (memo.analysis_status !== 'completed') return null;
-    if (!loadedDetail?.display_content) return null;
 
-    return {
-      text: loadedDetail.display_content,
-      highlights: loadedDetail.highlights,
-      isTranslated: memo.original_language !== null && memo.original_language !== 'ko',
-    };
-  }, [memo.analysis_status, memo.original_language, loadedDetail]);
+    // display_content가 있으면 사용 (외부 자료 등 번역/하이라이트된 콘텐츠)
+    if (loadedDetail?.display_content) {
+      return {
+        text: loadedDetail.display_content,
+        highlights: loadedDetail.highlights,
+        isTranslated: memo.original_language !== null && memo.original_language !== 'ko',
+      };
+    }
+
+    // display_content가 없으면 사용자가 입력한 원본 content 사용 (궁금한 점 등)
+    if (loadedDetail?.content || memo.content) {
+      return {
+        text: loadedDetail?.content || memo.content,
+        highlights: null,
+        isTranslated: false,
+      };
+    }
+
+    return null;
+  }, [memo.analysis_status, memo.original_language, memo.content, loadedDetail]);
 
   // 본문이 있는지 여부 (lazy loading 전에도 버튼 표시용)
-  const hasDisplayContent = memo.has_display_content;
+  // display_content가 있거나, 사용자가 입력한 content가 있으면 표시
+  const hasDisplayContent = memo.has_display_content || (memo.content && memo.content.trim().length > 0);
 
   // 하이라이트 렌더링 함수
   const renderHighlightedText = useMemo(() => {
@@ -427,6 +441,11 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze,
               {displayContent.isTranslated && (
                 <p className="text-[10px] text-blue-600 mb-2">
                   번역된 내용입니다
+                </p>
+              )}
+              {!displayContent.isTranslated && loadedDetail?.display_content && (
+                <p className="text-[10px] text-gray-500 mb-2">
+                  추출된 내용입니다
                 </p>
               )}
               <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
