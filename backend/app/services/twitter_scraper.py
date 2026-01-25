@@ -24,9 +24,6 @@ logger = logging.getLogger(__name__)
 MAX_CONCURRENT_REQUESTS = 2
 _semaphore: Optional[asyncio.Semaphore] = None
 
-# 콘텐츠 최대 길이
-MAX_CONTENT_LENGTH = 8000
-
 
 def _get_semaphore() -> asyncio.Semaphore:
     """Semaphore 인스턴스 (Lazy initialization)"""
@@ -117,12 +114,12 @@ class TwitterScraper:
                     full_content_result = await self._fetch_full_content(result)
                     if full_content_result:
                         logger.info(f"[TwitterScraper] 전체 내용 추출 성공: {len(full_content_result.content)}자")
-                        return self._truncate_content(full_content_result)
+                        return full_content_result
                     else:
                         logger.warning("[TwitterScraper] 전체 내용 추출 실패, Syndication 결과 사용")
 
                 logger.info(f"[TwitterScraper] 최종 반환: {len(result.content)}자")
-                return self._truncate_content(result)
+                return result
 
             # 2단계: Playwright 폴백
             logger.info("[TwitterScraper] 2단계: Syndication 실패, Playwright로 재시도...")
@@ -131,7 +128,7 @@ class TwitterScraper:
                 f"[TwitterScraper] Playwright 결과: success={playwright_result.success}, "
                 f"content_len={len(playwright_result.content)}, error={playwright_result.error}"
             )
-            return self._truncate_content(self._convert_playwright_result(playwright_result))
+            return self._convert_playwright_result(playwright_result)
 
     async def _fetch_full_content(
         self, result: TwitterScrapingResult
@@ -183,14 +180,6 @@ class TwitterScraper:
             error=pw_result.error,
             elapsed_time=pw_result.elapsed_time,
         )
-
-    def _truncate_content(self, result: TwitterScrapingResult) -> TwitterScrapingResult:
-        """콘텐츠 길이 제한"""
-        if result.content and len(result.content) > MAX_CONTENT_LENGTH:
-            original_len = len(result.content)
-            result.content = result.content[:MAX_CONTENT_LENGTH] + "..."
-            logger.info(f"[TwitterScraper] truncate: {original_len} -> {MAX_CONTENT_LENGTH}")
-        return result
 
 
 # 싱글톤 인스턴스
