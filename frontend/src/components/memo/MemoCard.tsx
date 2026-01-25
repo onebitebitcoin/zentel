@@ -136,9 +136,10 @@ export function MemoCard({ memo, onEdit, onDelete, onCommentChange, onReanalyze,
     return null;
   }, [memo.analysis_status, memo.original_language, memo.content, loadedDetail]);
 
-  // 본문이 있는지 여부 (lazy loading 전에도 버튼 표시용)
-  // display_content가 있거나, 사용자가 입력한 content가 있으면 표시
-  const hasDisplayContent = memo.has_display_content || (memo.content && memo.content.trim().length > 0);
+  // 본문 보기 버튼 표시 여부 (외부 자료만)
+  // 외부 자료는 스크래핑된 긴 본문이 있으므로 별도 버튼으로 표시
+  // 다른 타입은 사용자 입력이므로 카드 본문에 바로 표시
+  const hasDisplayContent = memo.memo_type === 'EXTERNAL_SOURCE' && memo.has_display_content;
 
   // 하이라이트 렌더링 함수
   const renderHighlightedText = useMemo(() => {
