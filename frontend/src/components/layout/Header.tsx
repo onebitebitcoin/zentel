@@ -22,9 +22,12 @@ export function Header({ className = '' }: HeaderProps) {
             <ArrowLeft size={20} />
           </button>
         ) : (
-          <div className="text-lg font-semibold">
-            <span className="text-green-900">Rotten</span>{' '}
-            <span className="text-red-900">Apple</span>
+          <div className="flex items-center gap-2">
+            <img src={rottenIcon} alt="Rotten Apple 로고" className="w-6 h-6" />
+            <div className="text-lg font-semibold leading-none">
+              <span className="text-green-900">Rotten</span>{' '}
+              <span className="text-red-900">Apple</span>
+            </div>
           </div>
         )}
 
