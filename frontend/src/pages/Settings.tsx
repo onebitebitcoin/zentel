@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Plus, LogOut, Edit2, Check } from 'lucide-react';
+import { X, Plus, LogOut, Edit2, Check, Shield, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth';
 import { authService } from '../api/auth';
+import { tempMemoApi } from '../api/client';
 import { formatDate } from '../utils/date';
 import type { AIPersona } from '../types/auth';
+import type { AdminMemoDebugResponse } from '../types/memo';
 
 // AI 페르소나 색상 팔레트
 const PERSONA_COLORS = [
@@ -54,6 +56,25 @@ export function Settings() {
   const [editingPersonaIndex, setEditingPersonaIndex] = useState<number | null>(null);
   const [editPersonaName, setEditPersonaName] = useState('');
   const [editPersonaDesc, setEditPersonaDesc] = useState('');
+
+  // Admin 디버그 상태
+  const [adminDebugData, setAdminDebugData] = useState<AdminMemoDebugResponse | null>(null);
+  const [loadingAdminDebug, setLoadingAdminDebug] = useState(false);
+
+  const isAdmin = user?.username === 'admin';
+
+  const handleLoadAdminDebug = async () => {
+    setLoadingAdminDebug(true);
+    try {
+      const data = await tempMemoApi.adminDebug(100);
+      setAdminDebugData(data);
+      toast.success('디버그 정보를 불러왔습니다.');
+    } catch {
+      toast.error('디버그 정보를 불러오는데 실패했습니다.');
+    } finally {
+      setLoadingAdminDebug(false);
+    }
+  };
 
   const handlePasswordChange = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -470,6 +491,74 @@ export function Settings() {
             </button>
           </div>
         </section>
+
+        {/* Admin 디버그 섹션 */}
+        {isAdmin && (
+          <section>
+            <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1">
+              <Shield size={14} />
+              Admin 디버그
+            </h2>
+            <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+              <button
+                onClick={handleLoadAdminDebug}
+                disabled={loadingAdminDebug}
+                className="w-full flex items-center justify-center gap-2 py-2 text-sm text-primary border border-primary rounded-lg hover:bg-primary/5 disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={loadingAdminDebug ? 'animate-spin' : ''} />
+                {loadingAdminDebug ? '로딩 중...' : '메모 user_id 매핑 조회'}
+              </button>
+
+              {adminDebugData && (
+                <div className="space-y-3">
+                  {/* 사용자별 메모 수 */}
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs font-medium text-gray-600 mb-2">사용자별 메모 수</p>
+                    <div className="space-y-1">
+                      {Object.entries(adminDebugData.user_counts).map(([userId, count]) => (
+                        <div key={userId} className="flex justify-between text-xs">
+                          <span className="text-gray-500 font-mono">{userId}</span>
+                          <span className="text-gray-700 font-medium">{count}개</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-gray-200 flex justify-between text-xs">
+                      <span className="text-gray-600 font-medium">총 메모 수</span>
+                      <span className="text-gray-800 font-bold">{adminDebugData.total}개</span>
+                    </div>
+                  </div>
+
+                  {/* 메모 목록 */}
+                  <div className="max-h-80 overflow-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-2 py-1.5 text-left text-gray-600">User</th>
+                          <th className="px-2 py-1.5 text-left text-gray-600">Type</th>
+                          <th className="px-2 py-1.5 text-left text-gray-600">Content</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {adminDebugData.items.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50">
+                            <td className="px-2 py-1.5">
+                              <div className="font-medium text-gray-800">{item.username}</div>
+                              <div className="text-gray-400 font-mono text-[10px]">{item.user_id.slice(0, 12)}...</div>
+                            </td>
+                            <td className="px-2 py-1.5 text-gray-600">{item.memo_type}</td>
+                            <td className="px-2 py-1.5 text-gray-500 max-w-[150px] truncate">
+                              {item.content_preview}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* 로그아웃 */}
         <section>

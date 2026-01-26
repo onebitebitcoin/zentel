@@ -130,3 +130,22 @@ class TempMemoListResponse(BaseModel):
     items: List[TempMemoListItem]
     total: int
     next_offset: Optional[int] = None
+
+
+class AdminMemoDebugItem(BaseModel):
+    """Admin 디버그용 메모 항목 (user_id 포함)"""
+
+    id: str
+    user_id: str
+    username: str
+    memo_type: MemoType
+    content_preview: str  # 내용 미리보기 (50자)
+    created_at: str
+
+
+class AdminMemoDebugResponse(BaseModel):
+    """Admin 디버그용 메모 목록 응답"""
+
+    items: List[AdminMemoDebugItem]
+    total: int
+    user_counts: dict  # user_id별 메모 수
