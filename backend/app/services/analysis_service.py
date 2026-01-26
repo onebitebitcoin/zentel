@@ -42,6 +42,15 @@ def unregister_sse_client(client_id: str) -> None:
         logger.info(f"[AnalysisService] SSE 클라이언트 등록 해제: {client_id}")
 
 
+async def _broadcast_sse_event(event_data: dict, log_context: str = "SSE") -> None:
+    """모든 SSE 클라이언트에 이벤트 브로드캐스트 (공통 함수)"""
+    for client_id, queue in list(_sse_queues.items()):
+        try:
+            await queue.put(event_data)
+        except Exception as e:
+            logger.warning(f"[AnalysisService] {log_context} 알림 실패 (client={client_id}): {e}")
+
+
 async def notify_analysis_complete(
     memo_id: str,
     status: str,
@@ -51,11 +60,7 @@ async def notify_analysis_complete(
     event_data = {"memo_id": memo_id, "status": status, "event_type": "complete"}
     if error:
         event_data["error"] = error
-    for client_id, queue in list(_sse_queues.items()):
-        try:
-            await queue.put(event_data)
-        except Exception as e:
-            logger.warning(f"[AnalysisService] SSE 알림 실패 (client={client_id}): {e}")
+    await _broadcast_sse_event(event_data, "분석 완료")
 
 
 async def notify_analysis_progress(
@@ -73,11 +78,7 @@ async def notify_analysis_progress(
     }
     if detail:
         event_data["detail"] = detail
-    for client_id, queue in list(_sse_queues.items()):
-        try:
-            await queue.put(event_data)
-        except Exception as e:
-            logger.warning(f"[AnalysisService] SSE progress 알림 실패 (client={client_id}): {e}")
+    await _broadcast_sse_event(event_data, "분석 진행")
 
 
 async def notify_comment_ai_response(
@@ -97,12 +98,9 @@ async def notify_comment_ai_response(
     }
     if error:
         event_data["error"] = error
-    for client_id, queue in list(_sse_queues.items()):
-        try:
-            await queue.put(event_data)
-            logger.info(f"[AnalysisService] AI 댓글 응답 알림 전송: {comment_id}")
-        except Exception as e:
-            logger.warning(f"[AnalysisService] AI 댓글 응답 알림 실패 (client={client_id}): {e}")
+    await _broadcast_sse_event(event_data, "AI 댓글 응답")
+    if comment_id:
+        logger.info(f"[AnalysisService] AI 댓글 응답 알림 전송: {comment_id}")
 
 
 class AnalysisService:
@@ -182,21 +180,26 @@ class AnalysisService:
                     # SSE로 실패 알림 (에러 메시지 포함)
                     await notify_analysis_complete(memo_id, "failed", error=error_msg)
 
-    async def _do_analysis(
+    async def _fetch_external_content(
         self,
         memo: TempMemo,
-        db: Session,
-        user_id: Optional[str],
-    ) -> None:
-        """실제 분석 로직"""
+    ) -> tuple[Optional[str], Optional[str], Optional[str]]:
+        """
+        외부 URL에서 콘텐츠 추출 (Twitter/YouTube/일반 웹페이지)
+
+        Returns:
+            (fetched_content, og_title, og_image) 튜플
+        """
         source_url = memo.source_url
-        content = memo.content
+        if not source_url:
+            return None, None, None
+
         fetched_content: Optional[str] = None
         og_title: Optional[str] = None
         og_image: Optional[str] = None
 
-        # x.com URL인 경우 Playwright로 스크래핑
-        if source_url and twitter_scraper.is_twitter_url(source_url):
+        # Twitter URL
+        if twitter_scraper.is_twitter_url(source_url):
             logger.info(f"[AnalysisService] Twitter URL 감지, 스크래핑 시작: {source_url}")
             await notify_analysis_progress(memo.id, "scrape", "Twitter 콘텐츠 추출 중", source_url)
             result = await twitter_scraper.scrape(source_url)
@@ -214,17 +217,14 @@ class AnalysisService:
                     f"{len(fetched_content or '')} 자"
                 )
             else:
-                logger.warning(
-                    f"[AnalysisService] Twitter 스크래핑 실패: {result.error}"
-                )
+                logger.warning(f"[AnalysisService] Twitter 스크래핑 실패: {result.error}")
                 await notify_analysis_progress(
                     memo.id, "scrape_failed", "Twitter 스크래핑 실패 (메모 내용으로 분석)",
                     result.error
                 )
-                # 스크래핑 실패해도 계속 진행 (content만으로 분석)
 
-        # YouTube URL인 경우 자막 스크래핑
-        elif source_url and youtube_scraper.is_youtube_url(source_url):
+        # YouTube URL
+        elif youtube_scraper.is_youtube_url(source_url):
             logger.info(f"[AnalysisService] YouTube URL 감지, 스크래핑 시작: {source_url}")
             await notify_analysis_progress(memo.id, "scrape", "YouTube 자막 추출 중", source_url)
             result = await youtube_scraper.scrape(source_url)
@@ -243,17 +243,14 @@ class AnalysisService:
                     f"{len(fetched_content or '')} 자, 언어: {result.language}"
                 )
             else:
-                logger.warning(
-                    f"[AnalysisService] YouTube 스크래핑 실패: {result.error}"
-                )
+                logger.warning(f"[AnalysisService] YouTube 스크래핑 실패: {result.error}")
                 await notify_analysis_progress(
                     memo.id, "scrape_failed", "YouTube 자막 추출 실패 (메모 내용으로 분석)",
                     result.error
                 )
-                # 스크래핑 실패해도 계속 진행 (content만으로 분석)
 
-        # 일반 URL인 경우 (GitHub, 웹페이지 등)
-        elif source_url:
+        # 일반 URL (GitHub, 웹페이지 등)
+        else:
             from app.services.url_fetcher import fetch_url_content
             logger.info(f"[AnalysisService] 일반 URL 감지, 콘텐츠 추출 시작: {source_url}")
             await notify_analysis_progress(memo.id, "scrape", "웹페이지 콘텐츠 추출 중", source_url)
@@ -273,18 +270,26 @@ class AnalysisService:
                     f"{len(fetched_content or '')} 자"
                 )
             else:
-                logger.warning(
-                    f"[AnalysisService] URL 콘텐츠 추출 실패: {source_url}"
-                )
+                logger.warning(f"[AnalysisService] URL 콘텐츠 추출 실패: {source_url}")
                 await notify_analysis_progress(
                     memo.id, "scrape_failed", "웹페이지 추출 실패 (메모 내용으로 분석)"
                 )
 
-        # LLM 분석
+        return fetched_content, og_title, og_image
+
+    async def _extract_context(
+        self,
+        memo: TempMemo,
+        fetched_content: Optional[str],
+    ) -> str:
+        """LLM으로 context 추출"""
         await notify_analysis_progress(memo.id, "llm", "AI가 내용을 분석 중")
+
+        source_url = memo.source_url
+        content = memo.content
+
         if fetched_content:
             # URL 콘텐츠가 있으면 합쳐서 분석
-            text_to_analyze = content
             if content and content.strip():
                 text_to_analyze = (
                     f"사용자 메모: {content}\n\n"
@@ -293,43 +298,69 @@ class AnalysisService:
                 )
             else:
                 text_to_analyze = f"URL: {source_url}\n\n{fetched_content}"
-
-            # context 추출
-            context = await llm_service.extract_context(
-                text_to_analyze, memo.memo_type
-            )
-
-            # 결과 저장
-            memo.context = context
-            memo.og_title = og_title or memo.og_title
-            memo.og_image = og_image or memo.og_image
-
         else:
             # URL이 없는 일반 텍스트 메모
-            context = await llm_service.extract_context(content, memo.memo_type)
-            memo.context = context
+            text_to_analyze = content
 
+        context = await llm_service.extract_context(text_to_analyze, memo.memo_type)
         await notify_analysis_progress(memo.id, "llm_done", "AI 분석 완료")
 
-        # 관심사 매핑 (로그인 사용자인 경우)
-        if user_id:
-            user = db.query(User).filter(User.id == user_id).first()
-            if user and user.interests:
-                logger.info(f"[AnalysisService] 관심사 매핑 시작: user_id={user_id}")
-                await notify_analysis_progress(memo.id, "interests", "관심사 매핑 중")
-                interests = await context_extractor.match_interests(
-                    content=content,
-                    user_interests=user.interests,
-                )
-                memo.interests = interests if interests else None
-                logger.info(f"[AnalysisService] 매핑된 관심사: {interests}")
-                if interests:
-                    await notify_analysis_progress(
-                        memo.id, "interests_done", "관심사 매핑 완료",
-                        ", ".join(interests)
-                    )
+        return context
 
-        # 스크래핑된 컨텐츠 저장 (URL 메모용)
+    async def _map_interests(
+        self,
+        memo: TempMemo,
+        db: Session,
+        user_id: Optional[str],
+    ) -> Optional[list[str]]:
+        """사용자 관심사 매핑"""
+        if not user_id:
+            return None
+
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or not user.interests:
+            return None
+
+        logger.info(f"[AnalysisService] 관심사 매핑 시작: user_id={user_id}")
+        await notify_analysis_progress(memo.id, "interests", "관심사 매핑 중")
+
+        interests = await context_extractor.match_interests(
+            content=memo.content,
+            user_interests=user.interests,
+        )
+
+        logger.info(f"[AnalysisService] 매핑된 관심사: {interests}")
+        if interests:
+            await notify_analysis_progress(
+                memo.id, "interests_done", "관심사 매핑 완료",
+                ", ".join(interests)
+            )
+
+        return interests if interests else None
+
+    async def _do_analysis(
+        self,
+        memo: TempMemo,
+        db: Session,
+        user_id: Optional[str],
+    ) -> None:
+        """실제 분석 로직 (각 단계별 함수 조합)"""
+        # 1. 외부 콘텐츠 추출
+        fetched_content, og_title, og_image = await self._fetch_external_content(memo)
+
+        # 2. LLM 분석 (context 추출)
+        context = await self._extract_context(memo, fetched_content)
+        memo.context = context
+        if og_title:
+            memo.og_title = og_title
+        if og_image:
+            memo.og_image = og_image
+
+        # 3. 관심사 매핑
+        interests = await self._map_interests(memo, db, user_id)
+        memo.interests = interests
+
+        # 4. 스크래핑된 콘텐츠 저장
         if fetched_content:
             memo.fetched_content = fetched_content
             logger.info(
@@ -338,9 +369,9 @@ class AnalysisService:
                 f"preview={fetched_content[:100]}..."
             )
         else:
-            logger.warning(f"[AnalysisService] fetched_content 없음, source_url={source_url}")
+            logger.warning(f"[AnalysisService] fetched_content 없음, source_url={memo.source_url}")
 
-        # 번역 및 하이라이트 추출 (EXTERNAL_SOURCE + URL + 스크래핑 성공 시에만)
+        # 5. 번역 및 하이라이트 추출 (EXTERNAL_SOURCE + URL + 스크래핑 성공 시에만)
         should_process_content = (
             memo.memo_type == "EXTERNAL_SOURCE" and
             memo.source_url and
@@ -350,7 +381,6 @@ class AnalysisService:
         if should_process_content:
             await self._process_translation_and_highlights(memo, fetched_content)
         else:
-            # 그 외 메모는 번역/하이라이트 스킵 (context만 저장됨)
             logger.info(
                 f"[AnalysisService] 번역/하이라이트 스킵: "
                 f"memo_type={memo.memo_type}, "

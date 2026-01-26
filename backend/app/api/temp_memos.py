@@ -12,13 +12,11 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.deps import get_current_user
 from app.database import get_db
-from app.models.memo_comment import MemoComment
 from app.models.temp_memo import TempMemo
 from app.models.user import User
 from app.schemas.temp_memo import (
@@ -37,6 +35,7 @@ from app.services.analysis_service import (
     unregister_sse_client,
 )
 from app.services.context_extractor import context_extractor
+from app.services.memo_repository import comment_repository, memo_repository
 
 logger = logging.getLogger(__name__)
 
@@ -51,25 +50,25 @@ router = APIRouter(prefix="/temp-memos", tags=["temp-memos"])
 
 def get_user_memo(db: Session, memo_id: str, user_id: str) -> TempMemo:
     """사용자 소유 메모 조회 (없거나 소유하지 않으면 404)"""
-    memo = db.query(TempMemo).filter(
-        TempMemo.id == memo_id,
-        TempMemo.user_id == user_id
-    ).first()
+    memo = memo_repository.get_user_memo(db, memo_id, user_id)
     if not memo:
         raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다.")
     return memo
 
 
-def get_memo_comment_info(db: Session, memo_id: str) -> tuple[int, MemoComment | None]:
-    """메모의 댓글 개수와 최신 댓글 반환"""
-    count = db.query(func.count(MemoComment.id)).filter(MemoComment.memo_id == memo_id).scalar()
-    latest = (
-        db.query(MemoComment)
-        .filter(MemoComment.memo_id == memo_id)
-        .order_by(desc(MemoComment.created_at))
-        .first()
-    )
-    return count, latest
+def _get_comment_summary(
+    db: Session, memo_id: str
+) -> tuple[int, Optional[MemoCommentSummary]]:
+    """메모의 댓글 개수와 최신 댓글 요약 반환 (공통 함수)"""
+    count, latest = comment_repository.get_comment_count_and_latest(db, memo_id)
+    latest_summary = None
+    if latest:
+        latest_summary = MemoCommentSummary(
+            id=latest.id,
+            content=latest.content,
+            created_at=latest.created_at,
+        )
+    return count, latest_summary
 
 
 def memo_to_list_item(
@@ -79,14 +78,7 @@ def memo_to_list_item(
     fetch_message: Optional[str] = None,
 ) -> TempMemoListItem:
     """TempMemo를 TempMemoListItem으로 변환 (본문 데이터 제외 - lazy loading용)"""
-    count, latest = get_memo_comment_info(db, memo.id)
-    latest_summary = None
-    if latest:
-        latest_summary = MemoCommentSummary(
-            id=latest.id,
-            content=latest.content,
-            created_at=latest.created_at,
-        )
+    count, latest_summary = _get_comment_summary(db, memo.id)
     return TempMemoListItem(
         id=memo.id,
         memo_type=memo.memo_type,
@@ -117,14 +109,7 @@ def memo_to_out(
     fetch_message: Optional[str] = None,
 ) -> TempMemoOut:
     """TempMemo를 TempMemoOut으로 변환 (댓글 정보 포함)"""
-    count, latest = get_memo_comment_info(db, memo.id)
-    latest_summary = None
-    if latest:
-        latest_summary = MemoCommentSummary(
-            id=latest.id,
-            content=latest.content,
-            created_at=latest.created_at,
-        )
+    count, latest_summary = _get_comment_summary(db, memo.id)
     return TempMemoOut(
         id=memo.id,
         memo_type=memo.memo_type,
@@ -157,9 +142,8 @@ def _run_background_analysis(
     db_url: str,
 ):
     """백그라운드에서 분석 실행 (별도 스레드에서 호출)"""
-    import asyncio
-
     from app.database import SessionLocal
+    from app.utils import run_async_in_thread
 
     async def _async_analysis():
         db = SessionLocal()
@@ -168,13 +152,7 @@ def _run_background_analysis(
         finally:
             db.close()
 
-    # 새 이벤트 루프에서 실행
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(_async_analysis())
-    finally:
-        loop.close()
+    run_async_in_thread(_async_analysis)
 
 
 @router.post("", response_model=TempMemoOut, status_code=201)
@@ -206,9 +184,7 @@ async def create_temp_memo(
         source_url=source_url,
         analysis_status="pending",
     )
-    db.add(db_memo)
-    db.commit()
-    db.refresh(db_memo)
+    db_memo = memo_repository.create(db, db_memo)
 
     logger.info(f"Created temp memo: id={db_memo.id}, starting background analysis")
 
@@ -239,14 +215,11 @@ async def list_temp_memos(
         f"limit={limit}, offset={offset}"
     )
 
-    # 본인 메모만 조회
-    query = db.query(TempMemo).filter(TempMemo.user_id == current_user.id)
-
-    if type:
-        query = query.filter(TempMemo.memo_type == type.value)
-
-    total = query.count()
-    db_items = query.order_by(desc(TempMemo.created_at)).offset(offset).limit(limit).all()
+    # Repository를 통해 조회
+    memo_type_value = type.value if type else None
+    db_items, total = memo_repository.list_user_memos(
+        db, current_user.id, memo_type_value, limit, offset
+    )
 
     next_offset = offset + limit if offset + limit < total else None
 
@@ -351,8 +324,7 @@ async def update_temp_memo(
 
     db_memo.updated_at = datetime.now(timezone.utc).isoformat()
 
-    db.commit()
-    db.refresh(db_memo)
+    db_memo = memo_repository.update(db, db_memo)
 
     logger.info(f"Updated temp memo: id={memo_id}")
     return memo_to_out(db, db_memo)
@@ -369,8 +341,7 @@ async def delete_temp_memo(
 
     db_memo = get_user_memo(db, memo_id, current_user.id)
 
-    db.delete(db_memo)
-    db.commit()
+    memo_repository.delete(db, db_memo)
 
     logger.info(f"Deleted temp memo: id={memo_id}")
     return None

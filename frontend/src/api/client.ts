@@ -1,4 +1,3 @@
-import axios from 'axios';
 import type {
   TempMemo,
   TempMemoCreate,
@@ -12,68 +11,7 @@ import type {
   MemoCommentUpdate,
   MemoCommentListResponse,
 } from '../types/comment';
-import { tokenStorage } from '../utils/token';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
-
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  withCredentials: true,
-});
-
-// Request 인터셉터: Authorization 헤더 추가 및 trailing slash 제거
-api.interceptors.request.use((config) => {
-  // Trailing slash 제거
-  if (config.url && config.url.endsWith('/')) {
-    config.url = config.url.slice(0, -1);
-  }
-
-  // Authorization 헤더 추가
-  const token = tokenStorage.getAccessToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-
-  return config;
-});
-
-// Response 인터셉터: 401 에러 처리
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-
-    // 401 에러이고 재시도하지 않은 경우
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      // Refresh Token으로 토큰 갱신 시도 (쿠키 자동 전송)
-      try {
-        const response = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
-          {}, // body 없음 - refresh_token은 httpOnly 쿠키로 자동 전송
-          { withCredentials: true }
-        );
-
-        const { access_token } = response.data;
-        tokenStorage.setAccessToken(access_token);
-
-        // 원래 요청 재시도
-        originalRequest.headers.Authorization = `Bearer ${access_token}`;
-        return api(originalRequest);
-      } catch {
-        // 토큰 갱신 실패 - 로그아웃 처리
-        tokenStorage.clearTokens();
-        window.location.href = '/login';
-      }
-    }
-
-    return Promise.reject(error);
-  }
-);
+import { api } from './axios';
 
 export const tempMemoApi = {
   /**

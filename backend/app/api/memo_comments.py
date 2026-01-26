@@ -3,13 +3,11 @@
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user_optional
@@ -25,6 +23,7 @@ from app.schemas.memo_comment import (
 )
 from app.services.analysis_service import notify_comment_ai_response
 from app.services.comment_ai_service import generate_ai_response
+from app.services.memo_repository import comment_repository, memo_repository
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ router = APIRouter(prefix="/temp-memos", tags=["memo-comments"])
 
 def get_memo_or_404(memo_id: str, db: Session) -> TempMemo:
     """메모 조회, 없으면 404"""
-    memo = db.query(TempMemo).filter(TempMemo.id == memo_id).first()
+    memo = memo_repository.get_by_id(db, memo_id)
     if not memo:
         logger.warning(f"Memo not found: id={memo_id}")
         raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다.")
@@ -44,6 +43,8 @@ def _run_ai_response_task(
     comment_id: str, memo_id: str, user_id: Optional[str] = None
 ) -> None:
     """백그라운드에서 AI 응답 생성 실행"""
+    from app.utils import run_async_in_thread
+
     async def _async_task():
         db = SessionLocal()
         try:
@@ -85,7 +86,7 @@ def _run_ai_response_task(
         finally:
             db.close()
 
-    asyncio.run(_async_task())
+    run_async_in_thread(_async_task)
 
 
 @router.post("/{memo_id}/comments", response_model=MemoCommentOut, status_code=201)
@@ -107,9 +108,7 @@ async def create_comment(
         content=comment.content,
         response_status="pending",  # AI 응답 대기 상태
     )
-    db.add(db_comment)
-    db.commit()
-    db.refresh(db_comment)
+    db_comment = comment_repository.create(db, db_comment)
 
     logger.info(f"Created comment: id={db_comment.id}")
 
@@ -131,9 +130,7 @@ def list_comments(
     # 메모 존재 확인
     get_memo_or_404(memo_id, db)
 
-    query = db.query(MemoComment).filter(MemoComment.memo_id == memo_id)
-    total = query.count()
-    items = query.order_by(desc(MemoComment.created_at)).all()
+    items, total = comment_repository.list_memo_comments(db, memo_id)
 
     logger.info(f"Found {len(items)} comments")
     return MemoCommentListResponse(items=items, total=total)
@@ -152,11 +149,7 @@ def update_comment(
     # 메모 존재 확인
     get_memo_or_404(memo_id, db)
 
-    db_comment = (
-        db.query(MemoComment)
-        .filter(MemoComment.id == comment_id, MemoComment.memo_id == memo_id)
-        .first()
-    )
+    db_comment = comment_repository.get_memo_comment(db, memo_id, comment_id)
     if not db_comment:
         logger.warning(f"Comment not found: id={comment_id}")
         raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
@@ -170,8 +163,7 @@ def update_comment(
 
     db_comment.updated_at = datetime.now(timezone.utc).isoformat()
 
-    db.commit()
-    db.refresh(db_comment)
+    db_comment = comment_repository.update(db, db_comment)
 
     logger.info(f"Updated comment: id={comment_id}")
     return db_comment
@@ -189,18 +181,13 @@ def delete_comment(
     # 메모 존재 확인
     get_memo_or_404(memo_id, db)
 
-    db_comment = (
-        db.query(MemoComment)
-        .filter(MemoComment.id == comment_id, MemoComment.memo_id == memo_id)
-        .first()
-    )
+    db_comment = comment_repository.get_memo_comment(db, memo_id, comment_id)
     if not db_comment:
         logger.warning(f"Comment not found: id={comment_id}")
         raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
 
     # AI 댓글도 삭제 가능
-    db.delete(db_comment)
-    db.commit()
+    comment_repository.delete(db, db_comment)
 
     logger.info(f"Deleted comment: id={comment_id}")
     return None
