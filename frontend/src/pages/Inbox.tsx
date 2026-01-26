@@ -116,7 +116,7 @@ export function Inbox() {
       <div className="hidden md:flex items-center justify-between px-6 py-5 bg-white border-b border-gray-100">
         <div className="flex items-center gap-3">
           <h1 className="flex items-center gap-2 text-xl font-semibold text-gray-800">
-            <img src={rottenIcon} alt="임시 메모 목록" className="w-8 h-8" />
+            <img src={rottenIcon} alt="임시 메모 목록" className="w-10 h-10" />
             임시 메모 목록
           </h1>
           <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded">

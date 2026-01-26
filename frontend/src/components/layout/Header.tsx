@@ -23,7 +23,7 @@ export function Header({ className = '' }: HeaderProps) {
           </button>
         ) : (
           <div className="flex items-center gap-2">
-            <img src={rottenIcon} alt="Rotten Apple 로고" className="w-6 h-6" />
+            <img src={rottenIcon} alt="Rotten Apple 로고" className="w-8 h-8" />
             <div className="text-lg font-semibold leading-none">
               <span className="text-green-900">Rotten</span>{' '}
               <span className="text-red-900">Apple</span>
@@ -34,7 +34,7 @@ export function Header({ className = '' }: HeaderProps) {
         {isInbox && (
           <h1 className="absolute left-1/2 transform -translate-x-1/2 text-base font-medium text-gray-700">
             <span className="inline-flex items-center gap-2">
-              <img src={rottenIcon} alt="임시 메모 목록" className="w-5 h-5" />
+              <img src={rottenIcon} alt="임시 메모 목록" className="w-6 h-6" />
               임시 메모 목록
             </span>
           </h1>
