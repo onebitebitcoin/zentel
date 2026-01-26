@@ -1,0 +1,15 @@
+{
+  "name": "Zentel",
+  "short_name": "Zentel",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#22C55E",
+  "icons": [
+    {
+      "src": "/rotten.png",
+      "sizes": "2048x2048",
+      "type": "image/png"
+    }
+  ]
+}

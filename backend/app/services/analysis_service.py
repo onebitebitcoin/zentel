@@ -19,7 +19,6 @@ from sqlalchemy.orm import Session
 from app.models.temp_memo import TempMemo
 from app.models.user import User
 from app.services import llm_service
-from app.services.llm_service import LLMError
 from app.services.context_extractor import context_extractor
 from app.services.twitter_scraper import twitter_scraper
 from app.services.youtube_scraper import youtube_scraper

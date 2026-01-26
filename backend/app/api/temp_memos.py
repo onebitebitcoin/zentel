@@ -16,7 +16,7 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
-from app.core.deps import get_current_user, get_current_user_optional
+from app.core.deps import get_current_user
 from app.database import get_db
 from app.models.memo_comment import MemoComment
 from app.models.temp_memo import TempMemo

@@ -9,6 +9,7 @@ import asyncio
 import re
 import sys
 from typing import Optional, Tuple
+
 import httpx
 import trafilatura
 
@@ -62,7 +63,7 @@ async def fetch_with_playwright(url: str) -> Optional[str]:
     try:
         from playwright.async_api import async_playwright
 
-        print(f"    [Playwright] JS 렌더링 시작...")
+        print("    [Playwright] JS 렌더링 시작...")
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
@@ -90,7 +91,7 @@ async def main():
     print("URL 본문 추출 테스트")
     print("=" * 70)
 
-    print(f"\n[1] 입력 URL")
+    print("\n[1] 입력 URL")
     print(f"    {url}\n")
 
     # GitHub blob URL 체크
@@ -98,10 +99,10 @@ async def main():
 
     if github_raw_url:
         # GitHub blob → raw URL
-        print(f"[2] GitHub blob URL 감지!")
+        print("[2] GitHub blob URL 감지!")
         print(f"    → raw URL: {github_raw_url}")
 
-        print(f"\n[3] Raw 텍스트 가져오기...")
+        print("\n[3] Raw 텍스트 가져오기...")
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(github_raw_url, follow_redirects=True)
             print(f"    - Status: {response.status_code}")
@@ -112,7 +113,7 @@ async def main():
 
     else:
         # 일반 URL
-        print(f"[2] 일반 URL → 정적 HTTP 요청...")
+        print("[2] 일반 URL → 정적 HTTP 요청...")
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(
                 url,
@@ -124,14 +125,14 @@ async def main():
 
         html = response.text
 
-        print(f"\n[3] 정적 HTML 본문 추출...")
+        print("\n[3] 정적 HTML 본문 추출...")
         content, method = extract_text_from_html(html)
         print(f"    - 방식: {method}")
         print(f"    - 추출 길이: {len(content) if content else 0} chars")
 
         # 결과 부실 시 Playwright
         if not content or len(content) < MIN_CONTENT_LENGTH:
-            print(f"\n[4] 정적 추출 부실 → Playwright 시도...")
+            print("\n[4] 정적 추출 부실 → Playwright 시도...")
             rendered_html = await fetch_with_playwright(url)
             if rendered_html:
                 rendered_content, rendered_method = extract_text_from_html(rendered_html)
@@ -140,14 +141,14 @@ async def main():
                     content = rendered_content
                     method = f"Playwright + {rendered_method}"
         else:
-            print(f"\n[4] 정적 추출 충분 → Playwright 스킵")
+            print("\n[4] 정적 추출 충분 → Playwright 스킵")
 
     # 결과 출력
-    print(f"\n[5] 최종 결과:")
+    print("\n[5] 최종 결과:")
     print(f"    - 방식: {method}")
     print(f"    - 길이: {len(content) if content else 0} chars")
 
-    print(f"\n[6] 추출된 본문 (처음 2000자):")
+    print("\n[6] 추출된 본문 (처음 2000자):")
     print("-" * 70)
     preview = (content[:2000] if content else "(없음)")
     print(preview)
