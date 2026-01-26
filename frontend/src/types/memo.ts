@@ -73,22 +73,6 @@ export interface TempMemoListResponse {
   next_offset: number | null;
 }
 
-// Admin 디버그용 타입
-export interface AdminMemoDebugItem {
-  id: string;
-  user_id: string;
-  username: string;
-  memo_type: MemoType;
-  content_preview: string;
-  created_at: string;
-}
-
-export interface AdminMemoDebugResponse {
-  items: AdminMemoDebugItem[];
-  total: number;
-  user_counts: Record<string, number>;
-}
-
 export interface MemoTypeInfo {
   type: MemoType;
   label: string;

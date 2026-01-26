@@ -4,7 +4,6 @@ import type {
   TempMemoListResponse,
   TempMemoUpdate,
   MemoType,
-  AdminMemoDebugResponse,
 } from '../types/memo';
 import type {
   MemoComment,
@@ -65,16 +64,6 @@ export const tempMemoApi = {
    */
   reanalyze: async (id: string): Promise<TempMemo> => {
     const response = await api.post<TempMemo>(`/temp-memos/${id}/reanalyze`);
-    return response.data;
-  },
-
-  /**
-   * Admin: 메모 디버그 정보 조회
-   */
-  adminDebug: async (limit = 50): Promise<AdminMemoDebugResponse> => {
-    const response = await api.get<AdminMemoDebugResponse>('/temp-memos/admin/debug', {
-      params: { limit },
-    });
     return response.data;
   },
 };

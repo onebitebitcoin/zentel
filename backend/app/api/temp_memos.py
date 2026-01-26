@@ -20,8 +20,6 @@ from app.database import get_db
 from app.models.temp_memo import TempMemo
 from app.models.user import User
 from app.schemas.temp_memo import (
-    AdminMemoDebugItem,
-    AdminMemoDebugResponse,
     AnalysisStatus,
     MemoCommentSummary,
     MemoType,
@@ -383,62 +381,3 @@ async def reanalyze_memo(
 
     logger.info(f"Reanalyze started: memo_id={memo_id}")
     return memo_to_out(db, db_memo)
-
-
-@router.get("/admin/debug", response_model=AdminMemoDebugResponse)
-async def admin_memo_debug(
-    limit: int = Query(default=50, ge=1, le=200, description="가져올 개수"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Admin 전용: 모든 메모의 user_id 매핑 조회"""
-    # admin 사용자만 접근 가능
-    if current_user.username != "admin":
-        raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
-
-    logger.info(f"Admin debug: user={current_user.username}")
-
-    # 모든 메모 조회 (최신순)
-    from sqlalchemy import desc, func
-
-    all_memos = (
-        db.query(TempMemo)
-        .order_by(desc(TempMemo.created_at))
-        .limit(limit)
-        .all()
-    )
-
-    # user_id별 메모 수 집계
-    user_counts_query = (
-        db.query(TempMemo.user_id, func.count(TempMemo.id))
-        .group_by(TempMemo.user_id)
-        .all()
-    )
-    user_counts = {user_id: count for user_id, count in user_counts_query}
-
-    # 사용자 정보 조회 (캐시)
-    user_ids = list(set(m.user_id for m in all_memos))
-    users = db.query(User).filter(User.id.in_(user_ids)).all()
-    user_map = {u.id: u.username for u in users}
-
-    # 응답 생성
-    items = []
-    for memo in all_memos:
-        items.append(
-            AdminMemoDebugItem(
-                id=memo.id,
-                user_id=memo.user_id,
-                username=user_map.get(memo.user_id, "unknown"),
-                memo_type=memo.memo_type,
-                content_preview=memo.content[:50] + "..." if len(memo.content) > 50 else memo.content,
-                created_at=memo.created_at,
-            )
-        )
-
-    total = db.query(func.count(TempMemo.id)).scalar()
-
-    return AdminMemoDebugResponse(
-        items=items,
-        total=total,
-        user_counts=user_counts,
-    )
