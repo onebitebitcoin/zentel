@@ -31,16 +31,14 @@ export function Header({ className = '' }: HeaderProps) {
           </div>
         )}
 
-        <h1 className="absolute left-1/2 transform -translate-x-1/2 text-base font-medium text-gray-700">
-          {isInbox ? (
+        {isInbox && (
+          <h1 className="absolute left-1/2 transform -translate-x-1/2 text-base font-medium text-gray-700">
             <span className="inline-flex items-center gap-2">
               <img src={rottenIcon} alt="임시 메모 목록" className="w-5 h-5" />
               임시 메모 목록
             </span>
-          ) : (
-            '새 메모 작성'
-          )}
-        </h1>
+          </h1>
+        )}
 
         <div className="w-8" />
       </div>
