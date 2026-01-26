@@ -160,6 +160,45 @@ def _run_migrations():
                 conn.commit()
             logger.info("Migration: 'display_content' column added successfully")
 
+        # user_id 컬럼 추가 (사용자별 메모 분리)
+        if "user_id" not in columns:
+            logger.info("Migration: Adding 'user_id' column to temp_memos table")
+            # 첫 번째 사용자 ID 조회 (기존 메모 할당용)
+            with engine.connect() as conn:
+                result = conn.execute(text("SELECT id FROM users LIMIT 1"))
+                first_user = result.fetchone()
+                default_user_id = first_user[0] if first_user else None
+
+            if default_user_id:
+                with engine.connect() as conn:
+                    if settings.DATABASE_URL.startswith("sqlite"):
+                        # SQLite: 기본값으로 첫 번째 사용자 ID 사용
+                        conn.execute(
+                            text(
+                                f"ALTER TABLE temp_memos ADD COLUMN user_id "
+                                f"VARCHAR(32) REFERENCES users(id) ON DELETE CASCADE "
+                                f"DEFAULT '{default_user_id}'"
+                            )
+                        )
+                    else:
+                        # PostgreSQL
+                        conn.execute(
+                            text(
+                                f"ALTER TABLE temp_memos ADD COLUMN user_id "
+                                f"VARCHAR(32) REFERENCES users(id) ON DELETE CASCADE "
+                                f"DEFAULT '{default_user_id}'"
+                            )
+                        )
+                    conn.commit()
+                logger.info(
+                    f"Migration: 'user_id' column added with default '{default_user_id}'"
+                )
+            else:
+                logger.warning(
+                    "Migration: No users found, cannot add user_id column. "
+                    "Create a user first."
+                )
+
     # memo_comments 테이블에 AI 댓글 관련 컬럼 추가
     if "memo_comments" in inspector.get_table_names():
         columns = [col["name"] for col in inspector.get_columns("memo_comments")]

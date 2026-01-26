@@ -6,7 +6,7 @@ from __future__ import annotations
 from functools import partial
 from typing import Optional
 
-from sqlalchemy import JSON, Index, String, Text
+from sqlalchemy import JSON, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -20,6 +20,9 @@ class TempMemo(Base):
 
     id: Mapped[str] = mapped_column(
         String(32), primary_key=True, default=partial(generate_ulid, "tm")
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     memo_type: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -57,4 +60,5 @@ class TempMemo(Base):
     __table_args__ = (
         Index("idx_temp_memos_created_at", "created_at"),
         Index("idx_temp_memos_type_created", "memo_type", "created_at"),
+        Index("idx_temp_memos_user_created", "user_id", "created_at"),
     )

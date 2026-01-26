@@ -16,7 +16,7 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
-from app.core.deps import get_current_user_optional
+from app.core.deps import get_current_user, get_current_user_optional
 from app.database import get_db
 from app.models.memo_comment import MemoComment
 from app.models.temp_memo import TempMemo
@@ -47,6 +47,17 @@ URL_PATTERN = re.compile(
 )
 
 router = APIRouter(prefix="/temp-memos", tags=["temp-memos"])
+
+
+def get_user_memo(db: Session, memo_id: str, user_id: str) -> TempMemo:
+    """사용자 소유 메모 조회 (없거나 소유하지 않으면 404)"""
+    memo = db.query(TempMemo).filter(
+        TempMemo.id == memo_id,
+        TempMemo.user_id == user_id
+    ).first()
+    if not memo:
+        raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다.")
+    return memo
 
 
 def get_memo_comment_info(db: Session, memo_id: str) -> tuple[int, MemoComment | None]:
@@ -171,7 +182,7 @@ async def create_temp_memo(
     memo: TempMemoCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """임시 메모 생성 (AI 분석은 백그라운드에서 비동기 처리)"""
     # EXTERNAL_SOURCE 타입이면 content에서 URL 자동 추출
@@ -183,12 +194,13 @@ async def create_temp_memo(
             logger.info(f"Auto-extracted URL from content: {source_url}")
 
     logger.info(
-        f"Creating temp memo: type={memo.memo_type}, "
+        f"Creating temp memo: type={memo.memo_type}, user_id={current_user.id}, "
         f"content_length={len(memo.content)}, source_url={source_url}"
     )
 
     # 메모 즉시 저장 (analysis_status = "pending")
     db_memo = TempMemo(
+        user_id=current_user.id,
         memo_type=memo.memo_type.value,
         content=memo.content,
         source_url=source_url,
@@ -214,16 +226,21 @@ async def create_temp_memo(
 
 
 @router.get("", response_model=TempMemoListResponse)
-def list_temp_memos(
+async def list_temp_memos(
     type: Optional[MemoType] = Query(default=None, description="메모 타입 필터"),
     limit: int = Query(default=10, ge=1, le=100, description="가져올 개수"),
     offset: int = Query(default=0, ge=0, description="시작 위치"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """임시 메모 목록 조회 (최신순)"""
-    logger.info(f"Listing temp memos: type={type}, limit={limit}, offset={offset}")
+    """임시 메모 목록 조회 (최신순, 본인 메모만)"""
+    logger.info(
+        f"Listing temp memos: user_id={current_user.id}, type={type}, "
+        f"limit={limit}, offset={offset}"
+    )
 
-    query = db.query(TempMemo)
+    # 본인 메모만 조회
+    query = db.query(TempMemo).filter(TempMemo.user_id == current_user.id)
 
     if type:
         query = query.filter(TempMemo.memo_type == type.value)
@@ -287,17 +304,15 @@ async def analysis_events(request: Request):
 
 
 @router.get("/{memo_id}", response_model=TempMemoOut)
-def get_temp_memo(
+async def get_temp_memo(
     memo_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """임시 메모 상세 조회"""
-    logger.info(f"Getting temp memo: id={memo_id}")
+    """임시 메모 상세 조회 (본인 메모만)"""
+    logger.info(f"Getting temp memo: id={memo_id}, user_id={current_user.id}")
 
-    db_memo = db.query(TempMemo).filter(TempMemo.id == memo_id).first()
-    if not db_memo:
-        logger.warning(f"Temp memo not found: id={memo_id}")
-        raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다.")
+    db_memo = get_user_memo(db, memo_id, current_user.id)
 
     return memo_to_out(db, db_memo)
 
@@ -307,15 +322,12 @@ async def update_temp_memo(
     memo_id: str,
     memo: TempMemoUpdate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
-    """임시 메모 수정"""
-    logger.info(f"Updating temp memo: id={memo_id}")
+    """임시 메모 수정 (본인 메모만)"""
+    logger.info(f"Updating temp memo: id={memo_id}, user_id={current_user.id}")
 
-    db_memo = db.query(TempMemo).filter(TempMemo.id == memo_id).first()
-    if not db_memo:
-        logger.warning(f"Temp memo not found: id={memo_id}")
-        raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다.")
+    db_memo = get_user_memo(db, memo_id, current_user.id)
 
     if memo.memo_type is not None:
         db_memo.memo_type = memo.memo_type.value
@@ -347,17 +359,15 @@ async def update_temp_memo(
 
 
 @router.delete("/{memo_id}", status_code=204)
-def delete_temp_memo(
+async def delete_temp_memo(
     memo_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """임시 메모 삭제"""
-    logger.info(f"Deleting temp memo: id={memo_id}")
+    """임시 메모 삭제 (본인 메모만)"""
+    logger.info(f"Deleting temp memo: id={memo_id}, user_id={current_user.id}")
 
-    db_memo = db.query(TempMemo).filter(TempMemo.id == memo_id).first()
-    if not db_memo:
-        logger.warning(f"Temp memo not found: id={memo_id}")
-        raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다.")
+    db_memo = get_user_memo(db, memo_id, current_user.id)
 
     db.delete(db_memo)
     db.commit()
@@ -371,15 +381,12 @@ async def reanalyze_memo(
     memo_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
-    """메모 재분석 요청"""
-    logger.info(f"Reanalyze request: memo_id={memo_id}")
+    """메모 재분석 요청 (본인 메모만)"""
+    logger.info(f"Reanalyze request: memo_id={memo_id}, user_id={current_user.id}")
 
-    db_memo = db.query(TempMemo).filter(TempMemo.id == memo_id).first()
-    if not db_memo:
-        logger.warning(f"Temp memo not found: id={memo_id}")
-        raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다.")
+    db_memo = get_user_memo(db, memo_id, current_user.id)
 
     # 이미 분석 중인 경우 거부
     if db_memo.analysis_status == "analyzing":
