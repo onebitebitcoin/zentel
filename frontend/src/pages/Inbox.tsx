@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MemoCard } from '../components/memo/MemoCard';
+import rottenIcon from '../assets/images/rotten.png';
 import { useTempMemos } from '../hooks/useTempMemos';
 import { useAnalysisSSE } from '../hooks/useAnalysisSSE';
 import type { MemoType, MemoTypeInfo } from '../types/memo';
@@ -114,8 +115,9 @@ export function Inbox() {
       {/* PC: 상단 헤더 */}
       <div className="hidden md:flex items-center justify-between px-6 py-5 bg-white border-b border-gray-100">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold text-gray-800">
-            임시 메모
+          <h1 className="flex items-center gap-2 text-xl font-semibold text-gray-800">
+            <img src={rottenIcon} alt="임시 메모 목록" className="w-6 h-6" />
+            임시 메모 목록
           </h1>
           <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded">
             총 {total}개

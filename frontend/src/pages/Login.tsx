@@ -48,7 +48,10 @@ export function Login() {
     <div className="flex flex-col min-h-full bg-gray-50">
       {/* 헤더 */}
       <div className="flex items-center justify-center px-4 py-8 md:py-12">
-        <h1 className="text-2xl font-bold text-gray-800">Zentel</h1>
+        <h1 className="text-2xl font-bold">
+          <span className="text-green-900">Rotten</span>{' '}
+          <span className="text-red-900">Apple</span>
+        </h1>
       </div>
 
       {/* 폼 */}

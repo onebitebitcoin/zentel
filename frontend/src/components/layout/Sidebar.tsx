@@ -1,11 +1,11 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
+  FileEdit,
   BookOpen,
   Settings,
   Trash2,
   Plus,
 } from 'lucide-react';
-import rottenIcon from '../../assets/images/rotten.png';
 
 interface SidebarProps {
   className?: string;
@@ -27,7 +27,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
     {
       path: '/inbox',
       label: '임시 메모',
-      icon: <img src={rottenIcon} alt="임시 메모" className="w-[18px] h-[18px]" />,
+      icon: <FileEdit size={18} />,
     },
     {
       path: '#',
@@ -61,7 +61,10 @@ export function Sidebar({ className = '' }: SidebarProps) {
             </div>
           </div>
           <div className="text-left">
-            <div className="font-semibold text-gray-800">Zentel</div>
+            <div className="font-semibold">
+              <span className="text-green-900">Rotten</span>{' '}
+              <span className="text-red-900">Apple</span>
+            </div>
             <div className="text-xs text-gray-400 tracking-wider">
               메모 시스템
             </div>
