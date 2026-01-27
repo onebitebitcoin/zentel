@@ -54,9 +54,25 @@ export function NoteEdit() {
     }
   }, []);
 
+  // 본문 textarea 자동 높이 조절
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const adjustContentHeight = useCallback(() => {
+    const textarea = contentRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      // 최소 높이 150px, 콘텐츠에 맞게 확장
+      const minHeight = 150;
+      textarea.style.height = `${Math.max(minHeight, textarea.scrollHeight)}px`;
+    }
+  }, []);
+
   useEffect(() => {
     adjustTitleHeight();
   }, [title, adjustTitleHeight]);
+
+  useEffect(() => {
+    adjustContentHeight();
+  }, [content, adjustContentHeight, isEditing]);
 
   useEffect(() => {
     if (!id) return;
@@ -379,10 +395,11 @@ export function NoteEdit() {
               </div>
             ) : (
               <textarea
+                ref={contentRef}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="내용을 입력하세요..."
-                className="w-full min-h-[300px] md:min-h-[400px] text-sm md:text-base text-gray-700 placeholder-gray-300 border-0 focus:outline-none focus:ring-0 resize-none leading-relaxed"
+                className="w-full text-sm md:text-base text-gray-700 placeholder-gray-300 border-0 focus:outline-none focus:ring-0 resize-none leading-relaxed"
               />
             )}
           </div>
