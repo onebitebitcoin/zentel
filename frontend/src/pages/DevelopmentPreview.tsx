@@ -225,7 +225,7 @@ export function DevelopmentPreview() {
 
       {/* 컨텐츠 */}
       <div className="flex-1 overflow-auto p-4 pb-24 md:pb-6">
-        <div className="max-w-2xl mx-auto space-y-4">
+        <div className="w-full max-w-2xl mx-auto space-y-4">
           {/* 섹션 1: 개별 메모 분석 */}
           <section className="bg-white rounded-xl p-4 border border-gray-100">
             <div className="flex items-center gap-2 mb-3">

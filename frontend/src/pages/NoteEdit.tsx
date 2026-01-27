@@ -219,7 +219,7 @@ export function NoteEdit() {
       {/* 편집 영역 */}
       <div className="flex-1 overflow-auto">
         <div className="p-4 md:p-6 pb-24 md:pb-6">
-          <div className="max-w-3xl mx-auto space-y-4">
+          <div className="w-full max-w-3xl mx-auto space-y-4">
             {/* 분석 결과 패널 */}
             {analysisResult && (
               <div className="border border-gray-200 rounded-xl overflow-hidden">
