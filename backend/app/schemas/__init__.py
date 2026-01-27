@@ -7,6 +7,14 @@ from app.schemas.auth import (
     UserOut,
     UserRegister,
 )
+from app.schemas.permanent_note import (
+    NoteStatus,
+    PermanentNoteCreate,
+    PermanentNoteListItem,
+    PermanentNoteListResponse,
+    PermanentNoteOut,
+    PermanentNoteUpdate,
+)
 from app.schemas.temp_memo import (
     MemoType,
     TempMemoCreate,
@@ -21,6 +29,12 @@ __all__ = [
     "TempMemoUpdate",
     "TempMemoOut",
     "TempMemoListResponse",
+    "NoteStatus",
+    "PermanentNoteCreate",
+    "PermanentNoteUpdate",
+    "PermanentNoteOut",
+    "PermanentNoteListItem",
+    "PermanentNoteListResponse",
     "UserRegister",
     "UserLogin",
     "UserOut",

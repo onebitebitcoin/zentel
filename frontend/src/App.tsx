@@ -9,6 +9,8 @@ import { Sidebar } from './components/layout/Sidebar';
 import { QuickCapture } from './pages/QuickCapture';
 import { Inbox } from './pages/Inbox';
 import { MemoEdit } from './pages/MemoEdit';
+import { Notes } from './pages/Notes';
+import { NoteEdit } from './pages/NoteEdit';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
@@ -83,6 +85,26 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <MemoEdit />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notes"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <Notes />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notes/:id"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <NoteEdit />
                 </AppLayout>
               </ProtectedRoute>
             }

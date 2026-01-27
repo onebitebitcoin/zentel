@@ -13,6 +13,7 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.models.memo_comment import MemoComment
+from app.models.permanent_note import PermanentNote
 from app.models.temp_memo import TempMemo
 
 logger = logging.getLogger(__name__)
@@ -146,6 +147,65 @@ class CommentRepository:
         db.commit()
 
 
+class PermanentNoteRepository:
+    """영구 메모 데이터 접근 클래스"""
+
+    @staticmethod
+    def get_by_id(db: Session, note_id: str) -> Optional[PermanentNote]:
+        """영구 메모 ID로 조회"""
+        return db.query(PermanentNote).filter(PermanentNote.id == note_id).first()
+
+    @staticmethod
+    def get_user_note(db: Session, note_id: str, user_id: str) -> Optional[PermanentNote]:
+        """사용자 소유 영구 메모 조회"""
+        return (
+            db.query(PermanentNote)
+            .filter(PermanentNote.id == note_id, PermanentNote.user_id == user_id)
+            .first()
+        )
+
+    @staticmethod
+    def list_user_notes(
+        db: Session,
+        user_id: str,
+        status: Optional[str] = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[PermanentNote], int]:
+        """사용자 영구 메모 목록 조회 (최신순)"""
+        query = db.query(PermanentNote).filter(PermanentNote.user_id == user_id)
+
+        if status:
+            query = query.filter(PermanentNote.status == status)
+
+        total = query.count()
+        items = query.order_by(desc(PermanentNote.created_at)).offset(offset).limit(limit).all()
+
+        return items, total
+
+    @staticmethod
+    def create(db: Session, note: PermanentNote) -> PermanentNote:
+        """영구 메모 생성"""
+        db.add(note)
+        db.commit()
+        db.refresh(note)
+        return note
+
+    @staticmethod
+    def update(db: Session, note: PermanentNote) -> PermanentNote:
+        """영구 메모 업데이트"""
+        db.commit()
+        db.refresh(note)
+        return note
+
+    @staticmethod
+    def delete(db: Session, note: PermanentNote) -> None:
+        """영구 메모 삭제"""
+        db.delete(note)
+        db.commit()
+
+
 # 싱글톤 인스턴스
 memo_repository = MemoRepository()
 comment_repository = CommentRepository()
+permanent_note_repository = PermanentNoteRepository()

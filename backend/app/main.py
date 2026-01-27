@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import auth_router, memo_comments_router, temp_memos_router
+from app.api import auth_router, memo_comments_router, permanent_notes_router, temp_memos_router
 from app.config import settings
 from app.database import init_db
 
@@ -105,6 +105,7 @@ app.add_middleware(
 # API 라우터 등록
 app.include_router(temp_memos_router, prefix=settings.API_V1_PREFIX)
 app.include_router(memo_comments_router, prefix=settings.API_V1_PREFIX)
+app.include_router(permanent_notes_router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 
 

@@ -11,6 +11,13 @@ import type {
   MemoCommentUpdate,
   MemoCommentListResponse,
 } from '../types/comment';
+import type {
+  PermanentNote,
+  PermanentNoteCreate,
+  PermanentNoteListResponse,
+  PermanentNoteUpdate,
+  NoteStatus,
+} from '../types/note';
 import { api } from './axios';
 
 export const tempMemoApi = {
@@ -105,5 +112,52 @@ export const commentApi = {
    */
   delete: async (memoId: string, commentId: string): Promise<void> => {
     await api.delete(`/temp-memos/${memoId}/comments/${commentId}`);
+  },
+};
+
+export const permanentNoteApi = {
+  /**
+   * 영구 메모 생성
+   */
+  create: async (data: PermanentNoteCreate): Promise<PermanentNote> => {
+    const response = await api.post<PermanentNote>('/permanent-notes', data);
+    return response.data;
+  },
+
+  /**
+   * 영구 메모 목록 조회
+   */
+  list: async (params?: {
+    status?: NoteStatus;
+    limit?: number;
+    offset?: number;
+  }): Promise<PermanentNoteListResponse> => {
+    const response = await api.get<PermanentNoteListResponse>('/permanent-notes', {
+      params,
+    });
+    return response.data;
+  },
+
+  /**
+   * 영구 메모 상세 조회
+   */
+  get: async (id: string): Promise<PermanentNote> => {
+    const response = await api.get<PermanentNote>(`/permanent-notes/${id}`);
+    return response.data;
+  },
+
+  /**
+   * 영구 메모 수정
+   */
+  update: async (id: string, data: PermanentNoteUpdate): Promise<PermanentNote> => {
+    const response = await api.patch<PermanentNote>(`/permanent-notes/${id}`, data);
+    return response.data;
+  },
+
+  /**
+   * 영구 메모 삭제
+   */
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/permanent-notes/${id}`);
   },
 };

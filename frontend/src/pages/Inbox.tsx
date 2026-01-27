@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { Search, SlidersHorizontal, CheckSquare, X, ArrowUpRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MemoCard } from '../components/memo/MemoCard';
 import rottenIcon from '../assets/images/rotten.png';
 import { useTempMemos } from '../hooks/useTempMemos';
+import { usePermanentNotes } from '../hooks/usePermanentNotes';
 import { useAnalysisSSE } from '../hooks/useAnalysisSSE';
 import type { MemoType, MemoTypeInfo } from '../types/memo';
 import { MEMO_TYPES } from '../types/memo';
@@ -14,10 +15,16 @@ type FilterType = 'ALL' | MemoType;
 export function Inbox() {
   const navigate = useNavigate();
   const { memos, total, loading, error, fetchMemos, deleteMemo, refreshMemo, getMemoDetail, fetchMemoDetail, clearDetailCache, clearMemos } = useTempMemos();
+  const { createNote } = usePermanentNotes();
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [offset, setOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const limit = 20;
+
+  // 선택 모드 상태
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [creating, setCreating] = useState(false);
 
   // SSE 훅 먼저 초기화
   const { analysisLogs, clearLogs } = useAnalysisSSE(
@@ -102,6 +109,61 @@ export function Inbox() {
 
   const hasMore = memos.length < total;
 
+  // 선택 모드 토글
+  const handleToggleSelectionMode = () => {
+    if (selectionMode) {
+      // 선택 모드 종료 시 상태 초기화
+      setSelectedIds(new Set());
+    }
+    setSelectionMode(!selectionMode);
+  };
+
+  // 메모 선택 토글
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // 전체 선택/해제
+  const handleSelectAll = () => {
+    if (selectedIds.size === memos.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(memos.map((m) => m.id)));
+    }
+  };
+
+  // 발전시키기 (영구 메모 생성)
+  const handleCreatePermanentNote = async () => {
+    if (selectedIds.size === 0) {
+      toast.error('메모를 선택해주세요.');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const note = await createNote({
+        source_memo_ids: Array.from(selectedIds),
+      });
+      toast.success('영구 메모가 생성되었습니다.');
+      // 선택 모드 종료 및 편집 페이지로 이동
+      setSelectionMode(false);
+      setSelectedIds(new Set());
+      navigate(`/notes/${note.id}`);
+    } catch {
+      toast.error('영구 메모 생성에 실패했습니다.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const filters: { value: FilterType; label: string; info?: MemoTypeInfo }[] = [
     { value: 'ALL', label: '전체' },
     ...MEMO_TYPES.map((info) => ({
@@ -113,60 +175,110 @@ export function Inbox() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* PC: 상단 헤더 */}
-      <div className="hidden md:flex items-center justify-between px-6 py-5 bg-white border-b border-gray-100">
-        <div className="flex items-center gap-3">
-          <h1 className="flex items-center gap-2 text-xl font-semibold text-gray-800">
-            <img src={rottenIcon} alt="임시 메모 목록" className="w-10 h-10" />
-            임시 메모 목록
-          </h1>
-          <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded">
-            총 {total}개
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search
-              size={18}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-            />
-            <input
-              type="text"
-              placeholder="메모 검색..."
-              className="w-64 pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary"
-              disabled
-            />
+      {/* 선택 모드 상단 바 */}
+      {selectionMode && (
+        <div className="flex items-center justify-between px-4 py-3 bg-primary text-white">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleToggleSelectionMode}
+              className="p-1 hover:bg-white/20 rounded"
+            >
+              <X size={20} />
+            </button>
+            <span className="text-sm font-medium">
+              {selectedIds.size}개 선택됨
+            </span>
+            <button
+              onClick={handleSelectAll}
+              className="text-xs underline hover:no-underline"
+            >
+              {selectedIds.size === memos.length ? '전체 해제' : '전체 선택'}
+            </button>
           </div>
           <button
-            disabled
-            className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-400"
+            onClick={handleCreatePermanentNote}
+            disabled={selectedIds.size === 0 || creating}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-primary rounded-lg text-sm font-medium disabled:opacity-50"
           >
-            <SlidersHorizontal size={16} />
-            필터
+            <ArrowUpRight size={16} />
+            {creating ? '생성 중...' : '발전시키기'}
           </button>
         </div>
-      </div>
+      )}
 
-      {/* 모바일: 필터 탭 */}
-      <div className="md:hidden bg-white border-b border-gray-100">
-        <div className="flex overflow-x-auto px-2 py-2 gap-2 scrollbar-hide">
-          {filters.map((f) => (
+      {/* PC: 상단 헤더 */}
+      {!selectionMode && (
+        <div className="hidden md:flex items-center justify-between px-6 py-5 bg-white border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <h1 className="flex items-center gap-2 text-xl font-semibold text-gray-800">
+              <img src={rottenIcon} alt="임시 메모 목록" className="w-10 h-10" />
+              임시 메모 목록
+            </h1>
+            <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded">
+              총 {total}개
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
             <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                filter === f.value
-                  ? f.info
-                    ? `${f.info.bgColor} ${f.info.color}`
-                    : 'bg-primary text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              onClick={handleToggleSelectionMode}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-primary hover:text-primary transition-colors"
             >
-              {f.label}
+              <CheckSquare size={16} />
+              선택
             </button>
-          ))}
+            <div className="relative">
+              <Search
+                size={18}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+              <input
+                type="text"
+                placeholder="메모 검색..."
+                className="w-64 pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary"
+                disabled
+              />
+            </div>
+            <button
+              disabled
+              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-400"
+            >
+              <SlidersHorizontal size={16} />
+              필터
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* 모바일: 필터 탭 + 선택 버튼 */}
+      {!selectionMode && (
+        <div className="md:hidden bg-white border-b border-gray-100">
+          <div className="flex items-center px-2 py-2 gap-2">
+            <div className="flex-1 flex overflow-x-auto gap-2 scrollbar-hide">
+              {filters.map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setFilter(f.value)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    filter === f.value
+                      ? f.info
+                        ? `${f.info.bgColor} ${f.info.color}`
+                        : 'bg-primary text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={handleToggleSelectionMode}
+              className="flex-shrink-0 p-2 text-gray-500 hover:text-primary"
+            >
+              <CheckSquare size={20} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 메모 목록 */}
       <div className="flex-1 overflow-auto px-4 md:px-6 py-4 pb-24 md:pb-6 space-y-3 md:space-y-4">
@@ -191,6 +303,9 @@ export function Inbox() {
                 analysisLogs={analysisLogs[memo.id]}
                 cachedDetail={getMemoDetail(memo.id)}
                 onFetchDetail={fetchMemoDetail}
+                selectionMode={selectionMode}
+                isSelected={selectedIds.has(memo.id)}
+                onToggleSelect={handleToggleSelect}
               />
             ))}
             {hasMore && (

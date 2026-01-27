@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { ExternalLink, FileText, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ExternalLink, FileText, Loader2, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import type { TempMemo, TempMemoListItem } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
 import { getRelativeTime } from '../../utils/date';
@@ -20,6 +20,10 @@ interface MemoCardProps {
   // Lazy loading 관련
   cachedDetail?: TempMemo;
   onFetchDetail?: (id: string) => Promise<TempMemo | undefined>;
+  // 선택 모드 관련
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export function MemoCard({
@@ -31,6 +35,9 @@ export function MemoCard({
   analysisLogs,
   cachedDetail,
   onFetchDetail,
+  selectionMode = false,
+  isSelected = false,
+  onToggleSelect,
 }: MemoCardProps) {
   const typeInfo = getMemoTypeInfo(memo.memo_type);
   const [contentExpanded, setContentExpanded] = useState(false);
@@ -112,22 +119,51 @@ export function MemoCard({
 
   const isExternalSource = memo.memo_type === 'EXTERNAL_SOURCE';
 
+  // 선택 모드에서 카드 클릭 시 선택 토글
+  const handleCardClick = () => {
+    if (selectionMode && onToggleSelect) {
+      onToggleSelect(memo.id);
+    }
+  };
+
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4 md:p-6 space-y-3 md:space-y-4">
-      {/* 타입 태그 + 외부 자료 이미지 */}
+    <div
+      onClick={handleCardClick}
+      className={`bg-white rounded-xl border p-4 md:p-6 space-y-3 md:space-y-4 transition-colors ${
+        selectionMode ? 'cursor-pointer' : ''
+      } ${
+        isSelected
+          ? 'border-primary bg-primary/5'
+          : 'border-gray-100'
+      }`}
+    >
+      {/* 타입 태그 + 선택 체크 + 외부 자료 이미지 */}
       <div className="flex items-center justify-between gap-2">
         <span
           className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium uppercase tracking-wide ${typeInfo.bgColor} ${typeInfo.color}`}
         >
           {typeInfo.label}
         </span>
-        {isExternalSource && (
-          <img
-            src={fertilizerImage}
-            alt="Fertilizer"
-            className="w-10 h-10 md:w-12 md:h-12 object-contain flex-shrink-0"
-          />
-        )}
+        <div className="flex items-center gap-2">
+          {isExternalSource && (
+            <img
+              src={fertilizerImage}
+              alt="Fertilizer"
+              className="w-10 h-10 md:w-12 md:h-12 object-contain flex-shrink-0"
+            />
+          )}
+          {selectionMode && (
+            <div
+              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                isSelected
+                  ? 'bg-primary border-primary text-white'
+                  : 'border-gray-300 bg-white'
+              }`}
+            >
+              {isSelected && <Check size={14} />}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 제목 */}

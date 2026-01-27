@@ -30,10 +30,9 @@ export function Sidebar({ className = '' }: SidebarProps) {
       icon: <FileEdit size={18} />,
     },
     {
-      path: '#',
+      path: '/notes',
       label: '영구 메모',
       icon: <BookOpen size={18} />,
-      disabled: true,
     },
   ];
 
