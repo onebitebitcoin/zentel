@@ -10,6 +10,7 @@ import {
   HelpCircle,
   Loader2,
   AlertCircle,
+  Copy,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { usePermanentNotes } from '../hooks/usePermanentNotes';
@@ -27,6 +28,7 @@ export function DevelopmentPreview() {
   const [result, setResult] = useState<PermanentNoteDevelopResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [creatingOriginal, setCreatingOriginal] = useState(false);
 
   // location.state에서 sourceMemoIds 가져오기
   const state = location.state as LocationState | null;
@@ -108,6 +110,36 @@ export function DevelopmentPreview() {
     }
 
     return lines.join('\n');
+  };
+
+  // 원본 메모 그대로 영구 메모로 전환
+  const handleCreateOriginal = async () => {
+    if (!result) return;
+
+    setCreatingOriginal(true);
+    try {
+      // 원본 메모 내용을 구분자로 합침
+      const originalContent = result.source_memos
+        .map((memo) => memo.content)
+        .join('\n\n---\n\n');
+
+      // 첫 번째 메모의 첫 줄을 제목으로
+      const firstLine = result.source_memos[0]?.content.split('\n')[0].trim() || '제목 없음';
+      const title = firstLine.length > 80 ? firstLine.slice(0, 80) : firstLine;
+
+      const note = await createNote({
+        source_memo_ids: sourceMemoIds,
+        title,
+        content: originalContent,
+      });
+
+      toast.success('영구 메모가 생성되었습니다.');
+      navigate(`/notes/${note.id}`);
+    } catch {
+      toast.error('영구 메모 생성에 실패했습니다.');
+    } finally {
+      setCreatingOriginal(false);
+    }
   };
 
   const handleBack = () => {
@@ -335,24 +367,38 @@ export function DevelopmentPreview() {
 
       {/* 하단 액션 바 */}
       <div className="fixed bottom-0 left-0 right-0 md:static bg-white border-t border-gray-100 p-4">
-        <div className="max-w-2xl mx-auto flex gap-3">
+        <div className="max-w-2xl mx-auto space-y-2">
+          <div className="flex gap-2">
+            <button
+              onClick={handleCreateOriginal}
+              disabled={creatingOriginal || creating}
+              className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:border-gray-300 disabled:opacity-50"
+            >
+              {creatingOriginal ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Copy size={16} />
+              )}
+              원본 그대로 전환
+            </button>
+            <button
+              onClick={handleCreateNote}
+              disabled={creating || creatingOriginal}
+              className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium text-white bg-primary rounded-xl hover:bg-primary-600 disabled:opacity-50"
+            >
+              {creating ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <ArrowRight size={16} />
+              )}
+              AI 구조로 작성
+            </button>
+          </div>
           <button
             onClick={handleBack}
-            className="flex-1 py-3 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:border-gray-300"
+            className="w-full py-2 text-sm text-gray-400 hover:text-gray-600"
           >
             취소
-          </button>
-          <button
-            onClick={handleCreateNote}
-            disabled={creating}
-            className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium text-white bg-primary rounded-xl hover:bg-primary-600 disabled:opacity-50"
-          >
-            {creating ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <ArrowRight size={16} />
-            )}
-            영구 메모 작성하기
           </button>
         </div>
       </div>
