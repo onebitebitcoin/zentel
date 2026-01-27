@@ -66,7 +66,7 @@ class MemoCommentSummary(BaseModel):
 
 
 class TempMemoListItem(BaseModel):
-    """목록용 스키마 (본문 데이터 제외 - lazy loading용)"""
+    """목록용 스키마 (본문 데이터 포함 - 추가 API 호출 제거)"""
 
     id: str
     memo_type: MemoType
@@ -81,10 +81,13 @@ class TempMemoListItem(BaseModel):
     # AI 분석 상태
     analysis_status: AnalysisStatus = AnalysisStatus.PENDING
     analysis_error: Optional[str] = None
-    # 본문 관련 (상세 정보 제외)
+    # 본문 관련 (성능 최적화: 목록에서도 본문 포함)
     original_language: Optional[str] = None
     is_summary: bool = False
-    has_display_content: bool = False  # 본문 존재 여부 플래그
+    has_display_content: bool = False  # 본문 존재 여부 플래그 (하위 호환)
+    translated_content: Optional[str] = None
+    display_content: Optional[str] = None
+    highlights: Optional[List[HighlightItem]] = None
     created_at: str
     updated_at: Optional[str] = None
     comment_count: int = 0

@@ -126,6 +126,61 @@ class CommentRepository:
         return count, latest
 
     @staticmethod
+    def get_comment_stats_bulk(
+        db: Session, memo_ids: list[str]
+    ) -> dict[str, tuple[int, Optional[MemoComment]]]:
+        """
+        여러 메모의 댓글 개수와 최신 댓글을 한 번에 조회 (N+1 쿼리 방지)
+
+        Returns:
+            {memo_id: (count, latest_comment)} 딕셔너리
+        """
+        if not memo_ids:
+            return {}
+
+        # 1. 각 메모의 댓글 개수 조회 (1쿼리)
+        count_query = (
+            db.query(MemoComment.memo_id, func.count(MemoComment.id))
+            .filter(MemoComment.memo_id.in_(memo_ids))
+            .group_by(MemoComment.memo_id)
+        )
+        counts = {memo_id: count for memo_id, count in count_query.all()}
+
+        # 2. 각 메모의 최신 댓글 조회 (1쿼리)
+        # 서브쿼리로 각 메모별 최신 댓글 ID 찾기
+        latest_subquery = (
+            db.query(
+                MemoComment.memo_id,
+                func.max(MemoComment.created_at).label("max_created_at"),
+            )
+            .filter(MemoComment.memo_id.in_(memo_ids))
+            .group_by(MemoComment.memo_id)
+            .subquery()
+        )
+
+        # 최신 댓글 조회
+        latest_comments = (
+            db.query(MemoComment)
+            .join(
+                latest_subquery,
+                (MemoComment.memo_id == latest_subquery.c.memo_id)
+                & (MemoComment.created_at == latest_subquery.c.max_created_at),
+            )
+            .all()
+        )
+
+        latest_by_memo = {c.memo_id: c for c in latest_comments}
+
+        # 결과 매핑
+        result = {}
+        for memo_id in memo_ids:
+            count = counts.get(memo_id, 0)
+            latest = latest_by_memo.get(memo_id)
+            result[memo_id] = (count, latest)
+
+        return result
+
+    @staticmethod
     def create(db: Session, comment: MemoComment) -> MemoComment:
         """댓글 생성"""
         db.add(comment)

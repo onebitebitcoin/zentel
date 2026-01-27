@@ -72,13 +72,13 @@ def _get_comment_summary(
 
 
 def memo_to_list_item(
-    db: Session,
     memo: TempMemo,
+    comment_count: int = 0,
+    latest_comment: Optional[MemoCommentSummary] = None,
     fetch_failed: bool = False,
     fetch_message: Optional[str] = None,
 ) -> TempMemoListItem:
-    """TempMemo를 TempMemoListItem으로 변환 (본문 데이터 제외 - lazy loading용)"""
-    count, latest_summary = _get_comment_summary(db, memo.id)
+    """TempMemo를 TempMemoListItem으로 변환 (본문 데이터 포함)"""
     return TempMemoListItem(
         id=memo.id,
         memo_type=memo.memo_type,
@@ -95,10 +95,14 @@ def memo_to_list_item(
         original_language=memo.original_language,
         is_summary=memo.is_summary,
         has_display_content=bool(memo.display_content),
+        # 본문 데이터 포함 (추가 API 호출 제거)
+        translated_content=memo.translated_content,
+        display_content=memo.display_content,
+        highlights=memo.highlights,
         created_at=memo.created_at,
         updated_at=memo.updated_at,
-        comment_count=count,
-        latest_comment=latest_summary,
+        comment_count=comment_count,
+        latest_comment=latest_comment,
     )
 
 
@@ -223,8 +227,22 @@ async def list_temp_memos(
 
     next_offset = offset + limit if offset + limit < total else None
 
-    # 댓글 정보 포함하여 변환 (본문 데이터 제외 - lazy loading)
-    items = [memo_to_list_item(db, memo) for memo in db_items]
+    # 댓글 정보 일괄 조회 (N+1 쿼리 방지: 2*N 쿼리 → 2쿼리)
+    memo_ids = [memo.id for memo in db_items]
+    comment_stats = comment_repository.get_comment_stats_bulk(db, memo_ids)
+
+    # 메모 목록 변환 (본문 데이터 포함)
+    items = []
+    for memo in db_items:
+        count, latest = comment_stats.get(memo.id, (0, None))
+        latest_summary = None
+        if latest:
+            latest_summary = MemoCommentSummary(
+                id=latest.id,
+                content=latest.content,
+                created_at=latest.created_at,
+            )
+        items.append(memo_to_list_item(memo, count, latest_summary))
 
     logger.info(f"Found {len(items)} memos (total: {total})")
     return TempMemoListResponse(items=items, total=total, next_offset=next_offset)

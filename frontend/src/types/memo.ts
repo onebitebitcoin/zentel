@@ -23,7 +23,7 @@ export interface MemoCommentSummary {
   created_at: string;
 }
 
-// 목록용 타입 (본문 데이터 제외 - lazy loading용)
+// 목록용 타입 (본문 데이터 포함 - 추가 API 호출 제거)
 export interface TempMemoListItem {
   id: string;
   memo_type: MemoType;
@@ -39,19 +39,20 @@ export interface TempMemoListItem {
   analysis_error: string | null;
   original_language: string | null;
   is_summary: boolean;
-  has_display_content: boolean;  // 본문 존재 여부 플래그
+  has_display_content: boolean;  // 본문 존재 여부 플래그 (하위 호환)
+  // 본문 데이터 (성능 최적화: 목록에서도 포함)
+  translated_content: string | null;
+  display_content: string | null;
+  highlights: HighlightItem[] | null;
   created_at: string;
   updated_at: string | null;
   comment_count: number;
   latest_comment: MemoCommentSummary | null;
 }
 
-// 상세 조회용 타입 (본문 데이터 포함)
+// 상세 조회용 타입 (fetched_content 추가)
 export interface TempMemo extends TempMemoListItem {
-  translated_content: string | null;
   fetched_content: string | null;  // 스크래핑된 원본 컨텐츠 (URL 메모용)
-  display_content: string | null;  // 최종 표시용 콘텐츠 (번역/정리/단락화 완료)
-  highlights: HighlightItem[] | null;  // display_content에 맵핑되는 하이라이트
 }
 
 export interface TempMemoCreate {

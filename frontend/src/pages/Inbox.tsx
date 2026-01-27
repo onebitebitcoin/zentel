@@ -13,7 +13,7 @@ type FilterType = 'ALL' | MemoType;
 
 export function Inbox() {
   const navigate = useNavigate();
-  const { memos, total, loading, error, fetchMemos, deleteMemo, refreshMemo, getMemoDetail, fetchMemoDetail, clearDetailCache, clearMemos } = useTempMemos();
+  const { memos, total, loading, error, fetchMemos, deleteMemo, refreshMemo, clearMemos } = useTempMemos();
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [offset, setOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -56,9 +56,8 @@ export function Inbox() {
     const type = filter === 'ALL' ? undefined : filter;
     setOffset(0);
     clearMemos(); // 필터 변경 시 메모 목록 초기화 (로딩 스피너 표시용)
-    clearDetailCache(); // 필터 변경 시 캐시 초기화
     fetchMemos(type, limit, 0);
-  }, [filter, fetchMemos, clearDetailCache, clearMemos]);
+  }, [filter, fetchMemos, clearMemos]);
 
   useEffect(() => {
     if (error) {
@@ -288,8 +287,6 @@ export function Inbox() {
                 onCommentChange={() => handleCommentChange(memo.id)}
                 onReanalyze={handleReanalyze}
                 analysisLogs={analysisLogs[memo.id]}
-                cachedDetail={getMemoDetail(memo.id)}
-                onFetchDetail={fetchMemoDetail}
                 selectionMode={selectionMode}
                 isSelected={selectedIds.has(memo.id)}
                 onToggleSelect={handleToggleSelect}

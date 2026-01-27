@@ -277,12 +277,19 @@ class AnalysisService:
 
         return fetched_content, og_title, og_image
 
-    async def _extract_context(
+    async def _extract_context_and_interests(
         self,
         memo: TempMemo,
         fetched_content: Optional[str],
-    ) -> str:
-        """LLM으로 context 추출"""
+        db: Session,
+        user_id: Optional[str],
+    ) -> tuple[Optional[str], list[str]]:
+        """
+        LLM으로 context와 관심사를 한 번에 추출 (LLM 호출 최적화)
+
+        기존: extract_context (1회) + match_interests (1회) = 2회 LLM 호출
+        개선: extract_context_and_interests (1회) = 1회 LLM 호출
+        """
         await notify_analysis_progress(memo.id, "llm", "AI가 내용을 분석 중")
 
         source_url = memo.source_url
@@ -302,41 +309,28 @@ class AnalysisService:
             # URL이 없는 일반 텍스트 메모
             text_to_analyze = content
 
-        context = await llm_service.extract_context(text_to_analyze, memo.memo_type)
-        await notify_analysis_progress(memo.id, "llm_done", "AI 분석 완료")
+        # 사용자 관심사 가져오기
+        user_interests = None
+        if user_id:
+            user = db.query(User).filter(User.id == user_id).first()
+            if user and user.interests:
+                user_interests = user.interests
+                logger.info(f"[AnalysisService] 관심사 매핑 포함: user_id={user_id}")
 
-        return context
-
-    async def _map_interests(
-        self,
-        memo: TempMemo,
-        db: Session,
-        user_id: Optional[str],
-    ) -> Optional[list[str]]:
-        """사용자 관심사 매핑"""
-        if not user_id:
-            return None
-
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user or not user.interests:
-            return None
-
-        logger.info(f"[AnalysisService] 관심사 매핑 시작: user_id={user_id}")
-        await notify_analysis_progress(memo.id, "interests", "관심사 매핑 중")
-
-        interests = await context_extractor.match_interests(
-            content=memo.content,
-            user_interests=user.interests,
+        # 통합 LLM 호출 (context + 관심사)
+        context, interests = await llm_service.extract_context_and_interests(
+            text_to_analyze, memo.memo_type, user_interests
         )
 
-        logger.info(f"[AnalysisService] 매핑된 관심사: {interests}")
+        await notify_analysis_progress(memo.id, "llm_done", "AI 분석 완료")
+
         if interests:
             await notify_analysis_progress(
                 memo.id, "interests_done", "관심사 매핑 완료",
                 ", ".join(interests)
             )
 
-        return interests if interests else None
+        return context, interests
 
     async def _do_analysis(
         self,
@@ -348,19 +342,18 @@ class AnalysisService:
         # 1. 외부 콘텐츠 추출
         fetched_content, og_title, og_image = await self._fetch_external_content(memo)
 
-        # 2. LLM 분석 (context 추출)
-        context = await self._extract_context(memo, fetched_content)
+        # 2. LLM 분석 (context + 관심사 통합 추출 - LLM 호출 최적화)
+        context, interests = await self._extract_context_and_interests(
+            memo, fetched_content, db, user_id
+        )
         memo.context = context
+        memo.interests = interests if interests else None
         if og_title:
             memo.og_title = og_title
         if og_image:
             memo.og_image = og_image
 
-        # 3. 관심사 매핑
-        interests = await self._map_interests(memo, db, user_id)
-        memo.interests = interests
-
-        # 4. 스크래핑된 콘텐츠 저장
+        # 3. 스크래핑된 콘텐츠 저장
         if fetched_content:
             memo.fetched_content = fetched_content
             logger.info(
@@ -371,7 +364,7 @@ class AnalysisService:
         else:
             logger.warning(f"[AnalysisService] fetched_content 없음, source_url={memo.source_url}")
 
-        # 5. 번역 및 하이라이트 추출 (EXTERNAL_SOURCE + URL + 스크래핑 성공 시에만)
+        # 4. 번역 및 하이라이트 추출 (EXTERNAL_SOURCE + URL + 스크래핑 성공 시에만)
         should_process_content = (
             memo.memo_type == "EXTERNAL_SOURCE" and
             memo.source_url and

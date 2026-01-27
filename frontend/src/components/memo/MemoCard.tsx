@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
-import { ExternalLink, FileText, Loader2, ChevronDown, ChevronUp, Check } from 'lucide-react';
-import type { TempMemo, TempMemoListItem } from '../../types/memo';
+import { useState, useMemo } from 'react';
+import { ExternalLink, FileText, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import type { TempMemoListItem } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
 import { getRelativeTime } from '../../utils/date';
 import { CommentList } from './CommentList';
@@ -17,9 +17,6 @@ interface MemoCardProps {
   onCommentChange?: () => void;
   onReanalyze?: (id: string) => void;
   analysisLogs?: AnalysisProgressEvent[];
-  // Lazy loading 관련
-  cachedDetail?: TempMemo;
-  onFetchDetail?: (id: string) => Promise<TempMemo | undefined>;
   // 선택 모드 관련
   selectionMode?: boolean;
   isSelected?: boolean;
@@ -33,8 +30,6 @@ export function MemoCard({
   onCommentChange,
   onReanalyze,
   analysisLogs,
-  cachedDetail,
-  onFetchDetail,
   selectionMode = false,
   isSelected = false,
   onToggleSelect,
@@ -44,41 +39,30 @@ export function MemoCard({
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [translationExpanded, setTranslationExpanded] = useState(false);
 
-  // Lazy loading 상태
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [loadedDetail, setLoadedDetail] = useState<TempMemo | undefined>(cachedDetail);
-
-  // cachedDetail이 변경되면 loadedDetail도 업데이트
-  useEffect(() => {
-    if (cachedDetail) {
-      setLoadedDetail(cachedDetail);
-    }
-  }, [cachedDetail]);
-
-  // 본문 보기에 표시할 콘텐츠 (loadedDetail에서 가져옴)
+  // 본문 보기에 표시할 콘텐츠 (목록에서 바로 사용 - 추가 API 호출 제거)
   const displayContent = useMemo(() => {
     if (memo.analysis_status !== 'completed') return null;
 
     // display_content가 있으면 사용 (외부 자료 등 번역/하이라이트된 콘텐츠)
-    if (loadedDetail?.display_content) {
+    if (memo.display_content) {
       return {
-        text: loadedDetail.display_content,
-        highlights: loadedDetail.highlights,
+        text: memo.display_content,
+        highlights: memo.highlights,
         isTranslated: memo.original_language !== null && memo.original_language !== 'ko',
       };
     }
 
     // display_content가 없으면 사용자가 입력한 원본 content 사용 (궁금한 점 등)
-    if (loadedDetail?.content || memo.content) {
+    if (memo.content) {
       return {
-        text: loadedDetail?.content || memo.content,
+        text: memo.content,
         highlights: null,
         isTranslated: false,
       };
     }
 
     return null;
-  }, [memo.analysis_status, memo.original_language, memo.content, loadedDetail]);
+  }, [memo.analysis_status, memo.original_language, memo.content, memo.display_content, memo.highlights]);
 
   // 본문 보기 버튼 표시 여부 (외부 자료만)
   const hasDisplayContent = memo.memo_type === 'EXTERNAL_SOURCE' && memo.has_display_content;
@@ -95,26 +79,9 @@ export function MemoCard({
   const bodyLines = body.split('\n');
   const isLongContent = body.length > 150 || bodyLines.length > 3;
 
-  // 본문 보기 클릭 핸들러 (lazy loading)
-  const handleToggleContent = async () => {
-    if (translationExpanded) {
-      setTranslationExpanded(false);
-      return;
-    }
-
-    // 열기 - 상세 정보가 없으면 가져오기
-    if (!loadedDetail && onFetchDetail) {
-      setDetailLoading(true);
-      try {
-        const detail = await onFetchDetail(memo.id);
-        if (detail) {
-          setLoadedDetail(detail);
-        }
-      } finally {
-        setDetailLoading(false);
-      }
-    }
-    setTranslationExpanded(true);
+  // 본문 보기 클릭 핸들러 (목록에서 바로 사용 - 추가 API 호출 제거)
+  const handleToggleContent = () => {
+    setTranslationExpanded(!translationExpanded);
   };
 
   const isExternalSource = memo.memo_type === 'EXTERNAL_SOURCE';
@@ -200,22 +167,17 @@ export function MemoCard({
         onReanalyze={onReanalyze}
       />
 
-      {/* 본문 보기 (추출된 콘텐츠 확인 + 하이라이트) - lazy loading */}
+      {/* 본문 보기 (추출된 콘텐츠 확인 + 하이라이트) */}
       {memo.analysis_status === 'completed' && hasDisplayContent && (
         <div className="border-t border-gray-100 pt-2">
           <button
             type="button"
             onClick={handleToggleContent}
-            disabled={detailLoading}
-            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-600 disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-600"
           >
-            {detailLoading ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <FileText size={14} />
-            )}
-            <span>{detailLoading ? '불러오는 중...' : '본문 보기'}</span>
-            {!detailLoading && (translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
+            <FileText size={14} />
+            <span>본문 보기</span>
+            {translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
           {translationExpanded && displayContent && (
             <div className="mt-2 p-3 bg-gray-50 rounded-lg">
@@ -224,7 +186,7 @@ export function MemoCard({
                   번역된 내용입니다
                 </p>
               )}
-              {!displayContent.isTranslated && loadedDetail?.display_content && (
+              {!displayContent.isTranslated && memo.display_content && (
                 <p className="text-[10px] text-gray-500 mb-2">
                   추출된 내용입니다
                 </p>

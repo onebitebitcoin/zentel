@@ -157,6 +157,102 @@ async def extract_context(text: str, memo_type: str) -> Optional[str]:
         raise LLMError(error_msg) from e
 
 
+async def extract_context_and_interests(
+    text: str,
+    memo_type: str,
+    user_interests: Optional[list[str]] = None,
+) -> tuple[Optional[str], list[str]]:
+    """
+    텍스트에서 context와 관심사를 한 번에 추출 (LLM 호출 최적화)
+
+    Args:
+        text: 분석할 텍스트
+        memo_type: 메모 타입
+        user_interests: 사용자 관심사 목록 (없으면 관심사 매핑 스킵)
+
+    Returns:
+        (context, matched_interests) 튜플
+    """
+    client = get_openai_client()
+    if not client:
+        logger.warning("OpenAI API key not configured")
+        return None, []
+
+    # 텍스트 길이 제한
+    max_chars = 6000
+    if len(text) > max_chars:
+        text = text[:max_chars] + "..."
+        logger.info(f"[LLM] 텍스트 truncate: {max_chars}자")
+
+    # 관심사가 없으면 context만 추출
+    if not user_interests:
+        context = await extract_context(text, memo_type)
+        return context, []
+
+    try:
+        interests_str = ", ".join(user_interests)
+
+        response = client.responses.create(
+            model=settings.OPENAI_MODEL,
+            instructions=(
+                "주어진 메모 내용을 분석하여 다음 두 가지를 JSON 형식으로 응답하세요:\n\n"
+                "1. context: 10단어 이내의 핵심 맥락 요약 (한국어)\n"
+                "2. interests: 관련된 관심사 배열 (제공된 목록에서만 선택)\n\n"
+                "응답 형식:\n"
+                '{"context": "핵심 맥락", "interests": ["관심사1", "관심사2"]}\n\n'
+                "규칙:\n"
+                "- context는 반드시 10단어 이내\n"
+                "- interests는 제공된 관심사 목록에서만 선택\n"
+                "- 관련된 관심사가 없으면 빈 배열 []\n"
+                "- JSON 외 다른 텍스트 없이 응답"
+            ),
+            input=(
+                f"관심사 목록: {interests_str}\n\n"
+                f"메모 내용:\n{text}"
+            ),
+            max_output_tokens=1000,
+        )
+
+        raw = response.output_text or ""
+        raw = raw.strip()
+
+        # 마크다운 코드 블록 제거
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(?:json)?\n?", "", raw)
+            raw = re.sub(r"\n?```$", "", raw)
+
+        result = json.loads(raw)
+
+        context = result.get("context", "").strip() or None
+        raw_interests = result.get("interests", [])
+
+        # LLM 환각 방지: 실제 관심사 목록에 있는 것만 필터링
+        user_interests_lower = {i.lower(): i for i in user_interests}
+        matched = []
+        for interest in raw_interests:
+            if isinstance(interest, str):
+                interest_lower = interest.strip().lower()
+                if interest_lower in user_interests_lower:
+                    matched.append(user_interests_lower[interest_lower])
+
+        logger.info(
+            f"[LLM] context+관심사 통합 추출: context={len(context) if context else 0}자, "
+            f"interests={matched}"
+        )
+        return context, matched
+
+    except json.JSONDecodeError as e:
+        # JSON 파싱 실패 시 기존 방식으로 폴백
+        logger.warning(f"[LLM] 통합 추출 JSON 파싱 실패, 개별 추출로 폴백: {e}")
+        context = await extract_context(text, memo_type)
+        interests = await match_interests(text, user_interests)
+        return context, interests
+    except Exception as e:
+        error_msg = f"[LLM] context+관심사 통합 추출 실패: {e}"
+        logger.error(error_msg, exc_info=True)
+        raise LLMError(error_msg) from e
+
+
 async def match_interests(content: str, user_interests: list[str]) -> list[str]:
     """
     메모 내용과 사용자 관심사 매핑
