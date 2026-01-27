@@ -11,6 +11,8 @@ import {
   ChevronUp,
   Lightbulb,
   Target,
+  Pencil,
+  X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { permanentNoteApi } from '../api/client';
@@ -33,6 +35,7 @@ export function NoteEdit() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   // 분석 결과 (DevelopmentPreview에서 전달받음)
   const state = location.state as LocationState | null;
@@ -90,6 +93,7 @@ export function NoteEdit() {
       const updated = await permanentNoteApi.update(id, { title, content });
       setNote(updated);
       setHasChanges(false);
+      setIsEditing(false);
       toast.success('저장되었습니다.');
     } catch {
       toast.error('저장에 실패했습니다.');
@@ -142,7 +146,7 @@ export function NoteEdit() {
   };
 
   const handleBack = () => {
-    if (hasChanges) {
+    if (hasChanges || isEditing) {
       if (!window.confirm('저장하지 않은 변경사항이 있습니다. 나가시겠습니까?')) {
         return;
       }
@@ -201,18 +205,44 @@ export function NoteEdit() {
           >
             <Trash2 size={16} className="md:w-[18px] md:h-[18px]" />
           </button>
-          <button
-            onClick={handleSave}
-            disabled={!hasChanges || saving}
-            className="flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? (
-              <Loader2 size={12} className="md:w-[14px] md:h-[14px] animate-spin" />
-            ) : (
-              <Save size={12} className="md:w-[14px] md:h-[14px]" />
-            )}
-            <span className="hidden sm:inline">저장</span>
-          </button>
+          {/* 발행된 메모: 편집/취소 버튼 */}
+          {isPublished && !isEditing && (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:border-gray-300"
+            >
+              <Pencil size={12} className="md:w-[14px] md:h-[14px]" />
+              <span className="hidden sm:inline">편집</span>
+            </button>
+          )}
+          {isPublished && isEditing && (
+            <button
+              onClick={() => {
+                setTitle(note.title);
+                setContent(note.content);
+                setIsEditing(false);
+              }}
+              className="flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:border-gray-300"
+            >
+              <X size={12} className="md:w-[14px] md:h-[14px]" />
+              <span className="hidden sm:inline">취소</span>
+            </button>
+          )}
+          {/* 편집중이거나 미발행 상태: 저장 버튼 */}
+          {(!isPublished || isEditing) && (
+            <button
+              onClick={handleSave}
+              disabled={!hasChanges || saving}
+              className="flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? (
+                <Loader2 size={12} className="md:w-[14px] md:h-[14px] animate-spin" />
+              ) : (
+                <Save size={12} className="md:w-[14px] md:h-[14px]" />
+              )}
+              <span className="hidden sm:inline">저장</span>
+            </button>
+          )}
           {!isPublished && (
             <button
               onClick={handlePublish}
@@ -313,14 +343,20 @@ export function NoteEdit() {
             )}
 
             {/* 제목 */}
-            <textarea
-              ref={titleRef}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="제목을 입력하세요"
-              rows={1}
-              className="w-full text-lg md:text-2xl font-bold text-gray-800 placeholder-gray-300 border-0 focus:outline-none focus:ring-0 resize-none overflow-hidden"
-            />
+            {isPublished && !isEditing ? (
+              <h1 className="text-lg md:text-2xl font-bold text-gray-800">
+                {note.title}
+              </h1>
+            ) : (
+              <textarea
+                ref={titleRef}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="제목을 입력하세요"
+                rows={1}
+                className="w-full text-lg md:text-2xl font-bold text-gray-800 placeholder-gray-300 border-0 focus:outline-none focus:ring-0 resize-none overflow-hidden"
+              />
+            )}
 
             {/* 관심사 태그 */}
             {note.interests && note.interests.length > 0 && (
@@ -337,12 +373,18 @@ export function NoteEdit() {
             )}
 
             {/* 본문 */}
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="내용을 입력하세요..."
-              className="w-full min-h-[300px] md:min-h-[400px] text-sm md:text-base text-gray-700 placeholder-gray-300 border-0 focus:outline-none focus:ring-0 resize-none leading-relaxed"
-            />
+            {isPublished && !isEditing ? (
+              <div className="text-sm md:text-base text-gray-700 leading-relaxed whitespace-pre-wrap">
+                {note.content}
+              </div>
+            ) : (
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="내용을 입력하세요..."
+                className="w-full min-h-[300px] md:min-h-[400px] text-sm md:text-base text-gray-700 placeholder-gray-300 border-0 focus:outline-none focus:ring-0 resize-none leading-relaxed"
+              />
+            )}
           </div>
         </div>
       </div>
