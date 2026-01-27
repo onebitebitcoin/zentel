@@ -17,7 +17,7 @@ export function Inbox() {
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [offset, setOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
-  const limit = 10;
+  const limit = 20;
 
   // SSE 훅 먼저 초기화
   const { analysisLogs, clearLogs } = useAnalysisSSE(
