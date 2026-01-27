@@ -74,7 +74,7 @@ export function DevelopmentPreview() {
       });
 
       toast.success('영구 메모가 생성되었습니다.');
-      navigate(`/notes/${note.id}`);
+      navigate(`/notes/${note.id}`, { state: { analysisResult: result } });
     } catch {
       toast.error('영구 메모 생성에 실패했습니다.');
     } finally {
@@ -134,7 +134,7 @@ export function DevelopmentPreview() {
       });
 
       toast.success('영구 메모가 생성되었습니다.');
-      navigate(`/notes/${note.id}`);
+      navigate(`/notes/${note.id}`, { state: { analysisResult: result } });
     } catch {
       toast.error('영구 메모 생성에 실패했습니다.');
     } finally {
