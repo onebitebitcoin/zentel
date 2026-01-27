@@ -561,6 +561,138 @@ async def _detect_language(client: OpenAI, text: str) -> Optional[str]:
         raise LLMError(error_msg) from e
 
 
+async def develop_permanent_note(
+    memos: list[dict],
+) -> dict:
+    """
+    여러 임시 메모를 분석하여 영구 메모 골격 생성
+
+    젠텔카스텐 방식에 따라 메모들을 분석하고
+    발전시킬 수 있는 구조를 제안합니다.
+
+    Args:
+        memos: 메모 목록 [{id, content, context, ...}, ...]
+
+    Returns:
+        분석 결과 딕셔너리:
+        {
+            "memo_analyses": [...],
+            "synthesis": {...},
+            "suggested_structure": {...}
+        }
+    """
+    client = get_openai_client()
+    if not client:
+        raise LLMError("OpenAI API key not configured")
+
+    if not memos:
+        raise LLMError("분석할 메모가 없습니다")
+
+    # 메모 내용 준비
+    memo_contents = []
+    for i, memo in enumerate(memos, 1):
+        content = memo.get("content", "")
+        context = memo.get("context", "")
+        memo_text = f"[메모 {i}]"
+        if context:
+            memo_text += f"\n맥락: {context}"
+        memo_text += f"\n내용:\n{content}"
+        memo_contents.append(memo_text)
+
+    combined_text = "\n\n---\n\n".join(memo_contents)
+
+    # 텍스트 길이 제한 (너무 길면 truncate)
+    max_chars = 12000
+    if len(combined_text) > max_chars:
+        combined_text = combined_text[:max_chars] + "...(이하 생략)"
+        logger.info(f"[LLM] 메모 텍스트 truncate: {max_chars}자")
+
+    try:
+        response = client.responses.create(
+            model=settings.OPENAI_MODEL,
+            instructions=(
+                "당신은 젠텔카스텐(Zettelkasten) 방법론 전문가입니다.\n"
+                "주어진 임시 메모들을 분석하여 영구 메모(Permanent Note)로 "
+                "발전시킬 수 있는 구조를 제안하세요.\n\n"
+                "반드시 아래 JSON 형식으로만 응답하세요:\n"
+                "```json\n"
+                "{\n"
+                '  "memo_analyses": [\n'
+                "    {\n"
+                '      "memo_index": 1,\n'
+                '      "core_content": "이 메모의 핵심 내용 (1-2문장)",\n'
+                '      "key_evidence": ["근거1", "근거2"]\n'
+                "    }\n"
+                "  ],\n"
+                '  "synthesis": {\n'
+                '    "main_argument": "여러 메모를 종합하여 발전시킬 핵심 주장",\n'
+                '    "supporting_points": ["뒷받침 포인트1", "포인트2"],\n'
+                '    "counter_considerations": ["반론이나 한계점"]\n'
+                "  },\n"
+                '  "suggested_structure": {\n'
+                '    "title": "제안하는 영구 메모 제목",\n'
+                '    "thesis": "핵심 주장 (한 문장)",\n'
+                '    "body_outline": ["1. 서론: ...", "2. 본론: ...", "3. 결론: ..."],\n'
+                '    "questions_for_development": ["추가로 탐구할 질문1", "질문2"]\n'
+                "  }\n"
+                "}\n"
+                "```\n\n"
+                "규칙:\n"
+                "- memo_analyses는 입력된 각 메모에 대한 분석\n"
+                "- synthesis는 메모들을 종합한 통찰\n"
+                "- suggested_structure는 영구 메모 작성을 위한 제안\n"
+                "- 모든 내용은 한국어로 작성\n"
+                "- JSON 외의 다른 텍스트 없이 순수 JSON만 응답"
+            ),
+            input=f"다음 메모들을 분석하여 영구 메모 골격을 제안해주세요:\n\n{combined_text}",
+            max_output_tokens=4000,
+        )
+
+        raw = response.output_text or ""
+        raw = raw.strip()
+
+        # 마크다운 코드 블록 제거
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(?:json)?\n?", "", raw)
+            raw = re.sub(r"\n?```$", "", raw)
+
+        result = json.loads(raw)
+
+        # 결과 검증
+        if "memo_analyses" not in result:
+            result["memo_analyses"] = []
+        if "synthesis" not in result:
+            result["synthesis"] = {
+                "main_argument": "",
+                "supporting_points": [],
+                "counter_considerations": [],
+            }
+        if "suggested_structure" not in result:
+            result["suggested_structure"] = {
+                "title": "",
+                "thesis": "",
+                "body_outline": [],
+                "questions_for_development": [],
+            }
+
+        logger.info(
+            f"[LLM] 영구 메모 발전 분석 완료: "
+            f"memo_analyses={len(result['memo_analyses'])}, "
+            f"supporting_points={len(result['synthesis'].get('supporting_points', []))}"
+        )
+
+        return result
+
+    except json.JSONDecodeError as e:
+        error_msg = f"[LLM] 영구 메모 분석 JSON 파싱 실패: {e}"
+        logger.error(error_msg, exc_info=True)
+        raise LLMError(error_msg) from e
+    except Exception as e:
+        error_msg = f"[LLM] 영구 메모 분석 실패: {e}"
+        logger.error(error_msg, exc_info=True)
+        raise LLMError(error_msg) from e
+
+
 async def _extract_highlights(
     client: OpenAI,
     text: str,

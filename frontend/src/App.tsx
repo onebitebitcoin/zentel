@@ -11,6 +11,7 @@ import { Inbox } from './pages/Inbox';
 import { MemoEdit } from './pages/MemoEdit';
 import { Notes } from './pages/Notes';
 import { NoteEdit } from './pages/NoteEdit';
+import { DevelopmentPreview } from './pages/DevelopmentPreview';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
@@ -105,6 +106,16 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <NoteEdit />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notes/develop"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <DevelopmentPreview />
                 </AppLayout>
               </ProtectedRoute>
             }

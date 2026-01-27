@@ -5,7 +5,6 @@ import toast from 'react-hot-toast';
 import { MemoCard } from '../components/memo/MemoCard';
 import rottenIcon from '../assets/images/rotten.png';
 import { useTempMemos } from '../hooks/useTempMemos';
-import { usePermanentNotes } from '../hooks/usePermanentNotes';
 import { useAnalysisSSE } from '../hooks/useAnalysisSSE';
 import type { MemoType, MemoTypeInfo } from '../types/memo';
 import { MEMO_TYPES } from '../types/memo';
@@ -15,7 +14,6 @@ type FilterType = 'ALL' | MemoType;
 export function Inbox() {
   const navigate = useNavigate();
   const { memos, total, loading, error, fetchMemos, deleteMemo, refreshMemo, getMemoDetail, fetchMemoDetail, clearDetailCache, clearMemos } = useTempMemos();
-  const { createNote } = usePermanentNotes();
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [offset, setOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -24,7 +22,6 @@ export function Inbox() {
   // 선택 모드 상태
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [creating, setCreating] = useState(false);
 
   // SSE 훅 먼저 초기화
   const { analysisLogs, clearLogs } = useAnalysisSSE(
@@ -140,28 +137,18 @@ export function Inbox() {
     }
   };
 
-  // 발전시키기 (영구 메모 생성)
-  const handleCreatePermanentNote = async () => {
+  // 발전시키기 (분석 페이지로 이동)
+  const handleDevelopNote = () => {
     if (selectedIds.size === 0) {
       toast.error('메모를 선택해주세요.');
       return;
     }
 
-    setCreating(true);
-    try {
-      const note = await createNote({
-        source_memo_ids: Array.from(selectedIds),
-      });
-      toast.success('영구 메모가 생성되었습니다.');
-      // 선택 모드 종료 및 편집 페이지로 이동
-      setSelectionMode(false);
-      setSelectedIds(new Set());
-      navigate(`/notes/${note.id}`);
-    } catch {
-      toast.error('영구 메모 생성에 실패했습니다.');
-    } finally {
-      setCreating(false);
-    }
+    // 선택 모드 종료 및 분석 페이지로 이동
+    const sourceMemoIds = Array.from(selectedIds);
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+    navigate('/notes/develop', { state: { sourceMemoIds } });
   };
 
   const filters: { value: FilterType; label: string; info?: MemoTypeInfo }[] = [
@@ -196,12 +183,12 @@ export function Inbox() {
             </button>
           </div>
           <button
-            onClick={handleCreatePermanentNote}
-            disabled={selectedIds.size === 0 || creating}
+            onClick={handleDevelopNote}
+            disabled={selectedIds.size === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-primary rounded-lg text-sm font-medium disabled:opacity-50"
           >
             <ArrowUpRight size={16} />
-            {creating ? '생성 중...' : '발전시키기'}
+            발전시키기
           </button>
         </div>
       )}

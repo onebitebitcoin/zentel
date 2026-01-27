@@ -14,6 +14,8 @@ import type {
 import type {
   PermanentNote,
   PermanentNoteCreate,
+  PermanentNoteDevelopRequest,
+  PermanentNoteDevelopResponse,
   PermanentNoteListResponse,
   PermanentNoteUpdate,
   NoteStatus,
@@ -159,5 +161,16 @@ export const permanentNoteApi = {
    */
   delete: async (id: string): Promise<void> => {
     await api.delete(`/permanent-notes/${id}`);
+  },
+
+  /**
+   * 영구 메모 발전 분석 (LLM)
+   */
+  develop: async (data: PermanentNoteDevelopRequest): Promise<PermanentNoteDevelopResponse> => {
+    const response = await api.post<PermanentNoteDevelopResponse>(
+      '/permanent-notes/develop',
+      data
+    );
+    return response.data;
   },
 };

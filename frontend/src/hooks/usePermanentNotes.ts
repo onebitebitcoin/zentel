@@ -5,6 +5,7 @@ import type {
   PermanentNoteListItem,
   PermanentNoteCreate,
   PermanentNoteUpdate,
+  PermanentNoteDevelopResponse,
   NoteStatus,
 } from '../types/note';
 
@@ -13,6 +14,7 @@ export function usePermanentNotes() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [developing, setDeveloping] = useState(false);
 
   // 상세 정보 캐시
   const detailCacheRef = useRef<Map<string, PermanentNote>>(new Map());
@@ -132,11 +134,34 @@ export function usePermanentNotes() {
     setTotal(0);
   }, []);
 
+  // 메모 발전 분석 (LLM)
+  const developNote = useCallback(
+    async (sourceMemoIds: string[]): Promise<PermanentNoteDevelopResponse> => {
+      setDeveloping(true);
+      setError(null);
+      try {
+        const result = await permanentNoteApi.develop({
+          source_memo_ids: sourceMemoIds,
+        });
+        return result;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '메모 분석에 실패했습니다.';
+        setError(message);
+        throw err;
+      } finally {
+        setDeveloping(false);
+      }
+    },
+    []
+  );
+
   return {
     notes,
     total,
     loading,
     error,
+    developing,
     fetchNotes,
     createNote,
     updateNote,
@@ -145,5 +170,6 @@ export function usePermanentNotes() {
     fetchNoteDetail,
     clearDetailCache,
     clearNotes,
+    developNote,
   };
 }

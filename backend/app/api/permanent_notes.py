@@ -15,13 +15,20 @@ from app.database import get_db
 from app.models.permanent_note import PermanentNote
 from app.models.user import User
 from app.schemas.permanent_note import (
+    MemoAnalysis,
     NoteStatus,
     PermanentNoteCreate,
+    PermanentNoteDevelopRequest,
+    PermanentNoteDevelopResponse,
     PermanentNoteListItem,
     PermanentNoteListResponse,
     PermanentNoteOut,
     PermanentNoteUpdate,
+    SourceMemoInfo,
+    SuggestedStructure,
+    Synthesis,
 )
+from app.services.llm_service import LLMError, develop_permanent_note
 from app.services.memo_repository import memo_repository, permanent_note_repository
 
 logger = logging.getLogger(__name__)
@@ -63,6 +70,94 @@ def note_to_out(note: PermanentNote) -> PermanentNoteOut:
         created_at=note.created_at,
         updated_at=note.updated_at,
         published_at=note.published_at,
+    )
+
+
+@router.post("/develop", response_model=PermanentNoteDevelopResponse)
+async def develop_note(
+    data: PermanentNoteDevelopRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    선택된 임시 메모들을 LLM으로 분석하여 영구 메모 골격 생성
+
+    젠텔카스텐 방식에 따라 메모들을 분석하고
+    발전시킬 수 있는 구조를 제안합니다.
+    """
+    logger.info(
+        f"Developing permanent note: user_id={current_user.id}, "
+        f"source_memo_count={len(data.source_memo_ids)}"
+    )
+
+    # 출처 임시 메모들 조회
+    source_memos = []
+    memo_dicts = []
+    for memo_id in data.source_memo_ids:
+        memo = memo_repository.get_user_memo(db, memo_id, current_user.id)
+        if not memo:
+            raise HTTPException(
+                status_code=404,
+                detail=f"임시 메모를 찾을 수 없습니다: {memo_id}"
+            )
+        source_memos.append(
+            SourceMemoInfo(
+                id=memo.id,
+                content=memo.content,
+                context=memo.context,
+            )
+        )
+        memo_dicts.append({
+            "id": memo.id,
+            "content": memo.content,
+            "context": memo.context,
+        })
+
+    # LLM 분석 호출
+    try:
+        analysis_result = await develop_permanent_note(memo_dicts)
+    except LLMError as e:
+        logger.error(f"LLM analysis failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "메모 분석 중 오류가 발생했습니다.",
+                "error": str(e),
+            }
+        )
+
+    # 응답 구성
+    memo_analyses = [
+        MemoAnalysis(
+            memo_index=ma.get("memo_index", i + 1),
+            core_content=ma.get("core_content", ""),
+            key_evidence=ma.get("key_evidence", []),
+        )
+        for i, ma in enumerate(analysis_result.get("memo_analyses", []))
+    ]
+
+    synthesis_data = analysis_result.get("synthesis", {})
+    synthesis = Synthesis(
+        main_argument=synthesis_data.get("main_argument", ""),
+        supporting_points=synthesis_data.get("supporting_points", []),
+        counter_considerations=synthesis_data.get("counter_considerations", []),
+    )
+
+    structure_data = analysis_result.get("suggested_structure", {})
+    suggested_structure = SuggestedStructure(
+        title=structure_data.get("title", ""),
+        thesis=structure_data.get("thesis", ""),
+        body_outline=structure_data.get("body_outline", []),
+        questions_for_development=structure_data.get("questions_for_development", []),
+    )
+
+    logger.info(f"Develop analysis completed for {len(data.source_memo_ids)} memos")
+
+    return PermanentNoteDevelopResponse(
+        memo_analyses=memo_analyses,
+        synthesis=synthesis,
+        suggested_structure=suggested_structure,
+        source_memos=source_memos,
     )
 
 

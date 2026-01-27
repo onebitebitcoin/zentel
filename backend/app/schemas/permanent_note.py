@@ -69,3 +69,58 @@ class PermanentNoteListResponse(BaseModel):
 
     items: List[PermanentNoteListItem]
     total: int
+
+
+# ===== 영구 메모 발전 (LLM 분석) 관련 스키마 =====
+
+
+class MemoAnalysis(BaseModel):
+    """개별 메모 분석 결과"""
+
+    memo_index: int = Field(..., description="메모 인덱스 (1부터 시작)")
+    core_content: str = Field(..., description="핵심 내용 (1-2문장)")
+    key_evidence: List[str] = Field(default_factory=list, description="핵심 근거 목록")
+
+
+class Synthesis(BaseModel):
+    """종합 분석 결과"""
+
+    main_argument: str = Field(..., description="발전시킬 핵심 주장")
+    supporting_points: List[str] = Field(default_factory=list, description="뒷받침 포인트")
+    counter_considerations: List[str] = Field(
+        default_factory=list, description="반론/한계점"
+    )
+
+
+class SuggestedStructure(BaseModel):
+    """제안 구조"""
+
+    title: str = Field(..., description="제안 제목")
+    thesis: str = Field(..., description="핵심 주장")
+    body_outline: List[str] = Field(default_factory=list, description="본문 골격")
+    questions_for_development: List[str] = Field(
+        default_factory=list, description="추가 탐구 질문"
+    )
+
+
+class SourceMemoInfo(BaseModel):
+    """출처 메모 정보"""
+
+    id: str
+    content: str
+    context: Optional[str] = None
+
+
+class PermanentNoteDevelopRequest(BaseModel):
+    """영구 메모 발전 요청 스키마"""
+
+    source_memo_ids: List[str] = Field(..., min_length=1)
+
+
+class PermanentNoteDevelopResponse(BaseModel):
+    """영구 메모 발전 응답 스키마"""
+
+    memo_analyses: List[MemoAnalysis]
+    synthesis: Synthesis
+    suggested_structure: SuggestedStructure
+    source_memos: List[SourceMemoInfo]
