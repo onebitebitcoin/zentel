@@ -8,6 +8,7 @@ import { MemoCardAnalysisStatus } from './MemoCardAnalysisStatus';
 import { MemoCardActions } from './MemoCardActions';
 import { HighlightedText } from './HighlightedText';
 import type { AnalysisProgressEvent } from '../../hooks/useAnalysisSSE';
+import fertilizerImage from '../../assets/images/fertilizer.png';
 
 interface MemoCardProps {
   memo: TempMemoListItem;
@@ -109,43 +110,61 @@ export function MemoCard({
     setTranslationExpanded(true);
   };
 
+  const isExternalSource = memo.memo_type === 'EXTERNAL_SOURCE';
+
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-4 md:p-6 space-y-3 md:space-y-4">
-      {/* 타입 태그 */}
-      <div className="flex items-center gap-2">
-        <span
-          className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium uppercase tracking-wide ${typeInfo.bgColor} ${typeInfo.color}`}
-        >
-          {typeInfo.label}
-        </span>
-      </div>
+      <div className={isExternalSource ? 'flex gap-3' : ''}>
+        {/* 외부 자료 이미지 */}
+        {isExternalSource && (
+          <div className="flex-shrink-0">
+            <img
+              src={fertilizerImage}
+              alt="Fertilizer"
+              className="w-12 h-12 md:w-16 md:h-16 object-contain"
+            />
+          </div>
+        )}
 
-      {/* 제목 */}
-      <h3 className="text-sm md:text-base font-semibold text-gray-800 line-clamp-2">
-        {title}
-      </h3>
-
-      {/* 본문 */}
-      {body && (
-        <div>
-          <p
-            className={`text-sm text-gray-600 whitespace-pre-wrap ${
-              !contentExpanded ? 'line-clamp-3 md:line-clamp-4' : ''
-            }`}
-          >
-            {body}
-          </p>
-          {isLongContent && (
-            <button
-              type="button"
-              onClick={() => setContentExpanded((prev) => !prev)}
-              className="mt-1 text-xs text-primary hover:text-primary-600"
+        {/* 콘텐츠 영역 */}
+        <div className={`flex-1 ${isExternalSource ? 'min-w-0' : ''} space-y-3`}>
+          {/* 타입 태그 */}
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium uppercase tracking-wide ${typeInfo.bgColor} ${typeInfo.color}`}
             >
-              {contentExpanded ? '접기' : '더보기'}
-            </button>
+              {typeInfo.label}
+            </span>
+          </div>
+
+          {/* 제목 */}
+          <h3 className="text-sm md:text-base font-semibold text-gray-800 line-clamp-2">
+            {title}
+          </h3>
+
+          {/* 본문 */}
+          {body && (
+            <div>
+              <p
+                className={`text-sm text-gray-600 whitespace-pre-wrap ${
+                  !contentExpanded ? 'line-clamp-3 md:line-clamp-4' : ''
+                }`}
+              >
+                {body}
+              </p>
+              {isLongContent && (
+                <button
+                  type="button"
+                  onClick={() => setContentExpanded((prev) => !prev)}
+                  className="mt-1 text-xs text-primary hover:text-primary-600"
+                >
+                  {contentExpanded ? '접기' : '더보기'}
+                </button>
+              )}
+            </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* AI 분석 상태 */}
       <MemoCardAnalysisStatus
