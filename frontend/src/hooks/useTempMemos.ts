@@ -147,6 +147,12 @@ export function useTempMemos() {
     detailCacheRef.current.clear();
   }, []);
 
+  // 메모 목록 초기화 (필터 변경 시 사용)
+  const clearMemos = useCallback(() => {
+    setMemos([]);
+    setTotal(0);
+  }, []);
+
   return {
     memos,
     total,
@@ -160,5 +166,6 @@ export function useTempMemos() {
     getMemoDetail,
     fetchMemoDetail,
     clearDetailCache,
+    clearMemos,
   };
 }
