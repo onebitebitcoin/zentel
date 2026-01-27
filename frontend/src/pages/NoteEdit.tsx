@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -40,6 +40,20 @@ export function NoteEdit() {
     state?.analysisResult
   );
   const [analysisExpanded, setAnalysisExpanded] = useState(!!state?.analysisResult);
+
+  // 제목 textarea 자동 높이 조절
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  const adjustTitleHeight = useCallback(() => {
+    const textarea = titleRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustTitleHeight();
+  }, [title, adjustTitleHeight]);
 
   useEffect(() => {
     if (!id) return;
@@ -299,12 +313,13 @@ export function NoteEdit() {
             )}
 
             {/* 제목 */}
-            <input
-              type="text"
+            <textarea
+              ref={titleRef}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="제목을 입력하세요"
-              className="w-full text-lg md:text-2xl font-bold text-gray-800 placeholder-gray-300 border-0 focus:outline-none focus:ring-0"
+              rows={1}
+              className="w-full text-lg md:text-2xl font-bold text-gray-800 placeholder-gray-300 border-0 focus:outline-none focus:ring-0 resize-none overflow-hidden"
             />
 
             {/* 관심사 태그 */}
