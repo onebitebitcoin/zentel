@@ -10,7 +10,6 @@ Unix Philosophy:
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import re
 from typing import Optional
@@ -20,6 +19,7 @@ import httpx
 import trafilatura
 
 from app.services.og_metadata import OGMetadata, extract_og_metadata
+from app.services.twitter_scraper import twitter_scraper
 
 logger = logging.getLogger(__name__)
 
@@ -214,74 +214,42 @@ async def _fetch_twitter_content(
     max_length: int,
 ) -> tuple[Optional[str], Optional[OGMetadata]]:
     """
-    Twitter/X URL에서 콘텐츠 가져오기 (Playwright 사용)
+    Twitter/X URL에서 콘텐츠 가져오기 (TwitterScraper 사용)
 
-    Twitter는 정적 HTTP로 접근 불가, Playwright로 렌더링 필요
-    - domcontentloaded + 3초 대기로 콘텐츠 로드
-    - article 태그에서 트윗 본문 추출
+    TwitterScraper는 다음 순서로 콘텐츠 추출:
+    1. Syndication API로 메타데이터 추출
+    2. Article URL이나 긴 트윗(note_tweet) 감지 시 Playwright로 전체 내용 추출
+    3. 실패 시 Playwright 폴백
     """
     try:
-        from playwright.async_api import async_playwright
+        logger.info(f"[Twitter] TwitterScraper로 콘텐츠 추출 시작: {url}")
 
-        logger.info(f"[Twitter] Playwright 렌더링 시작: {url}")
+        result = await twitter_scraper.scrape(url)
 
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                           "AppleWebKit/537.36 (KHTML, like Gecko) "
-                           "Chrome/120.0.0.0 Safari/537.36"
+        if not result.success:
+            logger.warning(f"[Twitter] 스크래핑 실패: {result.error}")
+            return None, OGMetadata(
+                fetch_failed=True,
+                fetch_message=f"트위터 콘텐츠를 가져오는데 실패했습니다: {result.error}",
             )
-            page = await context.new_page()
 
-            # Twitter는 domcontentloaded + 대기 필요 (networkidle은 타임아웃)
-            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
-            await asyncio.sleep(3)
+        content = result.content
+        if content and len(content) > max_length:
+            content = content[:max_length] + "..."
 
-            # 최종 URL (리다이렉트 후)
-            final_url = page.url
-            logger.info(f"[Twitter] 최종 URL: {final_url}")
+        # OG 메타데이터 생성
+        og_metadata = OGMetadata(
+            title=result.og_title,
+            image=result.og_image,
+            description=result.og_description,
+        )
 
-            # HTML 가져오기
-            html = await page.content()
-
-            # article 태그에서 트윗 텍스트 추출 시도
-            content = None
-            with contextlib.suppress(Exception):
-                content = await page.inner_text("article")
-
-            # article 없으면 body에서 추출
-            if not content:
-                with contextlib.suppress(Exception):
-                    content = await page.inner_text("body")
-
-            await browser.close()
-
-            # OG 메타데이터 추출
-            og_metadata = extract_og_metadata(html, final_url)
-
-            # 콘텐츠 정리 및 길이 제한
-            if content:
-                # 불필요한 UI 텍스트 제거
-                lines = content.split("\n")
-                cleaned_lines = [
-                    line.strip() for line in lines
-                    if line.strip() and not line.strip().startswith("Log in")
-                    and not line.strip().startswith("Sign up")
-                    and line.strip() != "Article"
-                    and line.strip() != "See new posts"
-                    and line.strip() != "Conversation"
-                ]
-                content = "\n".join(cleaned_lines)
-
-                if len(content) > max_length:
-                    content = content[:max_length] + "..."
-
-            logger.info(
-                f"[Twitter] 추출 완료: {url}, "
-                f"length={len(content) if content else 0}"
-            )
-            return content, og_metadata
+        logger.info(
+            f"[Twitter] 추출 완료: {url}, "
+            f"length={len(content) if content else 0}, "
+            f"article_url={result.article_url}"
+        )
+        return content, og_metadata
 
     except Exception as e:
         logger.error(f"[Twitter] 콘텐츠 가져오기 실패: {url}, error={e}")
