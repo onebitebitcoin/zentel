@@ -254,13 +254,34 @@ class AnalysisService:
             from app.services.url_fetcher import fetch_url_content
             logger.info(f"[AnalysisService] 일반 URL 감지, 콘텐츠 추출 시작: {source_url}")
             await notify_analysis_progress(memo.id, "scrape", "웹페이지 콘텐츠 추출 중", source_url)
-            url_content, og_metadata = await fetch_url_content(source_url)
+
+            # progress_callback 정의 (SSE로 진행 상황 전달)
+            async def url_progress_callback(step: str, message: str, detail: str | None = None):
+                await notify_analysis_progress(memo.id, step, message, detail)
+
+            url_content, og_metadata = await fetch_url_content(
+                source_url,
+                progress_callback=url_progress_callback
+            )
 
             if url_content:
                 fetched_content = url_content
                 if og_metadata:
                     og_title = og_metadata.title
                     og_image = og_metadata.image
+                    # Cloudflare 실패 메시지 확인
+                    if og_metadata.fetch_failed:
+                        logger.warning(
+                            f"[AnalysisService] URL 콘텐츠 추출 실패 (Cloudflare): "
+                            f"{og_metadata.fetch_message}"
+                        )
+                        await notify_analysis_progress(
+                            memo.id, "scrape_failed",
+                            "Cloudflare 보안으로 추출 실패",
+                            og_metadata.fetch_message
+                        )
+                        return None, None, None
+
                 logger.info(
                     f"[AnalysisService] URL 콘텐츠 추출 성공: "
                     f"content_length={len(fetched_content or '')}"
@@ -270,10 +291,20 @@ class AnalysisService:
                     f"{len(fetched_content or '')} 자"
                 )
             else:
-                logger.warning(f"[AnalysisService] URL 콘텐츠 추출 실패: {source_url}")
-                await notify_analysis_progress(
-                    memo.id, "scrape_failed", "웹페이지 추출 실패 (메모 내용으로 분석)"
-                )
+                # og_metadata에 실패 메시지가 있는지 확인
+                if og_metadata and og_metadata.fetch_failed:
+                    logger.warning(
+                        f"[AnalysisService] URL 콘텐츠 추출 실패: {og_metadata.fetch_message}"
+                    )
+                    await notify_analysis_progress(
+                        memo.id, "scrape_failed",
+                        og_metadata.fetch_message or "웹페이지 추출 실패",
+                    )
+                else:
+                    logger.warning(f"[AnalysisService] URL 콘텐츠 추출 실패: {source_url}")
+                    await notify_analysis_progress(
+                        memo.id, "scrape_failed", "웹페이지 추출 실패 (메모 내용으로 분석)"
+                    )
 
         return fetched_content, og_title, og_image
 
