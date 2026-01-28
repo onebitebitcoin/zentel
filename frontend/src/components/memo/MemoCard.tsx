@@ -96,7 +96,7 @@ export function MemoCard({
   return (
     <div
       onClick={handleCardClick}
-      className={`bg-white rounded-xl border p-4 md:p-6 space-y-3 md:space-y-4 transition-colors ${
+      className={`bg-white rounded-xl border p-4 md:p-6 space-y-3 md:space-y-4 transition-colors overflow-hidden ${
         selectionMode ? 'cursor-pointer' : ''
       } ${
         isSelected
@@ -134,7 +134,7 @@ export function MemoCard({
       </div>
 
       {/* 제목 */}
-      <h3 className="text-sm md:text-base font-semibold text-gray-800 line-clamp-2">
+      <h3 className="text-sm md:text-base font-semibold text-gray-800 line-clamp-2 break-all">
         {title}
       </h3>
 
@@ -142,7 +142,7 @@ export function MemoCard({
       {body && (
         <div>
           <p
-            className={`text-sm text-gray-600 whitespace-pre-wrap ${
+            className={`text-sm text-gray-600 whitespace-pre-wrap break-all ${
               !contentExpanded ? 'line-clamp-3 md:line-clamp-4' : ''
             }`}
           >
@@ -191,7 +191,7 @@ export function MemoCard({
                   추출된 내용입니다
                 </p>
               )}
-              <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
+              <p className="text-xs text-gray-700 whitespace-pre-wrap break-all leading-relaxed">
                 <HighlightedText text={displayContent.text} highlights={displayContent.highlights} />
               </p>
             </div>
@@ -246,7 +246,7 @@ export function MemoCard({
           onClick={() => setCommentsExpanded(true)}
           className="p-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
         >
-          <p className="text-xs text-gray-600 line-clamp-2">
+          <p className="text-xs text-gray-600 line-clamp-2 break-all">
             {memo.latest_comment.content}
           </p>
           <div className="flex items-center gap-2 mt-1">
