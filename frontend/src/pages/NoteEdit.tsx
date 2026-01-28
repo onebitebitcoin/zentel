@@ -14,10 +14,11 @@ import {
   Pencil,
   X,
   Plus,
+  ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { permanentNoteApi } from '../api/client';
-import type { PermanentNote, PermanentNoteDevelopResponse } from '../types/note';
+import type { PermanentNote, PermanentNoteDevelopResponse, SourceMemoDetail } from '../types/note';
 
 interface LocationState {
   analysisResult?: PermanentNoteDevelopResponse;
@@ -44,6 +45,12 @@ export function NoteEdit() {
     state?.analysisResult
   );
   const [analysisExpanded, setAnalysisExpanded] = useState(!!state?.analysisResult);
+
+  // 출처 메모 관련 상태
+  const [sourceMemos, setSourceMemos] = useState<SourceMemoDetail[]>([]);
+  const [sourceMemosExpanded, setSourceMemosExpanded] = useState(false);
+  const [sourceMemosLoading, setSourceMemosLoading] = useState(false);
+  const [sourceMemosLoaded, setSourceMemosLoaded] = useState(false);
 
   // 제목 textarea 자동 높이 조절
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -89,6 +96,27 @@ export function NoteEdit() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchSourceMemos = async () => {
+    if (!id || sourceMemosLoaded) return;
+    setSourceMemosLoading(true);
+    try {
+      const response = await permanentNoteApi.getSourceMemos(id);
+      setSourceMemos(response.items);
+      setSourceMemosLoaded(true);
+    } catch {
+      toast.error('출처 메모를 불러오는데 실패했습니다.');
+    } finally {
+      setSourceMemosLoading(false);
+    }
+  };
+
+  const handleSourceMemosToggle = () => {
+    if (!sourceMemosExpanded && !sourceMemosLoaded) {
+      fetchSourceMemos();
+    }
+    setSourceMemosExpanded(!sourceMemosExpanded);
   };
 
   useEffect(() => {
@@ -407,18 +435,106 @@ export function NoteEdit() {
             {/* 출처 메모 섹션 */}
             {note.source_memo_ids && note.source_memo_ids.length > 0 && (
               <div className="pt-4 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <FileText size={12} />
-                    <span>출처 메모 {note.source_memo_ids.length}개</span>
-                  </div>
+                <div className="border border-gray-200 rounded-xl overflow-hidden">
                   <button
-                    onClick={() => navigate(`/notes/${id}/add-memos`)}
-                    className="flex items-center gap-1 px-2 py-1 text-xs text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                    onClick={handleSourceMemosToggle}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100"
                   >
-                    <Plus size={12} />
-                    메모 추가
+                    <div className="flex items-center gap-2">
+                      <FileText size={16} className="text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">
+                        출처 메모 {note.source_memo_ids.length}개
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/notes/${id}/add-memos`);
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                      >
+                        <Plus size={12} />
+                        추가
+                      </button>
+                      {sourceMemosLoading ? (
+                        <Loader2 size={16} className="text-gray-400 animate-spin" />
+                      ) : sourceMemosExpanded ? (
+                        <ChevronUp size={16} className="text-gray-400" />
+                      ) : (
+                        <ChevronDown size={16} className="text-gray-400" />
+                      )}
+                    </div>
                   </button>
+                  {sourceMemosExpanded && (
+                    <div className="p-4 space-y-3 bg-white max-h-96 overflow-y-auto">
+                      {sourceMemosLoading ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 size={20} className="animate-spin text-gray-400" />
+                        </div>
+                      ) : sourceMemos.length === 0 ? (
+                        <p className="text-sm text-gray-500 text-center py-4">
+                          출처 메모가 없습니다.
+                        </p>
+                      ) : (
+                        sourceMemos.map((memo, index) => (
+                          <div
+                            key={memo.id}
+                            className="p-3 bg-gray-50 rounded-lg space-y-2"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                {memo.og_title && (
+                                  <p className="text-xs font-medium text-gray-700 truncate mb-1">
+                                    {memo.og_title}
+                                  </p>
+                                )}
+                                {memo.context && (
+                                  <p className="text-xs text-primary font-medium mb-1">
+                                    {memo.context}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-gray-400 flex-shrink-0">
+                                #{index + 1}
+                              </span>
+                            </div>
+                            {/* 요약 또는 본문 */}
+                            <div className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-4">
+                              {memo.summary || memo.content}
+                            </div>
+                            {/* 메타 정보 */}
+                            <div className="flex items-center gap-2 pt-1">
+                              {memo.source_url && (
+                                <a
+                                  href={memo.source_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-primary"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <ExternalLink size={10} />
+                                  원본
+                                </a>
+                              )}
+                              {memo.interests && memo.interests.length > 0 && (
+                                <div className="flex gap-1 flex-wrap">
+                                  {memo.interests.slice(0, 2).map((interest) => (
+                                    <span
+                                      key={interest}
+                                      className="px-1.5 py-0.5 text-[10px] bg-primary/10 text-primary rounded"
+                                    >
+                                      {interest}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

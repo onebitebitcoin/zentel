@@ -19,6 +19,7 @@ import type {
   PermanentNoteListResponse,
   PermanentNoteUpdate,
   NoteStatus,
+  SourceMemosResponse,
 } from '../types/note';
 import { api } from './axios';
 
@@ -170,6 +171,16 @@ export const permanentNoteApi = {
     const response = await api.post<PermanentNoteDevelopResponse>(
       '/permanent-notes/develop',
       data
+    );
+    return response.data;
+  },
+
+  /**
+   * 출처 임시 메모 목록 조회
+   */
+  getSourceMemos: async (noteId: string): Promise<SourceMemosResponse> => {
+    const response = await api.get<SourceMemosResponse>(
+      `/permanent-notes/${noteId}/source-memos`
     );
     return response.data;
   },

@@ -108,11 +108,34 @@ class SuggestedStructure(BaseModel):
 
 
 class SourceMemoInfo(BaseModel):
-    """출처 메모 정보"""
+    """출처 메모 정보 (간략)"""
 
     id: str
     content: str
     context: Optional[str] = None
+
+
+class SourceMemoDetail(BaseModel):
+    """출처 메모 상세 정보"""
+
+    id: str
+    memo_type: str
+    content: str
+    context: Optional[str] = None
+    summary: Optional[str] = None
+    source_url: Optional[str] = None
+    og_title: Optional[str] = None
+    interests: Optional[List[str]] = None
+    created_at: str
+
+    model_config = {"from_attributes": True}
+
+
+class SourceMemosResponse(BaseModel):
+    """출처 메모 목록 응답"""
+
+    items: List[SourceMemoDetail]
+    total: int
 
 
 class PermanentNoteDevelopRequest(BaseModel):

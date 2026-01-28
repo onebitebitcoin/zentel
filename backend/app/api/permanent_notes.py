@@ -24,7 +24,9 @@ from app.schemas.permanent_note import (
     PermanentNoteListResponse,
     PermanentNoteOut,
     PermanentNoteUpdate,
+    SourceMemoDetail,
     SourceMemoInfo,
+    SourceMemosResponse,
     SuggestedStructure,
     Synthesis,
 )
@@ -260,6 +262,43 @@ async def get_permanent_note(
     db_note = get_user_note(db, note_id, current_user.id)
 
     return note_to_out(db_note)
+
+
+@router.get("/{note_id}/source-memos", response_model=SourceMemosResponse)
+async def get_source_memos(
+    note_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """영구 메모의 출처 임시 메모 목록 조회"""
+    logger.info(f"Getting source memos: note_id={note_id}, user_id={current_user.id}")
+
+    db_note = get_user_note(db, note_id, current_user.id)
+
+    if not db_note.source_memo_ids:
+        return SourceMemosResponse(items=[], total=0)
+
+    # 출처 메모들 조회
+    source_memos = []
+    for memo_id in db_note.source_memo_ids:
+        memo = memo_repository.get_user_memo(db, memo_id, current_user.id)
+        if memo:
+            source_memos.append(
+                SourceMemoDetail(
+                    id=memo.id,
+                    memo_type=memo.memo_type,
+                    content=memo.content,
+                    context=memo.context,
+                    summary=memo.summary,
+                    source_url=memo.source_url,
+                    og_title=memo.og_title,
+                    interests=memo.interests,
+                    created_at=memo.created_at,
+                )
+            )
+
+    logger.info(f"Found {len(source_memos)} source memos for note {note_id}")
+    return SourceMemosResponse(items=source_memos, total=len(source_memos))
 
 
 @router.patch("/{note_id}", response_model=PermanentNoteOut)

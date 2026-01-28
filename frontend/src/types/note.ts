@@ -62,6 +62,23 @@ export interface SourceMemoInfo {
   context: string | null;
 }
 
+export interface SourceMemoDetail {
+  id: string;
+  memo_type: string;
+  content: string;
+  context: string | null;
+  summary: string | null;
+  source_url: string | null;
+  og_title: string | null;
+  interests: string[] | null;
+  created_at: string;
+}
+
+export interface SourceMemosResponse {
+  items: SourceMemoDetail[];
+  total: number;
+}
+
 export interface PermanentNoteDevelopRequest {
   source_memo_ids: string[];
 }
