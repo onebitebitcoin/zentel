@@ -500,7 +500,7 @@ export function NoteEdit() {
                         sourceMemos.map((memo, index) => (
                           <div
                             key={memo.id}
-                            className="p-3 bg-gray-50 rounded-lg space-y-2 overflow-hidden"
+                            className="p-3 bg-gray-50 rounded-lg space-y-2 overflow-hidden min-w-0"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
@@ -510,7 +510,10 @@ export function NoteEdit() {
                                   </p>
                                 )}
                                 {memo.context && (
-                                  <p className="text-xs text-primary font-medium mb-1 break-all">
+                                  <p
+                                    className="text-xs text-primary font-medium mb-1"
+                                    style={{ wordBreak: 'break-all', overflowWrap: 'anywhere' }}
+                                  >
                                     {memo.context}
                                   </p>
                                 )}
@@ -534,7 +537,15 @@ export function NoteEdit() {
                               </div>
                             </div>
                             {/* 요약 또는 본문 */}
-                            <div className="w-full text-sm text-gray-600 whitespace-pre-wrap break-all overflow-hidden line-clamp-4">
+                            <div
+                              className="text-sm text-gray-600 line-clamp-4"
+                              style={{
+                                wordBreak: 'break-all',
+                                overflowWrap: 'anywhere',
+                                whiteSpace: 'pre-wrap',
+                                overflow: 'hidden'
+                              }}
+                            >
                               {memo.summary || memo.content}
                             </div>
                             {/* 메타 정보 */}
