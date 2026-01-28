@@ -31,6 +31,10 @@ class PermanentNoteUpdate(BaseModel):
     content: Optional[str] = Field(default=None, max_length=50000)
     interests: Optional[List[str]] = None
     status: Optional[NoteStatus] = None
+    add_source_memo_ids: Optional[List[str]] = Field(
+        default=None,
+        description="추가할 출처 임시 메모 ID 목록"
+    )
 
 
 class PermanentNoteListItem(BaseModel):

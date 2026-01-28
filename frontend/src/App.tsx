@@ -11,6 +11,7 @@ import { Inbox } from './pages/Inbox';
 import { MemoEdit } from './pages/MemoEdit';
 import { Notes } from './pages/Notes';
 import { NoteEdit } from './pages/NoteEdit';
+import { AddSourceMemos } from './pages/AddSourceMemos';
 import { DevelopmentPreview } from './pages/DevelopmentPreview';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
@@ -106,6 +107,16 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <NoteEdit />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notes/:id/add-memos"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <AddSourceMemos />
                 </AppLayout>
               </ProtectedRoute>
             }

@@ -284,6 +284,50 @@ async def update_permanent_note(
             db_note.published_at = datetime.now(timezone.utc).isoformat()
         db_note.status = data.status.value
 
+    # 출처 임시 메모 추가 처리
+    if data.add_source_memo_ids:
+        # 추가할 메모들 검증
+        new_memos = []
+        for memo_id in data.add_source_memo_ids:
+            memo = memo_repository.get_user_memo(db, memo_id, current_user.id)
+            if not memo:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"임시 메모를 찾을 수 없습니다: {memo_id}"
+                )
+            new_memos.append(memo)
+
+        # 기존 source_memo_ids와 병합 (중복 제거)
+        existing_ids = set(db_note.source_memo_ids or [])
+        new_ids = [mid for mid in data.add_source_memo_ids if mid not in existing_ids]
+
+        if new_ids:
+            # source_memo_ids 업데이트
+            db_note.source_memo_ids = list(existing_ids) + new_ids
+
+            # 새로 추가된 메모들의 내용을 본문 하단에 추가 (구분선 포함)
+            new_contents = []
+            for memo_id in new_ids:
+                memo = next((m for m in new_memos if m.id == memo_id), None)
+                if memo:
+                    new_contents.append(memo.content)
+
+            if new_contents:
+                additional_content = "\n\n---\n\n".join(new_contents)
+                db_note.content = (db_note.content or "") + "\n\n---\n\n" + additional_content
+
+            # 새로 추가된 메모들의 관심사 병합
+            all_interests = set(db_note.interests or [])
+            for memo in new_memos:
+                if memo.interests:
+                    all_interests.update(memo.interests)
+            db_note.interests = list(all_interests) if all_interests else None
+
+            logger.info(
+                f"Added {len(new_ids)} source memos to permanent note: "
+                f"note_id={note_id}, new_memo_ids={new_ids}"
+            )
+
     db_note.updated_at = datetime.now(timezone.utc).isoformat()
     db_note = permanent_note_repository.update(db, db_note)
 

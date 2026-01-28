@@ -27,6 +27,7 @@ export interface PermanentNoteUpdate {
   content?: string;
   interests?: string[];
   status?: NoteStatus;
+  add_source_memo_ids?: string[];
 }
 
 export interface PermanentNoteListResponse {
