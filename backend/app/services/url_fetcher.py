@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import random
 import re
 from typing import Awaitable, Callable, Optional
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 
 import httpx
 import trafilatura
@@ -23,6 +24,10 @@ from app.services.og_metadata import OGMetadata, extract_og_metadata
 from app.services.twitter_scraper import twitter_scraper
 
 logger = logging.getLogger(__name__)
+
+# ScraperAPI 설정 (Railway 등 클라우드 환경에서 IP 차단 우회용)
+SCRAPER_API_KEY = os.getenv("SCRAPER_API_KEY")
+SCRAPER_API_URL = "http://api.scraperapi.com"
 
 # Progress 콜백 타입 정의
 ProgressCallback = Optional[Callable[[str, str, Optional[str]], Awaitable[None]]]
@@ -194,6 +199,60 @@ async def fetch_with_playwright(
     except Exception as e:
         logger.error(f"[Playwright] 렌더링 실패: {url}, error={e}")
         return None
+
+
+async def fetch_with_scraper_api(
+    url: str,
+    progress_callback: ProgressCallback = None,
+) -> tuple[Optional[str], bool]:
+    """
+    ScraperAPI를 통해 HTML 가져오기 (클라우드 환경 IP 차단 우회)
+
+    Args:
+        url: 대상 URL
+        progress_callback: 진행 상황 콜백
+
+    Returns:
+        (HTML 콘텐츠, 성공 여부) 튜플
+    """
+    if not SCRAPER_API_KEY:
+        logger.debug("[ScraperAPI] API 키가 설정되지 않음")
+        return None, False
+
+    async def notify(step: str, message: str, detail: Optional[str] = None):
+        if progress_callback:
+            await progress_callback(step, message, detail)
+
+    try:
+        await notify(
+            "scraper_api",
+            "ScraperAPI로 콘텐츠 추출 중...",
+            "프록시 서버를 통해 우회 접속합니다"
+        )
+
+        proxy_url = f"{SCRAPER_API_URL}?api_key={SCRAPER_API_KEY}&url={quote(url, safe='')}"
+
+        logger.info(f"[ScraperAPI] 요청 시작: {url}")
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.get(proxy_url)
+            response.raise_for_status()
+            html = response.text
+
+        logger.info(f"[ScraperAPI] 성공: {url}, length={len(html)}")
+        await notify(
+            "scraper_api_success",
+            "ScraperAPI 추출 성공",
+            f"콘텐츠 크기: {len(html):,} bytes"
+        )
+        return html, True
+
+    except httpx.TimeoutException:
+        logger.warning(f"[ScraperAPI] 타임아웃: {url}")
+        return None, False
+    except Exception as e:
+        logger.error(f"[ScraperAPI] 실패: {url}, error={e}")
+        return None, False
 
 
 async def fetch_with_cloudflare_bypass(
@@ -615,30 +674,65 @@ async def _fetch_html_content(
         if is_cloudflare_blocked(html, status_code):
             cloudflare_detected = True
             logger.warning(f"[Cloudflare] Bot Fight Mode 감지: {url}")
-            await notify(
-                "cloudflare_detected",
-                "Cloudflare Bot Fight Mode 감지",
-                "사람처럼 행동하는 브라우저로 우회 시도합니다..."
-            )
 
-            # Cloudflare 우회 시도
-            bypassed_html, success = await fetch_with_cloudflare_bypass(
-                url, progress_callback, max_retries=3
-            )
-
-            if success and bypassed_html:
-                html = bypassed_html
-                logger.info(f"[Cloudflare] 우회 성공: {url}")
-            else:
-                # 우회 실패
-                logger.error(f"[Cloudflare] 우회 최종 실패: {url}")
-                return None, OGMetadata(
-                    fetch_failed=True,
-                    fetch_message=(
-                        "Cloudflare 보안으로 인해 콘텐츠를 가져올 수 없습니다. "
-                        "기사 내용을 직접 복사해서 메모에 붙여넣어 주세요."
-                    ),
+            # ScraperAPI가 설정되어 있으면 먼저 시도 (더 안정적)
+            if SCRAPER_API_KEY:
+                await notify(
+                    "cloudflare_detected",
+                    "Cloudflare 감지, ScraperAPI로 우회 시도",
+                    "프록시 서버를 통해 접속합니다..."
                 )
+                scraper_html, scraper_success = await fetch_with_scraper_api(
+                    url, progress_callback
+                )
+                if scraper_success and scraper_html:
+                    html = scraper_html
+                    logger.info(f"[ScraperAPI] Cloudflare 우회 성공: {url}")
+                else:
+                    # ScraperAPI 실패 시 Playwright 우회 시도
+                    logger.warning(f"[ScraperAPI] 실패, Playwright 우회 시도: {url}")
+                    await notify(
+                        "cloudflare_detected",
+                        "ScraperAPI 실패, 브라우저로 우회 시도",
+                        "사람처럼 행동하는 브라우저로 접속 중..."
+                    )
+                    bypassed_html, success = await fetch_with_cloudflare_bypass(
+                        url, progress_callback, max_retries=3
+                    )
+                    if success and bypassed_html:
+                        html = bypassed_html
+                    else:
+                        return None, OGMetadata(
+                            fetch_failed=True,
+                            fetch_message=(
+                                "Cloudflare 보안으로 인해 콘텐츠를 가져올 수 없습니다. "
+                                "기사 내용을 직접 복사해서 메모에 붙여넣어 주세요."
+                            ),
+                        )
+            else:
+                # ScraperAPI가 없으면 Playwright 우회 시도
+                await notify(
+                    "cloudflare_detected",
+                    "Cloudflare Bot Fight Mode 감지",
+                    "사람처럼 행동하는 브라우저로 우회 시도합니다..."
+                )
+                bypassed_html, success = await fetch_with_cloudflare_bypass(
+                    url, progress_callback, max_retries=3
+                )
+
+                if success and bypassed_html:
+                    html = bypassed_html
+                    logger.info(f"[Cloudflare] 우회 성공: {url}")
+                else:
+                    # 우회 실패
+                    logger.error(f"[Cloudflare] 우회 최종 실패: {url}")
+                    return None, OGMetadata(
+                        fetch_failed=True,
+                        fetch_message=(
+                            "Cloudflare 보안으로 인해 콘텐츠를 가져올 수 없습니다. "
+                            "기사 내용을 직접 복사해서 메모에 붙여넣어 주세요."
+                        ),
+                    )
 
         # OG 메타데이터 추출
         og_metadata = extract_og_metadata(html, url)
@@ -702,6 +796,27 @@ async def _fetch_html_content(
 
     except httpx.HTTPStatusError as e:
         # HTTP 에러 (403 등)
+        logger.warning(f"HTTP 에러 발생: {url}, status={e.response.status_code}")
+
+        # ScraperAPI가 있으면 먼저 시도
+        if SCRAPER_API_KEY:
+            await notify(
+                "http_error",
+                f"HTTP {e.response.status_code} 에러, ScraperAPI로 재시도",
+                "프록시 서버를 통해 접속합니다..."
+            )
+            scraper_html, scraper_success = await fetch_with_scraper_api(
+                url, progress_callback
+            )
+            if scraper_success and scraper_html:
+                og_metadata = extract_og_metadata(scraper_html, url)
+                content = extract_text_from_html(scraper_html)
+                if content and len(content) > max_length:
+                    content = content[:max_length] + "..."
+                logger.info(f"[ScraperAPI] HTTP 에러 우회 성공: {url}")
+                return content, og_metadata
+
+        # Cloudflare 403인 경우 Playwright 우회 시도
         if e.response.status_code == 403:
             html = e.response.text
             if is_cloudflare_blocked(html, 403):
@@ -712,7 +827,6 @@ async def _fetch_html_content(
                     "사람처럼 행동하는 브라우저로 우회 시도합니다..."
                 )
 
-                # Cloudflare 우회 시도
                 bypassed_html, success = await fetch_with_cloudflare_bypass(
                     url, progress_callback, max_retries=3
                 )
@@ -720,14 +834,9 @@ async def _fetch_html_content(
                 if success and bypassed_html:
                     og_metadata = extract_og_metadata(bypassed_html, url)
                     content = extract_text_from_html(bypassed_html)
-
                     if content and len(content) > max_length:
                         content = content[:max_length] + "..."
-
-                    logger.info(
-                        f"[Cloudflare] 우회 후 추출 완료: {url}, "
-                        f"length={len(content) if content else 0}"
-                    )
+                    logger.info(f"[Cloudflare] 우회 후 추출 완료: {url}")
                     return content, og_metadata
                 else:
                     return None, OGMetadata(
@@ -742,5 +851,25 @@ async def _fetch_html_content(
         return None, None
 
     except Exception as e:
-        logger.error(f"URL 콘텐츠 가져오기 실패: {url}, error={e}")
+        logger.warning(f"URL 콘텐츠 가져오기 실패: {url}, error={e}")
+
+        # ScraperAPI가 있으면 fallback 시도
+        if SCRAPER_API_KEY:
+            await notify(
+                "fetch_error",
+                "직접 접속 실패, ScraperAPI로 재시도",
+                "프록시 서버를 통해 접속합니다..."
+            )
+            scraper_html, scraper_success = await fetch_with_scraper_api(
+                url, progress_callback
+            )
+            if scraper_success and scraper_html:
+                og_metadata = extract_og_metadata(scraper_html, url)
+                content = extract_text_from_html(scraper_html)
+                if content and len(content) > max_length:
+                    content = content[:max_length] + "..."
+                logger.info(f"[ScraperAPI] 에러 복구 성공: {url}")
+                return content, og_metadata
+
+        logger.error(f"URL 콘텐츠 가져오기 최종 실패: {url}, error={e}")
         return None, None
