@@ -487,7 +487,7 @@ export function NoteEdit() {
                     </div>
                   </button>
                   {sourceMemosExpanded && (
-                    <div className="p-4 space-y-3 bg-white max-h-96 overflow-y-auto">
+                    <div className="p-4 space-y-3 bg-white max-h-96 overflow-y-auto overflow-x-hidden">
                       {sourceMemosLoading ? (
                         <div className="flex items-center justify-center py-4">
                           <Loader2 size={20} className="animate-spin text-gray-400" />
@@ -510,7 +510,7 @@ export function NoteEdit() {
                                   </p>
                                 )}
                                 {memo.context && (
-                                  <p className="text-xs text-primary font-medium mb-1">
+                                  <p className="text-xs text-primary font-medium mb-1 break-all">
                                     {memo.context}
                                   </p>
                                 )}
@@ -534,7 +534,7 @@ export function NoteEdit() {
                               </div>
                             </div>
                             {/* 요약 또는 본문 */}
-                            <div className="text-sm text-gray-600 whitespace-pre-wrap break-words overflow-hidden line-clamp-4">
+                            <div className="w-full text-sm text-gray-600 whitespace-pre-wrap break-all overflow-hidden line-clamp-4">
                               {memo.summary || memo.content}
                             </div>
                             {/* 메타 정보 */}
