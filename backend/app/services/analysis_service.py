@@ -314,9 +314,9 @@ class AnalysisService:
         fetched_content: Optional[str],
         db: Session,
         user_id: Optional[str],
-    ) -> tuple[Optional[str], list[str]]:
+    ) -> tuple[Optional[str], list[str], Optional[str]]:
         """
-        LLM으로 context와 관심사를 한 번에 추출 (LLM 호출 최적화)
+        LLM으로 context, 관심사, summary를 한 번에 추출 (LLM 호출 최적화)
 
         기존: extract_context (1회) + match_interests (1회) = 2회 LLM 호출
         개선: extract_context_and_interests (1회) = 1회 LLM 호출
@@ -348,8 +348,8 @@ class AnalysisService:
                 user_interests = user.interests
                 logger.info(f"[AnalysisService] 관심사 매핑 포함: user_id={user_id}")
 
-        # 통합 LLM 호출 (context + 관심사)
-        context, interests = await llm_service.extract_context_and_interests(
+        # 통합 LLM 호출 (context + 관심사 + summary)
+        context, interests, summary = await llm_service.extract_context_and_interests(
             text_to_analyze, memo.memo_type, user_interests
         )
 
@@ -361,7 +361,7 @@ class AnalysisService:
                 ", ".join(interests)
             )
 
-        return context, interests
+        return context, interests, summary
 
     async def _do_analysis(
         self,
@@ -373,12 +373,13 @@ class AnalysisService:
         # 1. 외부 콘텐츠 추출
         fetched_content, og_title, og_image = await self._fetch_external_content(memo)
 
-        # 2. LLM 분석 (context + 관심사 통합 추출 - LLM 호출 최적화)
-        context, interests = await self._extract_context_and_interests(
+        # 2. LLM 분석 (context + 관심사 + summary 통합 추출 - LLM 호출 최적화)
+        context, interests, summary = await self._extract_context_and_interests(
             memo, fetched_content, db, user_id
         )
         memo.context = context
         memo.interests = interests if interests else None
+        memo.summary = summary
         if og_title:
             memo.og_title = og_title
         if og_image:

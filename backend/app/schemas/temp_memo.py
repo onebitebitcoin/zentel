@@ -72,6 +72,7 @@ class TempMemoListItem(BaseModel):
     memo_type: MemoType
     content: str
     context: Optional[str] = None
+    summary: Optional[str] = None  # 핵심 요약 (최대 3문단)
     interests: Optional[List[str]] = None
     source_url: Optional[str] = None
     og_title: Optional[str] = None
@@ -103,6 +104,7 @@ class TempMemoOut(BaseModel):
     memo_type: MemoType
     content: str
     context: Optional[str] = None
+    summary: Optional[str] = None  # 핵심 요약 (최대 3문단)
     interests: Optional[List[str]] = None
     source_url: Optional[str] = None
     og_title: Optional[str] = None

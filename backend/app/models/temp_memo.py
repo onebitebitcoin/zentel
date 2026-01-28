@@ -27,6 +27,7 @@ class TempMemo(Base):
     memo_type: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 핵심 요약 (최대 3문단)
     facts: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
     interests: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
     source_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)

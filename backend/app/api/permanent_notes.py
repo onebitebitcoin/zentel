@@ -192,9 +192,13 @@ async def create_permanent_note(
         title = first_line[:80] if len(first_line) > 80 else first_line
 
     # 내용 생성: 모든 메모 구분자로 합침 (미지정 시)
+    # summary가 있으면 요약본 사용, 없으면 원본 content 사용
     content = data.content
     if not content:
-        contents = [memo.content for memo in source_memos]
+        contents = []
+        for memo in source_memos:
+            memo_content = memo.summary if memo.summary else memo.content
+            contents.append(memo_content)
         content = "\n\n---\n\n".join(contents)
 
     # 관심사 병합 (중복 제거)
@@ -306,11 +310,13 @@ async def update_permanent_note(
             db_note.source_memo_ids = list(existing_ids) + new_ids
 
             # 새로 추가된 메모들의 내용을 본문 하단에 추가 (구분선 포함)
+            # summary가 있으면 요약본 사용, 없으면 원본 content 사용
             new_contents = []
             for memo_id in new_ids:
                 memo = next((m for m in new_memos if m.id == memo_id), None)
                 if memo:
-                    new_contents.append(memo.content)
+                    memo_content = memo.summary if memo.summary else memo.content
+                    new_contents.append(memo_content)
 
             if new_contents:
                 additional_content = "\n\n---\n\n".join(new_contents)

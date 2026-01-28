@@ -160,6 +160,14 @@ def _run_migrations():
                 conn.commit()
             logger.info("Migration: 'display_content' column added successfully")
 
+        # summary 컬럼 추가 (핵심 요약 - 최대 3문단)
+        if "summary" not in columns:
+            logger.info("Migration: Adding 'summary' column to temp_memos table")
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE temp_memos ADD COLUMN summary TEXT"))
+                conn.commit()
+            logger.info("Migration: 'summary' column added successfully")
+
         # user_id 컬럼 추가 (사용자별 메모 분리)
         if "user_id" not in columns:
             logger.info("Migration: Adding 'user_id' column to temp_memos table")
