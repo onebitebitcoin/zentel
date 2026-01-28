@@ -51,6 +51,7 @@ export function NoteEdit() {
   const [sourceMemosExpanded, setSourceMemosExpanded] = useState(false);
   const [sourceMemosLoading, setSourceMemosLoading] = useState(false);
   const [sourceMemosLoaded, setSourceMemosLoaded] = useState(false);
+  const [removingMemoId, setRemovingMemoId] = useState<string | null>(null);
 
   // 제목 textarea 자동 높이 조절
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -117,6 +118,25 @@ export function NoteEdit() {
       fetchSourceMemos();
     }
     setSourceMemosExpanded(!sourceMemosExpanded);
+  };
+
+  const handleRemoveSourceMemo = async (memoId: string) => {
+    if (!id || !note) return;
+    if (!window.confirm('이 출처 메모를 제거하시겠습니까?')) return;
+
+    setRemovingMemoId(memoId);
+    try {
+      const updated = await permanentNoteApi.update(id, {
+        remove_source_memo_ids: [memoId],
+      });
+      setNote(updated);
+      setSourceMemos((prev) => prev.filter((m) => m.id !== memoId));
+      toast.success('출처 메모가 제거되었습니다.');
+    } catch {
+      toast.error('출처 메모 제거에 실패했습니다.');
+    } finally {
+      setRemovingMemoId(null);
+    }
   };
 
   useEffect(() => {
@@ -495,9 +515,23 @@ export function NoteEdit() {
                                   </p>
                                 )}
                               </div>
-                              <span className="text-[10px] text-gray-400 flex-shrink-0">
-                                #{index + 1}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <span className="text-[10px] text-gray-400">
+                                  #{index + 1}
+                                </span>
+                                <button
+                                  onClick={() => handleRemoveSourceMemo(memo.id)}
+                                  disabled={removingMemoId === memo.id}
+                                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                                  title="출처 메모 제거"
+                                >
+                                  {removingMemoId === memo.id ? (
+                                    <Loader2 size={12} className="animate-spin" />
+                                  ) : (
+                                    <X size={12} />
+                                  )}
+                                </button>
+                              </div>
                             </div>
                             {/* 요약 또는 본문 */}
                             <div className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-4">

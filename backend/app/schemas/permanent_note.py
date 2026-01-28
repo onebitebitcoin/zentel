@@ -35,6 +35,10 @@ class PermanentNoteUpdate(BaseModel):
         default=None,
         description="추가할 출처 임시 메모 ID 목록"
     )
+    remove_source_memo_ids: Optional[List[str]] = Field(
+        default=None,
+        description="제거할 출처 임시 메모 ID 목록"
+    )
 
 
 class PermanentNoteListItem(BaseModel):

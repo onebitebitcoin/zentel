@@ -373,6 +373,23 @@ async def update_permanent_note(
                 f"note_id={note_id}, new_memo_ids={new_ids}"
             )
 
+    # 출처 임시 메모 제거 처리
+    if data.remove_source_memo_ids:
+        existing_ids = list(db_note.source_memo_ids or [])
+        removed_ids = []
+
+        for memo_id in data.remove_source_memo_ids:
+            if memo_id in existing_ids:
+                existing_ids.remove(memo_id)
+                removed_ids.append(memo_id)
+
+        if removed_ids:
+            db_note.source_memo_ids = existing_ids if existing_ids else None
+            logger.info(
+                f"Removed {len(removed_ids)} source memos from permanent note: "
+                f"note_id={note_id}, removed_memo_ids={removed_ids}"
+            )
+
     db_note.updated_at = datetime.now(timezone.utc).isoformat()
     db_note = permanent_note_repository.update(db, db_note)
 
