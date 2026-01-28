@@ -500,7 +500,7 @@ export function NoteEdit() {
                         sourceMemos.map((memo, index) => (
                           <div
                             key={memo.id}
-                            className="p-3 bg-gray-50 rounded-lg space-y-2"
+                            className="p-3 bg-gray-50 rounded-lg space-y-2 overflow-hidden"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
@@ -534,7 +534,7 @@ export function NoteEdit() {
                               </div>
                             </div>
                             {/* 요약 또는 본문 */}
-                            <div className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-4">
+                            <div className="text-sm text-gray-600 whitespace-pre-wrap break-words overflow-hidden line-clamp-4">
                               {memo.summary || memo.content}
                             </div>
                             {/* 메타 정보 */}
