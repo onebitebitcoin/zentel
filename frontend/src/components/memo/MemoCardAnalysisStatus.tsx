@@ -27,7 +27,6 @@ export function MemoCardAnalysisStatus({
   const [logsExpanded, setLogsExpanded] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [analysisTimedOut, setAnalysisTimedOut] = useState(false);
-  const [timeoutMessage, setTimeoutMessage] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -48,31 +47,20 @@ export function MemoCardAnalysisStatus({
     return analysisLogs;
   })();
 
-  // 타임아웃 시 서버 상태 확인 + 로그 분석
+  // 타임아웃 시 서버 상태 확인 및 새로고침
   const checkServerStatus = async () => {
     setCheckingStatus(true);
     try {
       const serverMemo = await tempMemoApi.get(memo.id);
 
-      // 로그 분석
-      const lastLog = displayLogs[displayLogs.length - 1];
-      const logCount = displayLogs.length;
-      const lastMessage = lastLog ? `${lastLog.message}${lastLog.detail ? ` (${lastLog.detail})` : ''}` : '로그 없음';
-
-      // 서버 상태에 따라 메시지 구성
-      if (serverMemo.analysis_status === 'completed') {
-        setTimeoutMessage('✅ 분석 완료됨 - 새로고침 필요');
+      // 서버 상태에 따라 처리
+      if (serverMemo.analysis_status === 'completed' || serverMemo.analysis_status === 'failed') {
+        // 분석 완료/실패 시 메모 새로고침
         onReanalyze?.(memo.id);
-      } else if (serverMemo.analysis_status === 'failed') {
-        setTimeoutMessage(`❌ ${serverMemo.analysis_error || '분석 실패'}\n마지막 진행: ${lastMessage}`);
-      } else {
-        // 아직 분석 중 - 마지막 진행 상황 표시
-        setTimeoutMessage(`🔄 서버에서 아직 분석 중\n📊 ${logCount}단계 진행됨\n📍 마지막 단계: ${lastMessage}`);
       }
+      // 아직 분석 중이면 로그 창에서 확인 가능
     } catch {
-      const lastLog = displayLogs[displayLogs.length - 1];
-      const lastMessage = lastLog ? `${lastLog.message}` : '로그 없음';
-      setTimeoutMessage(`❌ 서버 연결 실패\n마지막 진행: ${lastMessage}`);
+      toast.error('서버 연결에 실패했습니다.');
     } finally {
       setCheckingStatus(false);
     }
@@ -87,7 +75,6 @@ export function MemoCardAnalysisStatus({
       }, ANALYSIS_TIMEOUT_SEC * 1000);
     } else if (!isAnalyzing) {
       setAnalysisTimedOut(false);
-      setTimeoutMessage(null);
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
@@ -106,7 +93,6 @@ export function MemoCardAnalysisStatus({
     if (reanalyzing) return;
     setReanalyzing(true);
     setAnalysisTimedOut(false);
-    setTimeoutMessage(null);
     try {
       await tempMemoApi.reanalyze(memo.id, force);
       toast.success(force ? '강제 재분석을 시작했습니다.' : '재분석을 시작했습니다.');
@@ -184,6 +170,15 @@ export function MemoCardAnalysisStatus({
           </button>
           <button
             type="button"
+            onClick={() => setLogsExpanded((prev) => !prev)}
+            className="flex items-center gap-1 text-gray-400 hover:text-gray-600"
+          >
+            <Terminal size={12} />
+            <span>로그</span>
+            {logsExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
+          <button
+            type="button"
             onClick={() => handleReanalyze(true)}
             disabled={reanalyzing}
             className="flex items-center gap-1 text-primary hover:text-primary-600 ml-auto"
@@ -193,8 +188,16 @@ export function MemoCardAnalysisStatus({
             강제 재분석
           </button>
         </div>
-        {timeoutMessage && (
-          <p className="mt-1 text-[10px] text-gray-500 whitespace-pre-line">{timeoutMessage}</p>
+        {logsExpanded && displayLogs.length > 0 && (
+          <div className="mt-2 p-2 bg-gray-900 rounded-lg text-[10px] font-mono text-gray-300 max-h-32 overflow-auto">
+            {displayLogs.map((log, idx) => (
+              <div key={idx} className="flex gap-2 py-0.5">
+                <span className="text-gray-500 flex-shrink-0">{log.timestamp}</span>
+                <span className="text-green-400 break-all">{log.message}</span>
+                {log.detail && <span className="text-gray-500 break-all">({log.detail})</span>}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     );
