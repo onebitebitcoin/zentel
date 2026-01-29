@@ -133,13 +133,20 @@ export function MemoCard({
         </div>
       </div>
 
-      {/* 제목 */}
+      {/* 제목 (AI 분석 완료 시 context 사용, 아니면 기존 title) */}
       <h3 className="text-sm md:text-base font-semibold text-gray-800 line-clamp-2 break-all">
-        {title}
+        {memo.analysis_status === 'completed' && memo.context ? memo.context : title}
       </h3>
 
-      {/* 본문 */}
-      {body && (
+      {/* 요약 (summary) */}
+      {memo.analysis_status === 'completed' && memo.summary && (
+        <p className="text-sm text-gray-600 whitespace-pre-wrap break-all leading-relaxed">
+          {memo.summary}
+        </p>
+      )}
+
+      {/* 분석 전 본문 표시 */}
+      {memo.analysis_status !== 'completed' && body && (
         <div>
           <p
             className={`text-sm text-gray-600 whitespace-pre-wrap break-all ${
@@ -167,37 +174,13 @@ export function MemoCard({
         onReanalyze={onReanalyze}
       />
 
-      {/* 핵심 요약 (Summary) */}
-      {memo.analysis_status === 'completed' && memo.summary && (
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <span className="text-xs font-semibold text-amber-800">핵심 요약</span>
-          </div>
-          <p className="text-sm text-amber-900 whitespace-pre-wrap break-all leading-relaxed">
-            {memo.summary}
-          </p>
-        </div>
-      )}
-
-      {/* Context (맥락 분석) */}
-      {memo.analysis_status === 'completed' && memo.context && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <span className="text-xs font-semibold text-blue-800">맥락 분석</span>
-          </div>
-          <p className="text-sm text-blue-900 whitespace-pre-wrap break-all leading-relaxed">
-            {memo.context}
-          </p>
-        </div>
-      )}
-
-      {/* 본문 보기 (추출된 콘텐츠 확인 + 하이라이트) */}
+      {/* 본문 보기 (외부 자료) */}
       {memo.analysis_status === 'completed' && hasDisplayContent && (
-        <div className="border-t border-gray-100 pt-2">
+        <div>
           <button
             type="button"
             onClick={handleToggleContent}
-            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary-600"
+            className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-primary transition-colors"
           >
             <FileText size={14} />
             <span>본문 보기</span>
@@ -223,6 +206,19 @@ export function MemoCard({
         </div>
       )}
 
+      {/* 원문 링크 (외부 자료) */}
+      {memo.source_url && (
+        <a
+          href={memo.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 text-xs text-gray-600 hover:text-primary transition-colors"
+        >
+          <ExternalLink size={14} className="flex-shrink-0" />
+          <span className="truncate">원문 링크</span>
+        </a>
+      )}
+
       {/* 관심사 태그 */}
       {memo.interests && memo.interests.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -235,26 +231,6 @@ export function MemoCard({
             </span>
           ))}
         </div>
-      )}
-
-      {/* 외부 링크 */}
-      {memo.source_url && (
-        <a
-          href={memo.source_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 p-2 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors"
-        >
-          <ExternalLink size={14} className="text-teal-600 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-teal-600 truncate">
-              {memo.og_title || memo.source_url}
-            </p>
-            <p className="text-[10px] text-gray-400 truncate">
-              {new URL(memo.source_url).hostname}
-            </p>
-          </div>
-        </a>
       )}
 
       {/* 댓글 섹션 */}
