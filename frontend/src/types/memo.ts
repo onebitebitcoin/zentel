@@ -29,6 +29,7 @@ export interface TempMemoListItem {
   memo_type: MemoType;
   content: string;
   context: string | null;
+  summary: string | null;  // 핵심 요약 (최대 3문단)
   interests: string[] | null;
   source_url: string | null;
   og_title: string | null;
