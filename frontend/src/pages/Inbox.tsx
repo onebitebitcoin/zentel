@@ -89,21 +89,24 @@ export function Inbox() {
     }
   }, [error]);
 
-  // 스크롤 위치 복원 (최초 로드 시에만, 분석 완료 시 스크롤 이동 방지)
+  // 스크롤 위치 복원 (최초 로드 시에만, 분석 완료/재분석 시 스크롤 이동 방지)
   useEffect(() => {
-    // 이미 복원했으면 무시
+    // 이미 복원 시도했으면 무시 (성공/실패 관계없이)
     if (scrollRestoredRef.current) return;
 
-    const savedPosition = sessionStorage.getItem(SCROLL_POSITION_KEY);
-    if (savedPosition && scrollContainerRef.current && memos.length > 0) {
-      // 메모가 로드된 후 스크롤 위치 복원
-      setTimeout(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = parseInt(savedPosition, 10);
-        }
-      }, 0);
-      // 복원 완료 플래그 설정
+    // 메모가 로드되면 복원 시도 완료로 표시 (이후 memos 변경 시 스크롤 유지)
+    if (memos.length > 0) {
       scrollRestoredRef.current = true;
+
+      const savedPosition = sessionStorage.getItem(SCROLL_POSITION_KEY);
+      if (savedPosition && scrollContainerRef.current) {
+        // 메모가 로드된 후 스크롤 위치 복원
+        setTimeout(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = parseInt(savedPosition, 10);
+          }
+        }, 0);
+      }
     }
   }, [memos]);
 
