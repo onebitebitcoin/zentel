@@ -598,20 +598,42 @@ async def _fetch_naver_blog_content(
     max_length: int,
 ) -> tuple[Optional[str], Optional[OGMetadata]]:
     """
-    네이버 블로그 URL에서 콘텐츠 가져오기 (NaverBlogScraper 사용)
+    네이버 블로그 URL에서 콘텐츠 가져오기
 
-    NaverBlogScraper는 Playwright로 브라우저를 열어 콘텐츠를 추출합니다:
-    - 봇 차단 우회 (사람처럼 행동)
-    - 네이버 특화 CSS 선택자 사용
-    - OG 메타데이터 추출
+    우선순위:
+    1. ScraperAPI (설정되어 있으면) - 안정적이고 메모리 효율적
+    2. NaverBlogScraper (Playwright) - fallback
     """
     try:
-        logger.info(f"[NaverBlog] 네이버 블로그 스크래퍼로 콘텐츠 추출 시작: {url}")
+        # 1. ScraperAPI 먼저 시도 (Railway에서 메모리 효율적)
+        if SCRAPER_API_KEY:
+            logger.info(f"[NaverBlog] ScraperAPI로 콘텐츠 추출 시도: {url}")
+            scraper_html, scraper_success = await fetch_with_scraper_api(url, None)
+
+            if scraper_success and scraper_html:
+                # trafilatura로 본문 추출
+                content = trafilatura.extract(scraper_html, include_comments=False)
+                og_metadata = extract_og_metadata(scraper_html, url)
+
+                if content and len(content) > MIN_CONTENT_LENGTH:
+                    if len(content) > max_length:
+                        content = content[:max_length] + "..."
+
+                    logger.info(
+                        f"[NaverBlog] ScraperAPI 성공: {url}, "
+                        f"length={len(content)}"
+                    )
+                    return content, og_metadata
+
+                logger.warning("[NaverBlog] ScraperAPI 본문 추출 실패, Playwright로 재시도")
+
+        # 2. Playwright fallback
+        logger.info(f"[NaverBlog] Playwright로 콘텐츠 추출 시도: {url}")
 
         result = await naver_blog_scraper.scrape(url)
 
         if not result.success:
-            logger.warning(f"[NaverBlog] 스크래핑 실패: {result.error}")
+            logger.warning(f"[NaverBlog] Playwright 실패: {result.error}")
             return None, OGMetadata(
                 fetch_failed=True,
                 fetch_message=f"네이버 블로그 콘텐츠를 가져오는데 실패했습니다: {result.error}",
@@ -629,7 +651,7 @@ async def _fetch_naver_blog_content(
         )
 
         logger.info(
-            f"[NaverBlog] 추출 완료: {url}, "
+            f"[NaverBlog] Playwright 성공: {url}, "
             f"length={len(content) if content else 0}"
         )
         return content, og_metadata
