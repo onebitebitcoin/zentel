@@ -35,18 +35,33 @@ export function MemoCardAnalysisStatus({
   const isAnalyzing = memo.analysis_status === 'pending' || memo.analysis_status === 'analyzing';
   const isAnalysisFailed = memo.analysis_status === 'failed';
 
-  // 초기 로그
+  // 초기 로그 (로그가 없을 때 표시)
   const displayLogs = (() => {
-    const initialLog: AnalysisProgressEvent = {
+    // 로그가 있으면 그대로 사용
+    if (analysisLogs && analysisLogs.length > 0) {
+      return analysisLogs;
+    }
+
+    // 로그가 없고 분석 중일 때 현재 상태 기반 메시지 표시
+    if (!isAnalyzing) {
+      return [];
+    }
+
+    const timestamp = new Date().toLocaleTimeString('ko-KR', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+
+    // 분석 상태에 따라 다른 메시지 표시
+    const statusMessage = memo.analysis_status === 'analyzing'
+      ? '분석 진행 중 (로그 수신 대기 중...)'
+      : '분석 요청 시작';
+
+    return [{
       memo_id: memo.id,
       step: 'init',
-      message: '분석 요청 시작',
-      timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    };
-    if (!analysisLogs || analysisLogs.length === 0) {
-      return isAnalyzing ? [initialLog] : [];
-    }
-    return analysisLogs;
+      message: statusMessage,
+      timestamp,
+    }];
   })();
 
   // 타임아웃 시 서버 상태 확인 및 새로고침
