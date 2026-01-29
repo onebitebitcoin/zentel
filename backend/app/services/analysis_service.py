@@ -331,7 +331,7 @@ class AnalysisService:
     async def _extract_context_and_interests(
         self,
         memo: TempMemo,
-        fetched_content: Optional[str],
+        content_for_analysis: Optional[str],
         db: Session,
         user_id: Optional[str],
     ) -> tuple[Optional[str], list[str], Optional[str]]:
@@ -340,25 +340,21 @@ class AnalysisService:
 
         기존: extract_context (1회) + match_interests (1회) = 2회 LLM 호출
         개선: extract_context_and_interests (1회) = 1회 LLM 호출
+
+        Args:
+            memo: 메모 객체
+            content_for_analysis: 분석할 콘텐츠 (번역/정리된 콘텐츠 우선)
+            db: 데이터베이스 세션
+            user_id: 사용자 ID (관심사 매핑용)
         """
         await notify_analysis_progress(memo.id, "llm", "AI가 내용을 분석 중")
 
-        source_url = memo.source_url
-        content = memo.content
+        # 이미 정리된 콘텐츠를 직접 사용
+        text_to_analyze = content_for_analysis or memo.content
 
-        if fetched_content:
-            # URL 콘텐츠가 있으면 합쳐서 분석
-            if content and content.strip():
-                text_to_analyze = (
-                    f"사용자 메모: {content}\n\n"
-                    f"URL: {source_url}\n\n"
-                    f"URL 내용:\n{fetched_content}"
-                )
-            else:
-                text_to_analyze = f"URL: {source_url}\n\n{fetched_content}"
-        else:
-            # URL이 없는 일반 텍스트 메모
-            text_to_analyze = content
+        if not text_to_analyze:
+            logger.warning(f"[AnalysisService] 분석할 콘텐츠 없음: memo_id={memo.id}")
+            return None, [], None
 
         # 사용자 관심사 가져오기
         user_interests = None
@@ -400,24 +396,13 @@ class AnalysisService:
             f"length={len(fetched_content) if fetched_content else 0}"
         )
 
-        # 2. LLM 분석 (context + 관심사 + summary 통합 추출 - LLM 호출 최적화)
-        logger.info(f"[AnalysisService] 2단계: LLM 분석 시작: memo_id={memo.id}")
-        context, interests, summary = await self._extract_context_and_interests(
-            memo, fetched_content, db, user_id
-        )
-        logger.info(
-            f"[AnalysisService] 2단계 완료: context={'있음' if context else '없음'}, "
-            f"interests={len(interests) if interests else 0}개"
-        )
-        memo.context = context
-        memo.interests = interests if interests else None
-        memo.summary = summary
+        # OG 메타데이터 저장
         if og_title:
             memo.og_title = og_title
         if og_image:
             memo.og_image = og_image
 
-        # 3. 스크래핑된 콘텐츠 저장
+        # 스크래핑된 콘텐츠 저장
         if fetched_content:
             memo.fetched_content = fetched_content
             logger.info(
@@ -428,7 +413,8 @@ class AnalysisService:
         else:
             logger.warning(f"[AnalysisService] fetched_content 없음, source_url={memo.source_url}")
 
-        # 4. 번역 및 하이라이트 추출 (EXTERNAL_SOURCE + URL + 스크래핑 성공 시에만)
+        # 2. 번역 및 하이라이트 추출 (EXTERNAL_SOURCE + URL + 스크래핑 성공 시에만)
+        # summary/context 추출 전에 먼저 수행하여 정리된 콘텐츠를 확보
         should_process_content = (
             memo.memo_type == "EXTERNAL_SOURCE" and
             memo.source_url and
@@ -436,7 +422,13 @@ class AnalysisService:
         )
 
         if should_process_content:
+            logger.info(f"[AnalysisService] 2단계: 번역/하이라이트 추출 시작: memo_id={memo.id}")
             await self._process_translation_and_highlights(memo, fetched_content)
+            logger.info(
+                f"[AnalysisService] 2단계 완료: "
+                f"translated_content={'있음' if memo.translated_content else '없음'}, "
+                f"highlights={len(memo.highlights) if memo.highlights else 0}개"
+            )
         else:
             logger.info(
                 f"[AnalysisService] 번역/하이라이트 스킵: "
@@ -448,6 +440,28 @@ class AnalysisService:
                 memo.id, "translate_skip",
                 "이 메모 타입은 본문 처리를 건너뜁니다"
             )
+
+        # 3. LLM 분석 (context + 관심사 + summary 통합 추출)
+        # 번역/하이라이트 추출 후 정리된 콘텐츠를 기반으로 분석
+        # 우선순위: translated_content > display_content > fetched_content > content
+        content_for_analysis = (
+            memo.translated_content or
+            memo.display_content or
+            fetched_content or
+            memo.content
+        )
+        logger.info(f"[AnalysisService] 3단계: LLM 분석 시작: memo_id={memo.id}")
+        context, interests, summary = await self._extract_context_and_interests(
+            memo, content_for_analysis, db, user_id
+        )
+        logger.info(
+            f"[AnalysisService] 3단계 완료: context={'있음' if context else '없음'}, "
+            f"interests={len(interests) if interests else 0}개, "
+            f"summary={'있음' if summary else '없음'}"
+        )
+        memo.context = context
+        memo.interests = interests if interests else None
+        memo.summary = summary
 
     async def _process_translation_and_highlights(
         self,
