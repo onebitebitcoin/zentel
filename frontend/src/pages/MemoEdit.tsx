@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, ExternalLink, Copy, RefreshCw, Plus, X, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Check, ExternalLink, Copy, RefreshCw, Plus, X, Trash2, Loader2, AlertCircle, WifiOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemo, MemoType, TempMemoUpdate } from '../types/memo';
 import { MemoTypeChips } from '../components/memo/MemoTypeChips';
@@ -49,7 +49,25 @@ export function MemoEdit() {
     [id]
   );
 
-  useAnalysisSSE(handleAnalysisComplete);
+  // SSE 재연결 시 현재 메모 상태 새로고침
+  const handleReconnect = useCallback(async () => {
+    if (id && memo && (memo.analysis_status === 'pending' || memo.analysis_status === 'analyzing')) {
+      console.log('[MemoEdit] SSE reconnected - refreshing memo status');
+      try {
+        const data = await tempMemoApi.get(id);
+        setMemo(data);
+        setInterests(data.interests || []);
+      } catch (err) {
+        console.error('[MemoEdit] Failed to refresh memo:', err);
+      }
+    }
+  }, [id, memo]);
+
+  const { connectionStatus, manualReconnect } = useAnalysisSSE(
+    handleAnalysisComplete,
+    undefined, // onCommentAIResponse
+    handleReconnect // onReconnect
+  );
 
   const hasChanges = memo
     ? memoType !== memo.memo_type ||
@@ -297,11 +315,33 @@ export function MemoEdit() {
 
           {/* AI 분석 상태 */}
           {isAnalyzing && (
-            <div className="border-t border-gray-100 pt-3">
+            <div className="border-t border-gray-100 pt-3 space-y-2">
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <Loader2 size={16} className="animate-spin text-primary" />
                 <span>AI 분석중...</span>
               </div>
+              {/* SSE 연결 상태 (분석 중일 때만 표시) */}
+              {connectionStatus === 'disconnected' && (
+                <div className="flex items-center justify-between px-2 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs">
+                  <div className="flex items-center gap-1.5 text-amber-700">
+                    <WifiOff size={12} />
+                    <span>실시간 연결 끊김</span>
+                  </div>
+                  <button
+                    onClick={manualReconnect}
+                    className="flex items-center gap-1 text-amber-700 hover:text-amber-900"
+                  >
+                    <RefreshCw size={12} />
+                    재연결
+                  </button>
+                </div>
+              )}
+              {connectionStatus === 'reconnecting' && (
+                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+                  <RefreshCw size={12} className="animate-spin" />
+                  <span>재연결 중...</span>
+                </div>
+              )}
             </div>
           )}
 

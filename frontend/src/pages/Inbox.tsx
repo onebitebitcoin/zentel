@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, SlidersHorizontal, CheckSquare, X, ArrowUpRight } from 'lucide-react';
+import { Search, SlidersHorizontal, CheckSquare, X, ArrowUpRight, WifiOff, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MemoCard } from '../components/memo/MemoCard';
 import rottenIcon from '../assets/images/rotten.png';
@@ -26,8 +26,21 @@ export function Inbox() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // 분석 중인 메모들 상태 새로고침 (SSE 재연결 시 호출)
+  const refreshAnalyzingMemos = useCallback(async () => {
+    const analyzingMemos = memos.filter(
+      (m) => m.analysis_status === 'pending' || m.analysis_status === 'analyzing'
+    );
+    if (analyzingMemos.length > 0) {
+      console.log('[Inbox] Refreshing analyzing memos:', analyzingMemos.map((m) => m.id));
+      for (const memo of analyzingMemos) {
+        await refreshMemo(memo.id);
+      }
+    }
+  }, [memos, refreshMemo]);
+
   // SSE 훅 먼저 초기화
-  const { analysisLogs, clearLogs } = useAnalysisSSE(
+  const { analysisLogs, clearLogs, connectionStatus, manualReconnect } = useAnalysisSSE(
     useCallback(
       async (memoId: string, status: string) => {
         console.log('[Inbox] Analysis complete:', memoId, status);
@@ -40,7 +53,9 @@ export function Inbox() {
         }
       },
       [refreshMemo]
-    )
+    ),
+    undefined, // onCommentAIResponse
+    refreshAnalyzingMemos // onReconnect
   );
 
   // 분석 완료 시 로그 정리를 위한 effect
@@ -299,6 +314,29 @@ export function Inbox() {
               <CheckSquare size={20} />
             </button>
           </div>
+        </div>
+      )}
+
+      {/* SSE 연결 상태 알림 */}
+      {connectionStatus === 'disconnected' && (
+        <div className="mx-4 md:mx-6 mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-amber-700 text-xs">
+            <WifiOff size={14} />
+            <span>실시간 연결 끊김</span>
+          </div>
+          <button
+            onClick={manualReconnect}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded"
+          >
+            <RefreshCw size={12} />
+            재연결
+          </button>
+        </div>
+      )}
+      {connectionStatus === 'reconnecting' && (
+        <div className="mx-4 md:mx-6 mt-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-blue-700 text-xs">
+          <RefreshCw size={14} className="animate-spin" />
+          <span>재연결 중...</span>
         </div>
       )}
 

@@ -3,6 +3,12 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 const ANALYSIS_LOGS_STORAGE_KEY = 'zentel_analysis_logs';
 
+// 재연결 설정
+const RECONNECT_DELAY_MS = 3000;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+export type SSEConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
+
 interface AnalysisCompleteEvent {
   memo_id: string;
   status: string;
@@ -31,14 +37,26 @@ export interface AnalysisLogs {
 
 /**
  * AI 분석 완료 SSE 이벤트를 수신하는 훅
+ *
+ * @param onAnalysisComplete 분석 완료 시 호출되는 콜백
+ * @param onCommentAIResponse AI 댓글 응답 시 호출되는 콜백
+ * @param onReconnect 재연결 시 호출되는 콜백 (분석 중인 메모들 상태 새로고침용)
  */
 export function useAnalysisSSE(
   onAnalysisComplete: (memoId: string, status: string) => void,
-  onCommentAIResponse?: (event: CommentAIResponseEvent) => void
+  onCommentAIResponse?: (event: CommentAIResponseEvent) => void,
+  onReconnect?: () => void
 ) {
   const eventSourceRef = useRef<EventSource | null>(null);
   const onAnalysisCompleteRef = useRef(onAnalysisComplete);
   const onCommentAIResponseRef = useRef(onCommentAIResponse);
+  const onReconnectRef = useRef(onReconnect);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 연결 상태
+  const [connectionStatus, setConnectionStatus] = useState<SSEConnectionStatus>('disconnected');
+  const [lastConnectedAt, setLastConnectedAt] = useState<Date | null>(null);
 
   // localStorage에서 로그 복원
   const [analysisLogs, setAnalysisLogs] = useState<AnalysisLogs>(() => {
@@ -71,6 +89,10 @@ export function useAnalysisSSE(
     onCommentAIResponseRef.current = onCommentAIResponse;
   }, [onCommentAIResponse]);
 
+  useEffect(() => {
+    onReconnectRef.current = onReconnect;
+  }, [onReconnect]);
+
   // 특정 메모의 로그 초기화
   const clearLogs = useCallback((memoId: string) => {
     setAnalysisLogs((prev) => {
@@ -85,10 +107,38 @@ export function useAnalysisSSE(
     setAnalysisLogs({});
   }, []);
 
-  const connect = useCallback(() => {
-    // 이미 연결되어 있으면 무시
+  // 재연결 타이머 정리
+  const clearReconnectTimeout = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+  }, []);
+
+  const disconnect = useCallback(() => {
+    clearReconnectTimeout();
     if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+      console.log('[SSE] Disconnected');
+    }
+    setConnectionStatus('disconnected');
+  }, [clearReconnectTimeout]);
+
+  const connect = useCallback((isReconnect: boolean = false) => {
+    // 이미 연결되어 있으면 무시
+    if (eventSourceRef.current?.readyState === EventSource.OPEN) {
       return;
+    }
+
+    // 기존 연결 정리
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    if (isReconnect) {
+      setConnectionStatus('reconnecting');
     }
 
     const eventSource = new EventSource(`${API_BASE_URL}/temp-memos/analysis-events`);
@@ -145,30 +195,50 @@ export function useAnalysisSSE(
       // keepalive ping - 무시
     });
 
-    eventSource.onerror = (error) => {
-      console.error('[SSE] Connection error:', error);
+    eventSource.onerror = () => {
+      console.error('[SSE] Connection error');
       eventSource.close();
       eventSourceRef.current = null;
+      setConnectionStatus('disconnected');
 
-      // 3초 후 재연결 시도
-      setTimeout(() => {
-        console.log('[SSE] Attempting to reconnect...');
-        connect();
-      }, 3000);
+      // 재연결 시도 (최대 횟수 제한)
+      if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttemptsRef.current += 1;
+        const delay = RECONNECT_DELAY_MS * reconnectAttemptsRef.current; // 점진적 백오프
+        console.log(`[SSE] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
+
+        setConnectionStatus('reconnecting');
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connect(true);
+        }, delay);
+      } else {
+        console.error('[SSE] Max reconnect attempts reached');
+        setConnectionStatus('disconnected');
+      }
     };
 
     eventSource.onopen = () => {
       console.log('[SSE] Connected to analysis events');
+      setConnectionStatus('connected');
+      setLastConnectedAt(new Date());
+
+      // 재연결 성공 시 카운터 리셋 및 상태 새로고침
+      if (isReconnect || reconnectAttemptsRef.current > 0) {
+        reconnectAttemptsRef.current = 0;
+        console.log('[SSE] Reconnected - refreshing analyzing memos status');
+        // 재연결 시 분석 중인 메모들 상태 새로고침
+        onReconnectRef.current?.();
+      }
     };
   }, []);
 
-  const disconnect = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-      console.log('[SSE] Disconnected');
-    }
-  }, []);
+  // 수동 재연결 (사용자가 버튼 클릭)
+  const manualReconnect = useCallback(() => {
+    console.log('[SSE] Manual reconnect requested');
+    reconnectAttemptsRef.current = 0; // 수동 재연결 시 카운터 리셋
+    disconnect();
+    connect(true);
+  }, [disconnect, connect]);
 
   useEffect(() => {
     connect();
@@ -178,5 +248,14 @@ export function useAnalysisSSE(
     };
   }, [connect, disconnect]);
 
-  return { connect, disconnect, analysisLogs, clearLogs, clearAllLogs };
+  return {
+    connect,
+    disconnect,
+    manualReconnect,
+    analysisLogs,
+    clearLogs,
+    clearAllLogs,
+    connectionStatus,
+    lastConnectedAt,
+  };
 }
