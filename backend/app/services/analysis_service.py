@@ -201,7 +201,10 @@ class AnalysisService:
         # Twitter URL
         if twitter_scraper.is_twitter_url(source_url):
             logger.info(f"[AnalysisService] Twitter URL 감지, 스크래핑 시작: {source_url}")
-            await notify_analysis_progress(memo.id, "scrape", "Twitter 콘텐츠 추출 중", source_url)
+            await notify_analysis_progress(
+                memo.id, "scrape", "Twitter 콘텐츠 추출 중",
+                "예상 시간: 최대 90초 (긴 트윗/아티클의 경우)"
+            )
             result = await twitter_scraper.scrape(source_url)
 
             if result.success:

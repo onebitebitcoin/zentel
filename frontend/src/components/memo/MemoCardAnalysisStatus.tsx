@@ -11,7 +11,7 @@ import type { AnalysisProgressEvent } from '../../hooks/useAnalysisSSE';
 import { tempMemoApi } from '../../api/client';
 
 // 분석 타임아웃 (초)
-const ANALYSIS_TIMEOUT_SEC = 120;
+const ANALYSIS_TIMEOUT_SEC = 180;
 
 interface MemoCardAnalysisStatusProps {
   memo: TempMemoListItem;

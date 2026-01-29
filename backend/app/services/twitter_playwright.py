@@ -40,7 +40,7 @@ class TwitterPlaywrightScraper:
 
     def __init__(
         self,
-        timeout: int = 30000,
+        timeout: int = 90000,
         cookies_dir: Optional[str] = None,
         headless: bool = True,
     ):
