@@ -4,12 +4,11 @@
  * 분석 중, 타임아웃, 실패 상태를 표시합니다.
  */
 import { useState, useEffect, useRef } from 'react';
-import { Loader2, Clock, RefreshCw, AlertCircle, Terminal, ChevronDown, ChevronUp, Tag } from 'lucide-react';
+import { Loader2, Clock, RefreshCw, AlertCircle, Terminal, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemoListItem } from '../../types/memo';
 import type { AnalysisProgressEvent } from '../../hooks/useAnalysisSSE';
 import { tempMemoApi } from '../../api/client';
-import { useAuth } from '../../contexts/AuthContext';
 
 // 분석 타임아웃 (초)
 const ANALYSIS_TIMEOUT_SEC = 120;
@@ -25,10 +24,8 @@ export function MemoCardAnalysisStatus({
   analysisLogs,
   onReanalyze,
 }: MemoCardAnalysisStatusProps) {
-  const { user } = useAuth();
   const [logsExpanded, setLogsExpanded] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
-  const [remapping, setRemapping] = useState(false);
   const [analysisTimedOut, setAnalysisTimedOut] = useState(false);
   const [timeoutMessage, setTimeoutMessage] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
@@ -36,7 +33,6 @@ export function MemoCardAnalysisStatus({
 
   const isAnalyzing = memo.analysis_status === 'pending' || memo.analysis_status === 'analyzing';
   const isAnalysisFailed = memo.analysis_status === 'failed';
-  const userInterests: string[] = user?.interests || [];
 
   // 초기 로그
   const displayLogs = (() => {
@@ -123,59 +119,9 @@ export function MemoCardAnalysisStatus({
     }
   };
 
-  const handleRematch = async () => {
-    if (remapping || !userInterests.length) return;
-    setRemapping(true);
-    try {
-      await tempMemoApi.update(memo.id, { rematch_interests: true });
-      toast.success('관심사가 다시 매핑되었습니다.');
-      // SSE가 자동으로 업데이트 전파
-      onReanalyze?.(memo.id);
-    } catch (err) {
-      let errorMsg = '관심사 매핑에 실패했습니다.';
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosErr = err as { response?: { data?: { detail?: string }, status?: number } };
-        if (axiosErr.response?.data?.detail) {
-          errorMsg = axiosErr.response.data.detail;
-        }
-      }
-      toast.error(errorMsg);
-    } finally {
-      setRemapping(false);
-    }
-  };
-
-  // 분석 완료 상태
+  // 분석 완료 상태 - 버튼은 MemoCard에서 처리하므로 아무것도 표시하지 않음
   if (memo.analysis_status === 'completed') {
-    return (
-      <div className="border-t border-gray-100 pt-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] text-gray-400">분석 완료</span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleReanalyze}
-              disabled={reanalyzing}
-              className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-primary disabled:opacity-50"
-            >
-              <RefreshCw size={10} className={reanalyzing ? 'animate-spin' : ''} />
-              다시 분석
-            </button>
-            {userInterests.length > 0 && (
-              <button
-                type="button"
-                onClick={handleRematch}
-                disabled={remapping}
-                className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-primary disabled:opacity-50"
-              >
-                <Tag size={10} className={remapping ? 'animate-spin' : ''} />
-                다시 매핑
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   // 분석 중 (타임아웃 전)

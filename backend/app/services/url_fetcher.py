@@ -21,9 +21,9 @@ from urllib.parse import quote, urlparse
 import httpx
 import trafilatura
 
+from app.services.naver_blog_scraper import is_naver_blog_url, naver_blog_scraper
 from app.services.og_metadata import OGMetadata, extract_og_metadata
 from app.services.twitter_scraper import twitter_scraper
-from app.services.naver_blog_scraper import naver_blog_scraper, is_naver_blog_url
 
 logger = logging.getLogger(__name__)
 

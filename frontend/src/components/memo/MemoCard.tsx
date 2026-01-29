@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { ExternalLink, FileText, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { ExternalLink, FileText, ChevronDown, ChevronUp, Check, RefreshCw, Tag } from 'lucide-react';
+import toast from 'react-hot-toast';
 import type { TempMemoListItem } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
 import { getRelativeTime } from '../../utils/date';
@@ -9,6 +10,8 @@ import { MemoCardActions } from './MemoCardActions';
 import { HighlightedText } from './HighlightedText';
 import type { AnalysisProgressEvent } from '../../hooks/useAnalysisSSE';
 import fertilizerImage from '../../assets/images/fertilizer.png';
+import { tempMemoApi } from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface MemoCardProps {
   memo: TempMemoListItem;
@@ -34,10 +37,15 @@ export function MemoCard({
   isSelected = false,
   onToggleSelect,
 }: MemoCardProps) {
+  const { user } = useAuth();
   const typeInfo = getMemoTypeInfo(memo.memo_type);
   const [contentExpanded, setContentExpanded] = useState(false);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [translationExpanded, setTranslationExpanded] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [remapping, setRemapping] = useState(false);
+
+  const userInterests: string[] = user?.interests || [];
 
   // 본문 보기에 표시할 콘텐츠 (목록에서 바로 사용 - 추가 API 호출 제거)
   const displayContent = useMemo(() => {
@@ -90,6 +98,50 @@ export function MemoCard({
   const handleCardClick = () => {
     if (selectionMode && onToggleSelect) {
       onToggleSelect(memo.id);
+    }
+  };
+
+  // 다시 분석 핸들러
+  const handleReanalyze = async () => {
+    if (reanalyzing) return;
+    setReanalyzing(true);
+    try {
+      await tempMemoApi.reanalyze(memo.id);
+      toast.success('재분석을 시작했습니다.');
+      onReanalyze?.(memo.id);
+    } catch (err) {
+      let errorMsg = '재분석 요청에 실패했습니다.';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { detail?: string }, status?: number } };
+        if (axiosErr.response?.data?.detail) {
+          errorMsg = axiosErr.response.data.detail;
+        }
+      }
+      toast.error(errorMsg);
+    } finally {
+      setReanalyzing(false);
+    }
+  };
+
+  // 다시 매핑 핸들러
+  const handleRematch = async () => {
+    if (remapping || !userInterests.length) return;
+    setRemapping(true);
+    try {
+      await tempMemoApi.update(memo.id, { rematch_interests: true });
+      toast.success('관심사가 다시 매핑되었습니다.');
+      onReanalyze?.(memo.id);
+    } catch (err) {
+      let errorMsg = '관심사 매핑에 실패했습니다.';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { detail?: string }, status?: number } };
+        if (axiosErr.response?.data?.detail) {
+          errorMsg = axiosErr.response.data.detail;
+        }
+      }
+      toast.error(errorMsg);
+    } finally {
+      setRemapping(false);
     }
   };
 
@@ -197,15 +249,26 @@ export function MemoCard({
       {/* 본문 보기 (외부 자료) */}
       {memo.analysis_status === 'completed' && hasDisplayContent && (
         <div>
-          <button
-            type="button"
-            onClick={handleToggleContent}
-            className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-primary transition-colors"
-          >
-            <FileText size={14} />
-            <span>본문 보기</span>
-            {translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </button>
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleToggleContent}
+              className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-primary transition-colors"
+            >
+              <FileText size={14} />
+              <span>본문 보기</span>
+              {translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            <button
+              type="button"
+              onClick={handleReanalyze}
+              disabled={reanalyzing}
+              className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-primary disabled:opacity-50"
+            >
+              <RefreshCw size={10} className={reanalyzing ? 'animate-spin' : ''} />
+              다시 분석
+            </button>
+          </div>
           {translationExpanded && displayContent && (
             <div className="mt-2 p-3 bg-gray-50 rounded-lg">
               {displayContent.isTranslated && (
@@ -226,17 +289,39 @@ export function MemoCard({
         </div>
       )}
 
-      {/* 관심사 태그 */}
-      {memo.interests && memo.interests.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {memo.interests.map((interest) => (
-            <span
-              key={`${memo.id}-interest-${interest}`}
-              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"
-            >
-              {interest}
+      {/* 관심사 섹션 */}
+      {memo.analysis_status === 'completed' && (
+        <div className="border-t border-gray-100 pt-2 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">
+              관심사
             </span>
-          ))}
+            {userInterests.length > 0 && (
+              <button
+                type="button"
+                onClick={handleRematch}
+                disabled={remapping}
+                className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-primary disabled:opacity-50"
+              >
+                <Tag size={10} className={remapping ? 'animate-spin' : ''} />
+                다시 매핑
+              </button>
+            )}
+          </div>
+          {memo.interests && memo.interests.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {memo.interests.map((interest) => (
+                <span
+                  key={`${memo.id}-interest-${interest}`}
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"
+                >
+                  {interest}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">매핑된 관심사 없음</p>
+          )}
         </div>
       )}
 
