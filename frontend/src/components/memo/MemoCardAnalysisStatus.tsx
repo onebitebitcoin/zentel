@@ -91,12 +91,12 @@ export function MemoCardAnalysisStatus({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAnalyzing, memo.id]);
 
-  // 로그 자동 스크롤 (최하단으로)
+  // 로그 자동 스크롤 (최하단으로) - 로그 개수가 변경될 때마다 실행
   useEffect(() => {
     if (logsContainerRef.current && logsExpanded) {
       logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight;
     }
-  }, [displayLogs, logsExpanded]);
+  }, [displayLogs.length, logsExpanded]);
 
   const handleReanalyze = async (force: boolean = false) => {
     if (reanalyzing) return;
