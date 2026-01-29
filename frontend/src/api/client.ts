@@ -72,8 +72,10 @@ export const tempMemoApi = {
   /**
    * 메모 재분석 요청
    */
-  reanalyze: async (id: string): Promise<TempMemo> => {
-    const response = await api.post<TempMemo>(`/temp-memos/${id}/reanalyze`);
+  reanalyze: async (id: string, force?: boolean): Promise<TempMemo> => {
+    const response = await api.post<TempMemo>(`/temp-memos/${id}/reanalyze`, null, {
+      params: force ? { force: true } : undefined,
+    });
     return response.data;
   },
 };

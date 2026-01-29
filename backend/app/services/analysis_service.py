@@ -124,10 +124,18 @@ class AnalysisService:
         """
         logger.info(f"[AnalysisService] 분석 시작: memo_id={memo_id}")
 
-        # 상태를 'analyzing'으로 변경
-        memo = db.query(TempMemo).filter(TempMemo.id == memo_id).first()
+        # 메모 조회 (최대 3회 재시도, DB 세션 타이밍 문제 해결)
+        memo = None
+        for retry in range(3):
+            memo = db.query(TempMemo).filter(TempMemo.id == memo_id).first()
+            if memo:
+                break
+            if retry < 2:
+                logger.warning(f"[AnalysisService] 메모 조회 실패, 재시도 {retry + 1}/3")
+                await asyncio.sleep(1)
+
         if not memo:
-            logger.error(f"[AnalysisService] 메모를 찾을 수 없음: memo_id={memo_id}")
+            logger.error(f"[AnalysisService] 메모를 찾을 수 없음 (3회 재시도 후): memo_id={memo_id}")
             return
 
         memo.analysis_status = "analyzing"

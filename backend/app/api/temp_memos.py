@@ -371,17 +371,18 @@ async def delete_temp_memo(
 async def reanalyze_memo(
     memo_id: str,
     background_tasks: BackgroundTasks,
+    force: bool = Query(default=False, description="강제 재분석 (analyzing 상태 무시)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """메모 재분석 요청 (본인 메모만)"""
-    logger.info(f"Reanalyze request: memo_id={memo_id}, user_id={current_user.id}")
+    logger.info(f"Reanalyze request: memo_id={memo_id}, user_id={current_user.id}, force={force}")
 
     db_memo = get_user_memo(db, memo_id, current_user.id)
 
-    # 이미 분석 중인 경우 거부
-    if db_memo.analysis_status == "analyzing":
-        raise HTTPException(status_code=400, detail="이미 분석 중입니다.")
+    # 이미 분석 중인 경우 거부 (force=true면 무시)
+    if not force and db_memo.analysis_status == "analyzing":
+        raise HTTPException(status_code=400, detail="이미 분석 중입니다. 강제 재분석하려면 force=true를 사용하세요.")
 
     # 상태를 pending으로 리셋
     db_memo.analysis_status = "pending"

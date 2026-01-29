@@ -102,14 +102,14 @@ export function MemoCardAnalysisStatus({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAnalyzing, memo.id]);
 
-  const handleReanalyze = async () => {
+  const handleReanalyze = async (force: boolean = false) => {
     if (reanalyzing) return;
     setReanalyzing(true);
     setAnalysisTimedOut(false);
     setTimeoutMessage(null);
     try {
-      await tempMemoApi.reanalyze(memo.id);
-      toast.success('재분석을 시작했습니다.');
+      await tempMemoApi.reanalyze(memo.id, force);
+      toast.success(force ? '강제 재분석을 시작했습니다.' : '재분석을 시작했습니다.');
       onReanalyze?.(memo.id);
     } catch (err) {
       let errorMsg = '재분석 요청에 실패했습니다.';
@@ -184,12 +184,13 @@ export function MemoCardAnalysisStatus({
           </button>
           <button
             type="button"
-            onClick={handleReanalyze}
+            onClick={() => handleReanalyze(true)}
             disabled={reanalyzing}
             className="flex items-center gap-1 text-primary hover:text-primary-600 ml-auto"
+            title="강제 재분석 (analyzing 상태 무시)"
           >
             <RefreshCw size={12} className={reanalyzing ? 'animate-spin' : ''} />
-            다시 시도
+            강제 재분석
           </button>
         </div>
         {timeoutMessage && (
