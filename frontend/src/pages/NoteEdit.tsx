@@ -139,6 +139,43 @@ export function NoteEdit() {
     }
   };
 
+  // 특정 출처 메모의 summary를 본문에 추가
+  const handleLoadSummary = (memo: SourceMemoDetail) => {
+    if (!memo.summary) {
+      toast.error('이 메모에는 요약이 없습니다.');
+      return;
+    }
+
+    const summaryText = `\n\n### 출처: ${memo.context || memo.og_title || '제목 없음'}\n\n${memo.summary}\n`;
+    setContent((prev) => prev + summaryText);
+    setIsEditing(true);
+    toast.success('요약이 추가되었습니다.');
+  };
+
+  // 모든 출처 메모의 summary를 본문에 추가
+  const handleLoadAllSummaries = () => {
+    if (sourceMemos.length === 0) {
+      toast.error('출처 메모가 없습니다.');
+      return;
+    }
+
+    const memosWithSummary = sourceMemos.filter((m) => m.summary);
+    if (memosWithSummary.length === 0) {
+      toast.error('요약이 있는 출처 메모가 없습니다.');
+      return;
+    }
+
+    let allSummaries = '\n\n';
+    memosWithSummary.forEach((memo, index) => {
+      const title = memo.context || memo.og_title || `출처 #${index + 1}`;
+      allSummaries += `### ${title}\n\n${memo.summary}\n\n`;
+    });
+
+    setContent((prev) => prev + allSummaries);
+    setIsEditing(true);
+    toast.success(`${memosWithSummary.length}개 메모의 요약이 추가되었습니다.`);
+  };
+
   useEffect(() => {
     fetchNote();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -470,6 +507,17 @@ export function NoteEdit() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          handleLoadAllSummaries();
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                        title="모든 출처 메모의 요약을 본문에 추가"
+                      >
+                        <FileText size={12} />
+                        전체 불러오기
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           navigate(`/notes/${id}/add-memos`);
                         }}
                         className="flex items-center gap-1 px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-lg transition-colors"
@@ -522,6 +570,15 @@ export function NoteEdit() {
                                 <span className="text-[10px] text-gray-400">
                                   #{index + 1}
                                 </span>
+                                {memo.summary && (
+                                  <button
+                                    onClick={() => handleLoadSummary(memo)}
+                                    className="p-1 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors"
+                                    title="이 메모의 요약을 본문에 추가"
+                                  >
+                                    <FileText size={12} />
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleRemoveSourceMemo(memo.id)}
                                   disabled={removingMemoId === memo.id}
