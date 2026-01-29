@@ -27,26 +27,15 @@ FROM python:3.11-slim AS production
 
 WORKDIR /app
 
-# Install system dependencies for Playwright Chromium
+# Install system dependencies for Playwright Firefox
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    # Playwright Chromium dependencies
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
+    # Playwright Firefox dependencies
+    libgtk-3-0 \
+    libdbus-glib-1-2 \
+    libxt6 \
+    libx11-xcb1 \
     libasound2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libatspi2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies one by one to reduce memory usage
@@ -62,8 +51,8 @@ RUN pip install --no-cache-dir httpx==0.27.0 playwright==1.49.0
 RUN pip install --no-cache-dir youtube-transcript-api==1.2.3
 RUN pip install --no-cache-dir trafilatura>=1.6.0 beautifulsoup4>=4.12.0
 
-# Install Playwright Chromium browser
-RUN playwright install chromium
+# Install Playwright Firefox browser (X.com 봇 감지 우회용)
+RUN playwright install firefox
 
 # Copy backend source code
 COPY backend/ ./backend/
