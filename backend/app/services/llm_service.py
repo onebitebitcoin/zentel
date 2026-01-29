@@ -14,13 +14,16 @@ import logging
 import re
 import unicodedata
 from functools import lru_cache
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 from openai import OpenAI
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# 진행 상황 콜백 타입 (step, message, detail) -> None
+ProgressCallback = Callable[[str, str, Optional[str]], Awaitable[None]]
 
 
 class LLMError(Exception):
@@ -617,12 +620,6 @@ async def _format_single_chunk(
         error_msg = f"[LLM] 텍스트 정리 실패: {e}"
         logger.error(error_msg, exc_info=True)
         raise LLMError(error_msg) from e
-
-
-from typing import Callable, Awaitable
-
-# 진행 상황 콜백 타입
-ProgressCallback = Callable[[str, str, Optional[str]], Awaitable[None]]
 
 
 async def translate_and_highlight(
