@@ -212,10 +212,17 @@ export function MemoCard({
           href={memo.source_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 text-xs text-gray-600 hover:text-primary transition-colors"
+          className="flex items-center gap-2 p-2 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors"
         >
-          <ExternalLink size={14} className="flex-shrink-0" />
-          <span className="truncate">원문 링크</span>
+          <ExternalLink size={14} className="text-teal-600 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-teal-600 truncate">
+              {memo.og_title || memo.source_url}
+            </p>
+            <p className="text-[10px] text-gray-400 truncate">
+              {new URL(memo.source_url).hostname}
+            </p>
+          </div>
         </a>
       )}
 
