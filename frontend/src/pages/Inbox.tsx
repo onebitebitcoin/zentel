@@ -26,6 +26,9 @@ export function Inbox() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // 스크롤 위치 복원 완료 플래그 (최초 1회만 복원)
+  const scrollRestoredRef = useRef(false);
+
   // 분석 중인 메모들 상태 새로고침 (SSE 재연결 시 호출)
   const refreshAnalyzingMemos = useCallback(async () => {
     const analyzingMemos = memos.filter(
@@ -75,6 +78,9 @@ export function Inbox() {
     setOffset(0);
     clearMemos(); // 필터 변경 시 메모 목록 초기화 (로딩 스피너 표시용)
     fetchMemos(type, limit, 0);
+    // 필터 변경 시 스크롤 복원 플래그 리셋 (새 목록이므로)
+    scrollRestoredRef.current = false;
+    sessionStorage.removeItem(SCROLL_POSITION_KEY);
   }, [filter, fetchMemos, clearMemos]);
 
   useEffect(() => {
@@ -83,8 +89,11 @@ export function Inbox() {
     }
   }, [error]);
 
-  // 스크롤 위치 복원
+  // 스크롤 위치 복원 (최초 로드 시에만, 분석 완료 시 스크롤 이동 방지)
   useEffect(() => {
+    // 이미 복원했으면 무시
+    if (scrollRestoredRef.current) return;
+
     const savedPosition = sessionStorage.getItem(SCROLL_POSITION_KEY);
     if (savedPosition && scrollContainerRef.current && memos.length > 0) {
       // 메모가 로드된 후 스크롤 위치 복원
@@ -93,6 +102,8 @@ export function Inbox() {
           scrollContainerRef.current.scrollTop = parseInt(savedPosition, 10);
         }
       }, 0);
+      // 복원 완료 플래그 설정
+      scrollRestoredRef.current = true;
     }
   }, [memos]);
 
