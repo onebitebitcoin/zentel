@@ -122,28 +122,34 @@ class AnalysisService:
             user_id: 사용자 ID (관심사 매핑용)
             retry_count: 재시도 횟수
         """
-        logger.info(f"[AnalysisService] 분석 시작: memo_id={memo_id}")
+        logger.info(f"[AnalysisService] 분석 시작: memo_id={memo_id}, user_id={user_id}")
 
         # 메모 조회 (최대 3회 재시도, DB 세션 타이밍 문제 해결)
         memo = None
         for retry in range(3):
+            logger.debug(f"[AnalysisService] 메모 조회 시도 {retry + 1}/3: memo_id={memo_id}")
             memo = db.query(TempMemo).filter(TempMemo.id == memo_id).first()
             if memo:
+                logger.info(f"[AnalysisService] 메모 조회 성공: memo_id={memo_id}, status={memo.analysis_status}")
                 break
             if retry < 2:
-                logger.warning(f"[AnalysisService] 메모 조회 실패, 재시도 {retry + 1}/3")
+                logger.warning(f"[AnalysisService] 메모 조회 실패, 1초 후 재시도 {retry + 1}/3")
                 await asyncio.sleep(1)
 
         if not memo:
             logger.error(f"[AnalysisService] 메모를 찾을 수 없음 (3회 재시도 후): memo_id={memo_id}")
+            logger.error(f"[AnalysisService] DB 세션 상태: {db.is_active}, autocommit={db.autocommit}")
             return
 
         memo.analysis_status = "analyzing"
         memo.analysis_error = None
         db.commit()
+        logger.info(f"[AnalysisService] 상태 변경: analyzing, memo_id={memo_id}")
 
         # 분석 시작 알림
+        logger.info(f"[AnalysisService] SSE 알림 전송 시작: memo_id={memo_id}")
         await notify_analysis_progress(memo_id, "start", "분석 시작")
+        logger.info(f"[AnalysisService] SSE 알림 전송 완료: memo_id={memo_id}")
 
         # 재시도 간격 (초)
         retry_delays = [1, 3, 5]
@@ -381,12 +387,24 @@ class AnalysisService:
         user_id: Optional[str],
     ) -> None:
         """실제 분석 로직 (각 단계별 함수 조합)"""
+        logger.info(f"[AnalysisService] _do_analysis 시작: memo_id={memo.id}")
+
         # 1. 외부 콘텐츠 추출
+        logger.info(f"[AnalysisService] 1단계: 외부 콘텐츠 추출 시작: memo_id={memo.id}")
         fetched_content, og_title, og_image = await self._fetch_external_content(memo)
+        logger.info(
+            f"[AnalysisService] 1단계 완료: fetched_content={'있음' if fetched_content else '없음'}, "
+            f"length={len(fetched_content) if fetched_content else 0}"
+        )
 
         # 2. LLM 분석 (context + 관심사 + summary 통합 추출 - LLM 호출 최적화)
+        logger.info(f"[AnalysisService] 2단계: LLM 분석 시작: memo_id={memo.id}")
         context, interests, summary = await self._extract_context_and_interests(
             memo, fetched_content, db, user_id
+        )
+        logger.info(
+            f"[AnalysisService] 2단계 완료: context={'있음' if context else '없음'}, "
+            f"interests={len(interests) if interests else 0}개"
         )
         memo.context = context
         memo.interests = interests if interests else None

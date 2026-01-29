@@ -148,17 +148,34 @@ def _run_background_analysis(
     db_url: str,
 ):
     """백그라운드에서 분석 실행 (별도 스레드에서 호출)"""
+    logger.info(f"[Background] Task started: memo_id={memo_id}, user_id={user_id}")
+
     from app.database import SessionLocal
     from app.utils import run_async_in_thread
 
     async def _async_analysis():
         db = SessionLocal()
         try:
+            logger.info(f"[Background] DB session created, running analysis: memo_id={memo_id}")
             await analysis_service.run_analysis(memo_id, db, user_id)
+            logger.info(f"[Background] Analysis completed: memo_id={memo_id}")
+        except Exception as e:
+            logger.error(
+                f"[Background] Analysis failed: memo_id={memo_id}, error={e}",
+                exc_info=True,
+            )
         finally:
             db.close()
+            logger.info(f"[Background] DB session closed: memo_id={memo_id}")
 
-    run_async_in_thread(_async_analysis)
+    try:
+        run_async_in_thread(_async_analysis)
+        logger.info(f"[Background] Task dispatched: memo_id={memo_id}")
+    except Exception as e:
+        logger.error(
+            f"[Background] Task dispatch failed: memo_id={memo_id}, error={e}",
+            exc_info=True,
+        )
 
 
 @router.post("", response_model=TempMemoOut, status_code=201)
