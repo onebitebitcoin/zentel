@@ -209,7 +209,7 @@ export function MemoCardAnalysisStatus({
           <span>분석 실패</span>
           <button
             type="button"
-            onClick={handleReanalyze}
+            onClick={() => handleReanalyze()}
             disabled={reanalyzing}
             className="flex items-center gap-1 text-primary hover:text-primary-600 ml-auto"
           >
