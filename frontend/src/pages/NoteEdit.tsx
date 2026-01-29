@@ -273,10 +273,35 @@ export function NoteEdit() {
     }
   };
 
-  const handleBack = () => {
+  const handleBack = async () => {
     if (hasChanges || isEditing) {
-      if (!window.confirm('저장하지 않은 변경사항이 있습니다. 나가시겠습니까?')) {
+      // 저장할지 물어봄
+      const shouldSave = window.confirm(
+        '저장하지 않은 변경사항이 있습니다.\n\n저장하고 나가시겠습니까?\n\n확인: 저장 후 나가기\n취소: 저장 안하고 선택'
+      );
+
+      if (shouldSave) {
+        // 저장 후 나가기
+        if (!id) return;
+        setSaving(true);
+        try {
+          await permanentNoteApi.update(id, { title, content });
+          toast.success('저장되었습니다.');
+          navigate('/notes');
+        } catch {
+          toast.error('저장에 실패했습니다.');
+        } finally {
+          setSaving(false);
+        }
         return;
+      } else {
+        // 저장 안하고 나갈지 한번 더 확인
+        const confirmLeave = window.confirm(
+          '저장하지 않고 나가시겠습니까?\n\n변경사항이 모두 삭제됩니다.'
+        );
+        if (!confirmLeave) {
+          return;
+        }
       }
     }
     navigate('/notes');
