@@ -30,6 +30,7 @@ export function MemoCardAnalysisStatus({
   const [analysisTimedOut, setAnalysisTimedOut] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const logsContainerRef = useRef<HTMLDivElement | null>(null);
 
   const isAnalyzing = memo.analysis_status === 'pending' || memo.analysis_status === 'analyzing';
   const isAnalysisFailed = memo.analysis_status === 'failed';
@@ -90,6 +91,13 @@ export function MemoCardAnalysisStatus({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAnalyzing, memo.id]);
 
+  // 로그 자동 스크롤 (최하단으로)
+  useEffect(() => {
+    if (logsContainerRef.current && logsExpanded) {
+      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight;
+    }
+  }, [displayLogs, logsExpanded]);
+
   const handleReanalyze = async (force: boolean = false) => {
     if (reanalyzing) return;
     setReanalyzing(true);
@@ -139,7 +147,10 @@ export function MemoCardAnalysisStatus({
           </button>
         </div>
         {logsExpanded && displayLogs.length > 0 && (
-          <div className="mt-2 p-2 bg-gray-900 rounded-lg text-[10px] font-mono text-gray-300 max-h-32 overflow-auto">
+          <div
+            ref={logsContainerRef}
+            className="mt-2 p-2 bg-gray-900 rounded-lg text-[10px] font-mono text-gray-300 max-h-32 overflow-auto"
+          >
             {displayLogs.map((log, idx) => (
               <div key={idx} className="flex gap-2 py-0.5">
                 <span className="text-gray-500 flex-shrink-0">{log.timestamp}</span>
@@ -190,7 +201,10 @@ export function MemoCardAnalysisStatus({
           </button>
         </div>
         {logsExpanded && displayLogs.length > 0 && (
-          <div className="mt-2 p-2 bg-gray-900 rounded-lg text-[10px] font-mono text-gray-300 max-h-32 overflow-auto">
+          <div
+            ref={logsContainerRef}
+            className="mt-2 p-2 bg-gray-900 rounded-lg text-[10px] font-mono text-gray-300 max-h-32 overflow-auto"
+          >
             {displayLogs.map((log, idx) => (
               <div key={idx} className="flex gap-2 py-0.5">
                 <span className="text-gray-500 flex-shrink-0">{log.timestamp}</span>
