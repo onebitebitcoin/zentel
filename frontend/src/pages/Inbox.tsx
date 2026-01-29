@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, CheckSquare, X, ArrowUpRight } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -11,6 +11,8 @@ import { MEMO_TYPES } from '../types/memo';
 
 type FilterType = 'ALL' | MemoType;
 
+const SCROLL_POSITION_KEY = 'inbox-scroll-position';
+
 export function Inbox() {
   const navigate = useNavigate();
   const { memos, total, loading, error, fetchMemos, deleteMemo, refreshMemo, clearMemos } = useTempMemos();
@@ -18,6 +20,7 @@ export function Inbox() {
   const [offset, setOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const limit = 20;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // 선택 모드 상태
   const [selectionMode, setSelectionMode] = useState(false);
@@ -65,7 +68,40 @@ export function Inbox() {
     }
   }, [error]);
 
+  // 스크롤 위치 복원
+  useEffect(() => {
+    const savedPosition = sessionStorage.getItem(SCROLL_POSITION_KEY);
+    if (savedPosition && scrollContainerRef.current && memos.length > 0) {
+      // 메모가 로드된 후 스크롤 위치 복원
+      setTimeout(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = parseInt(savedPosition, 10);
+        }
+      }, 0);
+    }
+  }, [memos]);
+
+  // 페이지 언마운트 시 스크롤 위치 저장
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    return () => {
+      if (scrollContainer) {
+        sessionStorage.setItem(
+          SCROLL_POSITION_KEY,
+          scrollContainer.scrollTop.toString()
+        );
+      }
+    };
+  }, []);
+
   const handleEdit = (memoId: string) => {
+    // 편집 페이지로 이동하기 전 스크롤 위치 저장
+    if (scrollContainerRef.current) {
+      sessionStorage.setItem(
+        SCROLL_POSITION_KEY,
+        scrollContainerRef.current.scrollTop.toString()
+      );
+    }
     navigate(`/memo/${memoId}`);
   };
 
@@ -267,7 +303,10 @@ export function Inbox() {
       )}
 
       {/* 메모 목록 */}
-      <div className="flex-1 overflow-auto px-4 md:px-6 py-4 pb-24 md:pb-6 space-y-3 md:space-y-4">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-auto px-4 md:px-6 py-4 pb-24 md:pb-6 space-y-3 md:space-y-4"
+      >
         {loading && memos.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
