@@ -276,7 +276,7 @@ class AnalysisService:
             await notify_analysis_progress(memo.id, "scrape", "웹페이지 콘텐츠 추출 중", source_url)
 
             # progress_callback 정의 (SSE로 진행 상황 전달)
-            async def url_progress_callback(step: str, message: str, detail: str | None = None):
+            async def url_progress_callback(step: str, message: str, detail: Optional[str] = None):
                 await notify_analysis_progress(memo.id, step, message, detail)
 
             url_content, og_metadata = await fetch_url_content(
@@ -471,8 +471,16 @@ class AnalysisService:
         # 1회 LLM 호출로 언어감지 + 번역 + 하이라이트 처리
         logger.info("[AnalysisService] 번역/하이라이트 통합 분석 시작 (1회 LLM 호출)")
         await notify_analysis_progress(memo.id, "translate", "번역 및 하이라이트 추출 중")
+
+        # 번역 진행 상황 콜백 정의
+        async def translate_progress_callback(
+            step: str, message: str, detail: Optional[str] = None
+        ):
+            await notify_analysis_progress(memo.id, step, message, detail)
+
         lang, translation, is_summary, highlights = await context_extractor.translate_and_highlight(
-            text_to_analyze
+            text_to_analyze,
+            progress_callback=translate_progress_callback,
         )
 
         # 결과 저장

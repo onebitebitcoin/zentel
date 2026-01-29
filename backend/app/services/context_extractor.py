@@ -10,13 +10,16 @@ Unix Philosophy:
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Optional, Callable, Awaitable
 
 from app.services import llm_service
 from app.services.og_metadata import OGMetadata
 from app.services.url_fetcher import fetch_url_content
 
 logger = logging.getLogger(__name__)
+
+# 진행 상황 콜백 타입
+ProgressCallback = Callable[[str, str, Optional[str]], Awaitable[None]]
 
 
 class ContextExtractor:
@@ -84,18 +87,23 @@ class ContextExtractor:
         return await llm_service.match_interests(content, user_interests)
 
     async def translate_and_highlight(
-        self, text: str
+        self,
+        text: str,
+        progress_callback: ProgressCallback | None = None,
     ) -> tuple[Optional[str], Optional[str], bool, Optional[list[dict]]]:
         """
         언어 감지 + 번역 + 하이라이트 추출
 
         Args:
             text: 분석할 텍스트
+            progress_callback: 진행 상황 콜백 (step, message, detail)
 
         Returns:
             (언어코드, 번역본, 요약여부, 하이라이트 목록) 튜플
         """
-        return await llm_service.translate_and_highlight(text)
+        return await llm_service.translate_and_highlight(
+            text, progress_callback=progress_callback
+        )
 
 
 # 싱글톤 인스턴스

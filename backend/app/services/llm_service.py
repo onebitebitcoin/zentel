@@ -619,9 +619,16 @@ async def _format_single_chunk(
         raise LLMError(error_msg) from e
 
 
+from typing import Callable, Awaitable
+
+# 진행 상황 콜백 타입
+ProgressCallback = Callable[[str, str, Optional[str]], Awaitable[None]]
+
+
 async def translate_and_highlight(
     text: str,
     max_retries: int = 2,
+    progress_callback: Optional[ProgressCallback] = None,
 ) -> tuple[Optional[str], Optional[str], bool, Optional[list[dict]]]:
     """
     언어 감지 + 번역 + 하이라이트 추출
@@ -631,6 +638,7 @@ async def translate_and_highlight(
     Args:
         text: 분석할 텍스트
         max_retries: 검증 실패 시 최대 재시도 횟수
+        progress_callback: 진행 상황 콜백 (step, message, detail)
 
     Returns:
         (언어코드, 번역본, False, 하이라이트 목록) 튜플
@@ -643,31 +651,67 @@ async def translate_and_highlight(
     if len(text.strip()) < 20:
         return None, None, False, None
 
+    # 진행 상황 알림 헬퍼
+    async def notify(step: str, message: str, detail: Optional[str] = None):
+        if progress_callback:
+            await progress_callback(step, message, detail)
+
     # 1단계: 언어 감지 (첫 500자로 빠르게 감지)
+    await notify("translate_detect", "언어 감지 중", None)
     sample_text = text[:500]
     language = await _detect_language(client, sample_text)
+    await notify("translate_detect_done", "언어 감지 완료", f"감지된 언어: {language or 'unknown'}")
 
     # 한국어면 번역 스킵, 정리 + 하이라이트만 추출
     if language == "ko":
         logger.info("[LLM] 한국어 감지, 정리만 수행")
+        await notify("translate_format", "텍스트 정리 중", "한국어 - 번역 스킵")
         formatted_text = await _format_text(client, text)
+        await notify("translate_format_done", "텍스트 정리 완료", f"{len(formatted_text) if formatted_text else 0}자")
+        await notify("translate_highlight", "하이라이트 추출 중", None)
         highlights = await _extract_highlights(client, formatted_text or text)
+        await notify("translate_highlight_done", "하이라이트 추출 완료", f"{len(highlights) if highlights else 0}개")
         return language, formatted_text, False, highlights
 
     # 2단계: 청크 분할 및 번역
     chunks = _split_into_chunks(text)
     translations = []
+    total_chunks = len(chunks)
+
+    await notify("translate_chunk_start", "번역 시작", f"총 {total_chunks}개 청크")
 
     for i, chunk in enumerate(chunks):
-        translated = await _translate_chunk(client, chunk, i, len(chunks), language)
+        chunk_num = i + 1
+        await notify(
+            "translate_chunk",
+            f"청크 {chunk_num}/{total_chunks} 번역 중",
+            f"{len(chunk)}자"
+        )
+        translated = await _translate_chunk(client, chunk, i, total_chunks, language)
         if translated:
             translations.append(translated)
+            await notify(
+                "translate_chunk_done",
+                f"청크 {chunk_num}/{total_chunks} 번역 완료",
+                f"{len(translated)}자"
+            )
         else:
             # 번역 실패 시 원문 유지
             translations.append(chunk)
+            await notify(
+                "translate_chunk_done",
+                f"청크 {chunk_num}/{total_chunks} 번역 실패 (원문 유지)",
+                None
+            )
 
     # 3단계: 번역 결과 합치기
+    await notify("translate_merge", "번역 결과 병합 중", None)
     full_translation = _merge_translations(translations) if translations else None
+    await notify(
+        "translate_merge_done",
+        "번역 결과 병합 완료",
+        f"{len(full_translation) if full_translation else 0}자"
+    )
 
     # 4단계: 번역 검증
     if full_translation:
@@ -680,8 +724,10 @@ async def translate_and_highlight(
             logger.warning(f"[LLM] 번역 검증 실패: {validation_msg}")
 
     # 5단계: 하이라이트 추출 (번역본 기준)
+    await notify("translate_highlight", "하이라이트 추출 중", None)
     highlight_target = full_translation if full_translation else text
     highlights = await _extract_highlights(client, highlight_target)
+    await notify("translate_highlight_done", "하이라이트 추출 완료", f"{len(highlights) if highlights else 0}개")
 
     logger.info(
         f"[LLM] translate_and_highlight 완료: language={language}, "
