@@ -41,6 +41,7 @@ fi
 BACKEND_LINT="SKIP"
 BACKEND_TEST="SKIP"
 FRONTEND_LINT="SKIP"
+FRONTEND_BUILD="SKIP"
 FAILED=false
 
 # 함수: 백엔드 린트
@@ -103,6 +104,24 @@ run_frontend_lint() {
     fi
 }
 
+# 함수: 프론트엔드 빌드
+run_frontend_build() {
+    info "Frontend 빌드 검사 중..."
+
+    if [ -d "frontend" ]; then
+        cd frontend
+        if npm run build; then
+            FRONTEND_BUILD="PASS"
+            success "Frontend 빌드 통과"
+        else
+            FRONTEND_BUILD="FAIL"
+            error "Frontend 빌드 실패"
+            FAILED=true
+        fi
+        cd ..
+    fi
+}
+
 # 메인 로직
 echo "=========================================="
 echo "Zentel - Test Runner"
@@ -121,12 +140,17 @@ case $MODE in
     "frontend-lint")
         run_frontend_lint
         ;;
+    "frontend-build")
+        run_frontend_build
+        ;;
     "all"|*)
         run_backend_lint
         echo ""
         run_backend_tests
         echo ""
         run_frontend_lint
+        echo ""
+        run_frontend_build
         ;;
 esac
 
@@ -141,6 +165,7 @@ echo "|------|------|"
 echo "| Backend Lint | $BACKEND_LINT |"
 echo "| Backend Test | $BACKEND_TEST |"
 echo "| Frontend Lint | $FRONTEND_LINT |"
+echo "| Frontend Build | $FRONTEND_BUILD |"
 echo ""
 
 if [ "$FAILED" = false ]; then
