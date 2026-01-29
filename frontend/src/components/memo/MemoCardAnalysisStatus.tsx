@@ -48,21 +48,31 @@ export function MemoCardAnalysisStatus({
     return analysisLogs;
   })();
 
-  // 타임아웃 시 서버 상태 확인
+  // 타임아웃 시 서버 상태 확인 + 로그 분석
   const checkServerStatus = async () => {
     setCheckingStatus(true);
     try {
       const serverMemo = await tempMemoApi.get(memo.id);
+
+      // 로그 분석
+      const lastLog = displayLogs[displayLogs.length - 1];
+      const logCount = displayLogs.length;
+      const lastMessage = lastLog ? `${lastLog.message}${lastLog.detail ? ` (${lastLog.detail})` : ''}` : '로그 없음';
+
+      // 서버 상태에 따라 메시지 구성
       if (serverMemo.analysis_status === 'completed') {
-        setTimeoutMessage('분석 완료됨 - 새로고침 필요');
+        setTimeoutMessage('✅ 분석 완료됨 - 새로고침 필요');
         onReanalyze?.(memo.id);
       } else if (serverMemo.analysis_status === 'failed') {
-        setTimeoutMessage(serverMemo.analysis_error || '분석 실패');
+        setTimeoutMessage(`❌ ${serverMemo.analysis_error || '분석 실패'}\n마지막 진행: ${lastMessage}`);
       } else {
-        setTimeoutMessage('서버에서 아직 분석 중');
+        // 아직 분석 중 - 마지막 진행 상황 표시
+        setTimeoutMessage(`🔄 서버에서 아직 분석 중\n📊 ${logCount}단계 진행됨\n📍 마지막 단계: ${lastMessage}`);
       }
     } catch {
-      setTimeoutMessage('서버 연결 실패');
+      const lastLog = displayLogs[displayLogs.length - 1];
+      const lastMessage = lastLog ? `${lastLog.message}` : '로그 없음';
+      setTimeoutMessage(`❌ 서버 연결 실패\n마지막 진행: ${lastMessage}`);
     } finally {
       setCheckingStatus(false);
     }
@@ -183,7 +193,7 @@ export function MemoCardAnalysisStatus({
           </button>
         </div>
         {timeoutMessage && (
-          <p className="mt-1 text-[10px] text-gray-500">{timeoutMessage}</p>
+          <p className="mt-1 text-[10px] text-gray-500 whitespace-pre-line">{timeoutMessage}</p>
         )}
       </div>
     );
