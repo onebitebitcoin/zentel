@@ -71,55 +71,89 @@ class TwitterPlaywrightScraper:
         import time
 
         start_time = time.time()
-        result = PlaywrightResult()
 
+        # 별도 프로세스에서 실행 (BackgroundTasks 환경에서 브라우저 종료 문제 회피)
         try:
-            from playwright.async_api import async_playwright
-
-            async with async_playwright() as p:
-                logger.info(f"[Playwright] 브라우저 시작 (headless={self.headless})")
-
-                browser = await p.chromium.launch(headless=self.headless)
-                context = await browser.new_context(
-                    user_agent=self.user_agent,
-                    viewport={"width": 1280, "height": 720},
-                )
-
-                # 쿠키 로드
-                await self._load_cookies(context)
-
-                page = await context.new_page()
-
-                # 로그인 확인 및 처리
-                await self._ensure_logged_in(page, context)
-
-                # 대상 URL로 이동
-                logger.info(f"[Playwright] 대상 URL 로딩: {url}")
-                await page.goto(url, timeout=self.timeout, wait_until="load")
-                await page.wait_for_timeout(3000)
-
-                # OG 메타데이터 추출
-                og = await self._extract_og_metadata(page)
-                result.og_title = og.get("title")
-                result.og_image = og.get("image")
-                result.og_description = og.get("description")
-
-                # 콘텐츠 추출
-                article_content = await self._extract_article_content(page)
-                if article_content and len(article_content) > 200:
-                    result.content = article_content
-                else:
-                    result.content = await self._extract_tweet_content(page)
-
-                await browser.close()
-                result.success = True
-                logger.info(f"[Playwright] 완료: content_length={len(result.content)}")
-
+            result = await self._scrape_in_process(url)
         except Exception as e:
-            logger.error(f"[Playwright] 실패: {e}", exc_info=True)
-            result.error = str(e)
+            logger.error(f"[Playwright] 프로세스 실행 실패: {e}", exc_info=True)
+            result = PlaywrightResult(error=str(e))
 
         result.elapsed_time = time.time() - start_time
+        return result
+
+    async def _scrape_in_process(self, url: str) -> PlaywrightResult:
+        """별도 subprocess에서 Playwright 워커 스크립트 실행 (동기 방식)"""
+        import concurrent.futures
+        import subprocess
+        import sys
+
+        result = PlaywrightResult()
+
+        # 워커 스크립트 경로
+        worker_path = Path(__file__).parent / "playwright_worker.py"
+
+        def run_worker():
+            """스레드에서 동기 subprocess 실행"""
+            cmd = [sys.executable, str(worker_path), url, str(self.timeout)]
+            logger.info(f"[Playwright] 워커 프로세스 실행: {' '.join(cmd)}")
+
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=120,  # 2분 타임아웃
+            )
+
+            return proc.returncode, proc.stdout, proc.stderr
+
+        try:
+            logger.info(f"[Playwright] 워커 프로세스 시작: {url}")
+
+            # ThreadPoolExecutor에서 동기 subprocess 실행
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                returncode, stdout, stderr = await loop.run_in_executor(executor, run_worker)
+
+            stderr_msg = stderr.decode("utf-8", errors="replace").strip()
+            if stderr_msg:
+                logger.warning(f"[Playwright] 워커 stderr: {stderr_msg[:500]}")
+
+            if returncode != 0:
+                logger.error(f"[Playwright] 워커 프로세스 에러 (returncode={returncode}): {stderr_msg}")
+                result.error = stderr_msg or f"returncode={returncode}"
+                return result
+
+            # JSON 결과 파싱
+            output = stdout.decode("utf-8", errors="replace").strip()
+            logger.debug(f"[Playwright] 워커 stdout: {output[:500] if output else 'empty'}")
+
+            if output:
+                try:
+                    data = json.loads(output)
+                    result.content = data.get("content", "")
+                    result.og_title = data.get("og_title")
+                    result.og_image = data.get("og_image")
+                    result.og_description = data.get("og_description")
+                    result.success = data.get("success", False)
+                    result.error = data.get("error")
+
+                    if result.error:
+                        logger.warning(f"[Playwright] 워커 내부 에러: {result.error}")
+
+                    logger.info(f"[Playwright] 워커 완료: success={result.success}, content_length={len(result.content)}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"[Playwright] 워커 JSON 파싱 실패: {e}, output={output[:200]}")
+                    result.error = f"JSON 파싱 실패: {e}"
+            else:
+                result.error = "워커 출력 없음"
+
+        except subprocess.TimeoutExpired:
+            logger.error("[Playwright] 워커 프로세스 타임아웃")
+            result.error = "타임아웃"
+        except Exception as e:
+            logger.error(f"[Playwright] 워커 프로세스 실패: {e}", exc_info=True)
+            result.error = str(e)
+
         return result
 
     async def _ensure_logged_in(self, page, context) -> None:
