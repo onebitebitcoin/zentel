@@ -150,11 +150,7 @@ export function MemoCardAnalysisStatus({
     return (
       <div className="border-t border-gray-100 pt-2">
         <div className="flex items-center justify-between">
-          {memo.context ? (
-            <span className="text-[10px] text-gray-400 uppercase tracking-wide">Context</span>
-          ) : (
-            <span className="text-[10px] text-gray-400">분석 완료 (context 없음)</span>
-          )}
+          <span className="text-[10px] text-gray-400">분석 완료</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -178,9 +174,6 @@ export function MemoCardAnalysisStatus({
             )}
           </div>
         </div>
-        {memo.context && (
-          <p className="text-xs text-gray-700 line-clamp-2">{memo.context}</p>
-        )}
       </div>
     );
   }
