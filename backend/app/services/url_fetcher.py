@@ -23,6 +23,7 @@ import trafilatura
 
 from app.services.og_metadata import OGMetadata, extract_og_metadata
 from app.services.twitter_scraper import twitter_scraper
+from app.services.naver_blog_scraper import naver_blog_scraper, is_naver_blog_url
 
 logger = logging.getLogger(__name__)
 
@@ -500,10 +501,11 @@ async def fetch_url_content(
     처리 순서:
     1. YouTube → 별도 스크래퍼 필요 메시지
     2. Twitter/X → Playwright로 직접 처리
-    3. GitHub blob → raw URL로 변환하여 텍스트 그대로 사용
-    4. 일반 URL → trafilatura로 본문 추출
-    5. Cloudflare 차단 감지 → 사람처럼 행동하는 우회 시도
-    6. 결과 부실 시 → Playwright JS 렌더링 후 재시도
+    3. 네이버 블로그 → Playwright 전용 스크래퍼
+    4. GitHub blob → raw URL로 변환하여 텍스트 그대로 사용
+    5. 일반 URL → trafilatura로 본문 추출
+    6. Cloudflare 차단 감지 → 사람처럼 행동하는 우회 시도
+    7. 결과 부실 시 → Playwright JS 렌더링 후 재시도
 
     Args:
         url: 대상 URL
@@ -526,13 +528,18 @@ async def fetch_url_content(
         logger.info(f"Twitter URL 감지, Playwright로 처리: {url}")
         return await _fetch_twitter_content(url, max_length)
 
-    # 3. GitHub blob URL은 raw URL로 변환
+    # 3. 네이버 블로그 URL은 전용 스크래퍼로 처리
+    if is_naver_blog_url(url):
+        logger.info(f"네이버 블로그 URL 감지, 전용 스크래퍼로 처리: {url}")
+        return await _fetch_naver_blog_content(url, max_length)
+
+    # 4. GitHub blob URL은 raw URL로 변환
     github_raw_url = convert_github_blob_to_raw(url)
     if github_raw_url:
         logger.info(f"GitHub blob → raw 변환: {url}")
         return await _fetch_raw_text(url, github_raw_url, max_length)
 
-    # 4. 일반 URL 처리 (Cloudflare 감지 포함)
+    # 5. 일반 URL 처리 (Cloudflare 감지 포함)
     return await _fetch_html_content(url, max_length, progress_callback)
 
 
@@ -583,6 +590,55 @@ async def _fetch_twitter_content(
         return None, OGMetadata(
             fetch_failed=True,
             fetch_message=f"트위터 콘텐츠를 가져오는데 실패했습니다: {str(e)}",
+        )
+
+
+async def _fetch_naver_blog_content(
+    url: str,
+    max_length: int,
+) -> tuple[Optional[str], Optional[OGMetadata]]:
+    """
+    네이버 블로그 URL에서 콘텐츠 가져오기 (NaverBlogScraper 사용)
+
+    NaverBlogScraper는 Playwright로 브라우저를 열어 콘텐츠를 추출합니다:
+    - 봇 차단 우회 (사람처럼 행동)
+    - 네이버 특화 CSS 선택자 사용
+    - OG 메타데이터 추출
+    """
+    try:
+        logger.info(f"[NaverBlog] 네이버 블로그 스크래퍼로 콘텐츠 추출 시작: {url}")
+
+        result = await naver_blog_scraper.scrape(url)
+
+        if not result.success:
+            logger.warning(f"[NaverBlog] 스크래핑 실패: {result.error}")
+            return None, OGMetadata(
+                fetch_failed=True,
+                fetch_message=f"네이버 블로그 콘텐츠를 가져오는데 실패했습니다: {result.error}",
+            )
+
+        content = result.content
+        if content and len(content) > max_length:
+            content = content[:max_length] + "..."
+
+        # OG 메타데이터 생성
+        og_metadata = OGMetadata(
+            title=result.og_title,
+            image=result.og_image,
+            description=result.og_description,
+        )
+
+        logger.info(
+            f"[NaverBlog] 추출 완료: {url}, "
+            f"length={len(content) if content else 0}"
+        )
+        return content, og_metadata
+
+    except Exception as e:
+        logger.error(f"[NaverBlog] 콘텐츠 가져오기 실패: {url}, error={e}")
+        return None, OGMetadata(
+            fetch_failed=True,
+            fetch_message=f"네이버 블로그 콘텐츠를 가져오는데 실패했습니다: {str(e)}",
         )
 
 
