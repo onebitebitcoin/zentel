@@ -10,12 +10,13 @@ Unix Philosophy:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import random
 import re
 from typing import Awaitable, Callable, Optional
-from urllib.parse import urlparse, quote
+from urllib.parse import quote, urlparse
 
 import httpx
 import trafilatura
@@ -382,7 +383,6 @@ async def fetch_with_cloudflare_bypass(
 
                 # 사람처럼 행동하면서 대기
                 last_html = ""
-                last_title = ""
 
                 for wait_round in range(5):
                     try:
@@ -410,7 +410,6 @@ async def fetch_with_cloudflare_bypass(
                             html = await page.content()
                             title = await page.title()
                             last_html = html
-                            last_title = title
                         except Exception as content_error:
                             logger.warning(
                                 f"[Cloudflare] content 조회 에러: {content_error}"
@@ -434,10 +433,8 @@ async def fetch_with_cloudflare_bypass(
 
                                 # 최종 콘텐츠 로드 대기
                                 await human_like_delay(1.0, 2.0)
-                                try:
+                                with contextlib.suppress(Exception):
                                     html = await page.content()
-                                except Exception:
-                                    pass
 
                                 await browser.close()
                                 return html, True
@@ -459,10 +456,8 @@ async def fetch_with_cloudflare_bypass(
                 except Exception:
                     html = last_html
 
-                try:
+                with contextlib.suppress(Exception):
                     await browser.close()
-                except Exception:
-                    pass
 
                 # 마지막 시도에서 콘텐츠가 있으면 반환
                 if html and len(html) > 1000 and not is_cloudflare_blocked(html, 403):

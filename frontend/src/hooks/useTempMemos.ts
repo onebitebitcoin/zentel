@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { tempMemoApi } from '../api/client';
+import { getErrorMessage } from '../utils/error';
 import type {
   TempMemo,
   TempMemoListItem,
@@ -30,7 +31,7 @@ export function useTempMemos() {
         }
         setTotal(response.total);
       } catch (err) {
-        const message = err instanceof Error ? err.message : '메모를 불러오는데 실패했습니다.';
+        const message = getErrorMessage(err, '메모를 불러오는데 실패했습니다.');
         setError(message);
       } finally {
         setLoading(false);
@@ -47,7 +48,7 @@ export function useTempMemos() {
       setTotal((prev) => prev + 1);
       return newMemo;
     } catch (err) {
-      const message = err instanceof Error ? err.message : '메모 저장에 실패했습니다.';
+      const message = getErrorMessage(err, '메모 저장에 실패했습니다.');
       setError(message);
       throw err;
     }
@@ -60,7 +61,7 @@ export function useTempMemos() {
       setMemos((prev) => prev.map((m) => (m.id === id ? updated : m)));
       return updated;
     } catch (err) {
-      const message = err instanceof Error ? err.message : '메모 수정에 실패했습니다.';
+      const message = getErrorMessage(err, '메모 수정에 실패했습니다.');
       setError(message);
       throw err;
     }
@@ -73,7 +74,7 @@ export function useTempMemos() {
       setMemos((prev) => prev.filter((m) => m.id !== id));
       setTotal((prev) => prev - 1);
     } catch (err) {
-      const message = err instanceof Error ? err.message : '메모 삭제에 실패했습니다.';
+      const message = getErrorMessage(err, '메모 삭제에 실패했습니다.');
       setError(message);
       throw err;
     }

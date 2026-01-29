@@ -144,7 +144,7 @@ class CommentRepository:
             .filter(MemoComment.memo_id.in_(memo_ids))
             .group_by(MemoComment.memo_id)
         )
-        counts = {memo_id: count for memo_id, count in count_query.all()}
+        counts = dict(count_query.all())
 
         # 2. 각 메모의 최신 댓글 조회 (1쿼리)
         # 서브쿼리로 각 메모별 최신 댓글 ID 찾기

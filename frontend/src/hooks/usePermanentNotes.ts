@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { permanentNoteApi } from '../api/client';
+import { getErrorMessage } from '../utils/error';
 import type {
   PermanentNote,
   PermanentNoteListItem,
@@ -32,7 +33,7 @@ export function usePermanentNotes() {
         }
         setTotal(response.total);
       } catch (err) {
-        const message = err instanceof Error ? err.message : '영구 메모를 불러오는데 실패했습니다.';
+        const message = getErrorMessage(err, '영구 메모를 불러오는데 실패했습니다.');
         setError(message);
       } finally {
         setLoading(false);
@@ -49,7 +50,7 @@ export function usePermanentNotes() {
       detailCacheRef.current.set(newNote.id, newNote);
       return newNote;
     } catch (err) {
-      const message = err instanceof Error ? err.message : '영구 메모 생성에 실패했습니다.';
+      const message = getErrorMessage(err, '영구 메모 생성에 실패했습니다.');
       setError(message);
       throw err;
     }
@@ -78,7 +79,7 @@ export function usePermanentNotes() {
       detailCacheRef.current.set(id, updated);
       return updated;
     } catch (err) {
-      const message = err instanceof Error ? err.message : '영구 메모 수정에 실패했습니다.';
+      const message = getErrorMessage(err, '영구 메모 수정에 실패했습니다.');
       setError(message);
       throw err;
     }
@@ -93,7 +94,7 @@ export function usePermanentNotes() {
       // 캐시에서 제거
       detailCacheRef.current.delete(id);
     } catch (err) {
-      const message = err instanceof Error ? err.message : '영구 메모 삭제에 실패했습니다.';
+      const message = getErrorMessage(err, '영구 메모 삭제에 실패했습니다.');
       setError(message);
       throw err;
     }
@@ -145,8 +146,7 @@ export function usePermanentNotes() {
         });
         return result;
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : '메모 분석에 실패했습니다.';
+        const message = getErrorMessage(err, '메모 분석에 실패했습니다.');
         setError(message);
         throw err;
       } finally {

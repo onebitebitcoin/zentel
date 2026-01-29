@@ -126,7 +126,7 @@ async def develop_note(
                 "message": "메모 분석 중 오류가 발생했습니다.",
                 "error": str(e),
             }
-        )
+        ) from e
 
     # 응답 구성
     memo_analyses = [
