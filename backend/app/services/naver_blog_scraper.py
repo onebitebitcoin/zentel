@@ -115,15 +115,9 @@ class NaverBlogScraper:
 
         try:
             async with async_playwright() as p:
-                # 실제 브라우저처럼 설정
-                browser = await p.chromium.launch(
+                # Firefox 사용 (Railway 배포 환경 호환)
+                browser = await p.firefox.launch(
                     headless=self.headless,
-                    args=[
-                        "--disable-blink-features=AutomationControlled",
-                        "--disable-dev-shm-usage",
-                        "--no-sandbox",
-                        "--disable-web-security",
-                    ],
                 )
 
                 # 실제 사용자처럼 보이는 컨텍스트
