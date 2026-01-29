@@ -246,10 +246,10 @@ export function MemoCard({
         </a>
       )}
 
-      {/* 본문 보기 (외부 자료) */}
-      {memo.analysis_status === 'completed' && hasDisplayContent && (
-        <div>
-          <div className="flex items-center justify-between">
+      {/* 다시 분석 버튼 (분석 완료 시 항상 표시) */}
+      {memo.analysis_status === 'completed' && (
+        <div className="flex items-center justify-between">
+          {hasDisplayContent && (
             <button
               type="button"
               onClick={handleToggleContent}
@@ -259,33 +259,37 @@ export function MemoCard({
               <span>본문 보기</span>
               {translationExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
-            <button
-              type="button"
-              onClick={handleReanalyze}
-              disabled={reanalyzing}
-              className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-primary disabled:opacity-50"
-            >
-              <RefreshCw size={10} className={reanalyzing ? 'animate-spin' : ''} />
-              다시 분석
-            </button>
-          </div>
-          {translationExpanded && displayContent && (
-            <div className="mt-2 p-3 bg-gray-50 rounded-lg">
-              {displayContent.isTranslated && (
-                <p className="text-[10px] text-blue-600 mb-2">
-                  번역된 내용입니다
-                </p>
-              )}
-              {!displayContent.isTranslated && memo.display_content && (
-                <p className="text-[10px] text-gray-500 mb-2">
-                  추출된 내용입니다
-                </p>
-              )}
-              <p className="text-xs text-gray-700 whitespace-pre-wrap break-all leading-relaxed">
-                <HighlightedText text={displayContent.text} highlights={displayContent.highlights} />
-              </p>
-            </div>
           )}
+          <button
+            type="button"
+            onClick={handleReanalyze}
+            disabled={reanalyzing}
+            className={`flex items-center gap-1 text-[10px] text-gray-400 hover:text-primary disabled:opacity-50 ${
+              !hasDisplayContent ? 'ml-auto' : ''
+            }`}
+          >
+            <RefreshCw size={10} className={reanalyzing ? 'animate-spin' : ''} />
+            다시 분석
+          </button>
+        </div>
+      )}
+
+      {/* 본문 내용 (확장 시 표시) */}
+      {memo.analysis_status === 'completed' && hasDisplayContent && translationExpanded && displayContent && (
+        <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+          {displayContent.isTranslated && (
+            <p className="text-[10px] text-blue-600 mb-2">
+              번역된 내용입니다
+            </p>
+          )}
+          {!displayContent.isTranslated && memo.display_content && (
+            <p className="text-[10px] text-gray-500 mb-2">
+              추출된 내용입니다
+            </p>
+          )}
+          <p className="text-xs text-gray-700 whitespace-pre-wrap break-all leading-relaxed">
+            <HighlightedText text={displayContent.text} highlights={displayContent.highlights} />
+          </p>
         </div>
       )}
 
