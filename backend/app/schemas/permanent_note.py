@@ -22,6 +22,7 @@ class PermanentNoteCreate(BaseModel):
     source_memo_ids: List[str] = Field(..., min_length=1)
     title: Optional[str] = Field(default=None, max_length=512)
     content: Optional[str] = Field(default=None, max_length=50000)
+    analysis_result: Optional[dict] = Field(default=None, description="AI 분석 결과")
 
 
 class PermanentNoteUpdate(BaseModel):
@@ -65,6 +66,7 @@ class PermanentNoteOut(BaseModel):
     status: NoteStatus
     source_memo_ids: List[str]
     interests: Optional[List[str]] = None
+    analysis_result: Optional[dict] = None
     created_at: str
     updated_at: Optional[str] = None
     published_at: Optional[str] = None

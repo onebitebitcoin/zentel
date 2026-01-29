@@ -71,6 +71,7 @@ export function DevelopmentPreview() {
         source_memo_ids: sourceMemoIds,
         title: result.suggested_structure.title,
         content: initialContent,
+        analysis_result: result,
       });
 
       toast.success('영구 메모가 생성되었습니다.');
@@ -131,6 +132,7 @@ export function DevelopmentPreview() {
         source_memo_ids: sourceMemoIds,
         title,
         content: originalContent,
+        analysis_result: result,
       });
 
       toast.success('영구 메모가 생성되었습니다.');

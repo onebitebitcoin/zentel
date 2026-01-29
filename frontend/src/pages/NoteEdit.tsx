@@ -39,12 +39,13 @@ export function NoteEdit() {
   const [hasChanges, setHasChanges] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  // 분석 결과 (DevelopmentPreview에서 전달받음)
+  // 분석 결과 (DevelopmentPreview에서 전달받거나 DB에서 로드)
   const state = location.state as LocationState | null;
-  const [analysisResult] = useState<PermanentNoteDevelopResponse | undefined>(
+  const [analysisResult, setAnalysisResult] = useState<PermanentNoteDevelopResponse | undefined>(
     state?.analysisResult
   );
   const [analysisExpanded, setAnalysisExpanded] = useState(!!state?.analysisResult);
+  const [reanalyzing, setReanalyzing] = useState(false);
 
   // 출처 메모 관련 상태
   const [sourceMemos, setSourceMemos] = useState<SourceMemoDetail[]>([]);
@@ -91,6 +92,11 @@ export function NoteEdit() {
       setNote(data);
       setTitle(data.title);
       setContent(data.content);
+      // DB에 저장된 분석 결과가 있으면 설정
+      if (data.analysis_result && !analysisResult) {
+        setAnalysisResult(data.analysis_result);
+        setAnalysisExpanded(true);
+      }
     } catch {
       toast.error('영구 메모를 불러오는데 실패했습니다.');
       navigate('/notes');
@@ -247,6 +253,25 @@ export function NoteEdit() {
     }
   };
 
+  const handleReanalyze = async () => {
+    if (!id || reanalyzing) return;
+
+    setReanalyzing(true);
+    try {
+      const updated = await permanentNoteApi.reanalyze(id);
+      setNote(updated);
+      if (updated.analysis_result) {
+        setAnalysisResult(updated.analysis_result);
+        setAnalysisExpanded(true);
+      }
+      toast.success('재분석이 완료되었습니다.');
+    } catch {
+      toast.error('재분석에 실패했습니다.');
+    } finally {
+      setReanalyzing(false);
+    }
+  };
+
   const handleBack = () => {
     if (hasChanges || isEditing) {
       if (!window.confirm('저장하지 않은 변경사항이 있습니다. 나가시겠습니까?')) {
@@ -377,11 +402,31 @@ export function NoteEdit() {
                     <Lightbulb size={16} className="text-amber-500" />
                     <span className="text-sm font-medium text-gray-700">AI 분석 결과</span>
                   </div>
-                  {analysisExpanded ? (
-                    <ChevronUp size={16} className="text-gray-400" />
-                  ) : (
-                    <ChevronDown size={16} className="text-gray-400" />
-                  )}
+                  <div className="flex items-center gap-2">
+                    {note?.source_memo_ids && note.source_memo_ids.length > 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleReanalyze();
+                        }}
+                        disabled={reanalyzing}
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50"
+                        title="출처 메모를 다시 분석합니다"
+                      >
+                        {reanalyzing ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <RefreshCw size={12} />
+                        )}
+                        다시 분석
+                      </button>
+                    )}
+                    {analysisExpanded ? (
+                      <ChevronUp size={16} className="text-gray-400" />
+                    ) : (
+                      <ChevronDown size={16} className="text-gray-400" />
+                    )}
+                  </div>
                 </button>
                 {analysisExpanded && (
                   <div className="p-4 space-y-4 bg-white">

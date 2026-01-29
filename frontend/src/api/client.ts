@@ -165,6 +165,14 @@ export const permanentNoteApi = {
   },
 
   /**
+   * 영구 메모 재분석
+   */
+  reanalyze: async (id: string): Promise<PermanentNote> => {
+    const response = await api.post<PermanentNote>(`/permanent-notes/${id}/reanalyze`);
+    return response.data;
+  },
+
+  /**
    * 영구 메모 발전 분석 (LLM)
    */
   develop: async (data: PermanentNoteDevelopRequest): Promise<PermanentNoteDevelopResponse> => {

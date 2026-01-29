@@ -69,6 +69,7 @@ def note_to_out(note: PermanentNote) -> PermanentNoteOut:
         status=NoteStatus(note.status),
         source_memo_ids=note.source_memo_ids or [],
         interests=note.interests,
+        analysis_result=note.analysis_result,
         created_at=note.created_at,
         updated_at=note.updated_at,
         published_at=note.published_at,
@@ -218,6 +219,7 @@ async def create_permanent_note(
         status="editing",
         source_memo_ids=data.source_memo_ids,
         interests=interests,
+        analysis_result=data.analysis_result,
     )
     db_note = permanent_note_repository.create(db, db_note)
 
@@ -394,6 +396,64 @@ async def update_permanent_note(
     db_note = permanent_note_repository.update(db, db_note)
 
     logger.info(f"Updated permanent note: id={note_id}")
+    return note_to_out(db_note)
+
+
+@router.post("/{note_id}/reanalyze", response_model=PermanentNoteOut)
+async def reanalyze_permanent_note(
+    note_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """영구 메모 재분석 (출처 메모들을 다시 LLM으로 분석)"""
+    logger.info(f"Reanalyzing permanent note: id={note_id}, user_id={current_user.id}")
+
+    db_note = get_user_note(db, note_id, current_user.id)
+
+    if not db_note.source_memo_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="출처 메모가 없어 재분석할 수 없습니다."
+        )
+
+    # 출처 임시 메모들 조회
+    memo_dicts = []
+    for memo_id in db_note.source_memo_ids:
+        memo = memo_repository.get_user_memo(db, memo_id, current_user.id)
+        if not memo:
+            logger.warning(f"Source memo not found: {memo_id}")
+            continue
+        memo_dicts.append({
+            "id": memo.id,
+            "content": memo.content,
+            "context": memo.context,
+        })
+
+    if not memo_dicts:
+        raise HTTPException(
+            status_code=400,
+            detail="유효한 출처 메모를 찾을 수 없습니다."
+        )
+
+    # LLM 분석 호출
+    try:
+        analysis_result = await develop_permanent_note(memo_dicts)
+    except LLMError as e:
+        logger.error(f"LLM reanalysis failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "재분석 중 오류가 발생했습니다.",
+                "error": str(e),
+            }
+        ) from e
+
+    # 분석 결과 저장
+    db_note.analysis_result = analysis_result
+    db_note.updated_at = datetime.now(timezone.utc).isoformat()
+    db_note = permanent_note_repository.update(db, db_note)
+
+    logger.info(f"Reanalyzed permanent note: id={note_id}")
     return note_to_out(db_note)
 
 

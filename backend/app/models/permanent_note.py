@@ -31,6 +31,7 @@ class PermanentNote(Base):
     )  # "editing" | "published"
     source_memo_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     interests: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+    analysis_result: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[str] = mapped_column(String(64), nullable=False, default=now_iso)
     updated_at: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     published_at: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)

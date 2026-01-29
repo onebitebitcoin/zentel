@@ -14,12 +14,14 @@ export interface PermanentNoteListItem {
 export interface PermanentNote extends PermanentNoteListItem {
   content: string;
   source_memo_ids: string[];
+  analysis_result?: PermanentNoteDevelopResponse | null;
 }
 
 export interface PermanentNoteCreate {
   source_memo_ids: string[];
   title?: string;
   content?: string;
+  analysis_result?: PermanentNoteDevelopResponse | null;
 }
 
 export interface PermanentNoteUpdate {
