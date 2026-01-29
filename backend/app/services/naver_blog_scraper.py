@@ -172,13 +172,27 @@ class NaverBlogScraper:
                     except Exception:
                         pass
 
-                # OG 메타데이터 추출
+                # OG 메타데이터 추출 (메인 페이지에서)
                 og_title = await self._extract_og_meta(page, OG_TITLE_SELECTOR)
                 og_image = await self._extract_og_meta(page, OG_IMAGE_SELECTOR)
                 og_description = await self._extract_og_meta(page, OG_DESCRIPTION_SELECTOR)
 
-                # 본문 추출 (여러 선택자 시도)
-                content = await self._extract_content(page)
+                # iframe 내부로 진입 시도 (네이버 블로그는 iframe 사용)
+                target_frame = page
+                try:
+                    # mainFrame iframe 찾기
+                    iframe_element = await page.query_selector('iframe#mainFrame')
+                    if iframe_element:
+                        frame = await iframe_element.content_frame()
+                        if frame:
+                            logger.info("[NaverBlog] mainFrame iframe으로 진입")
+                            target_frame = frame
+                            await human_like_delay(1.0, 2.0)
+                except Exception as e:
+                    logger.debug(f"[NaverBlog] iframe 진입 실패 (무시): {e}")
+
+                # 본문 추출 (여러 선택자 시도) - iframe 내부에서
+                content = await self._extract_content(target_frame)
 
                 await browser.close()
 
