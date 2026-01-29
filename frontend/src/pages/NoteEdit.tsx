@@ -15,6 +15,7 @@ import {
   X,
   Plus,
   ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { permanentNoteApi } from '../api/client';
