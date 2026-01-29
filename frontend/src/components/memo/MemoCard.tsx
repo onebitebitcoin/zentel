@@ -167,6 +167,30 @@ export function MemoCard({
         onReanalyze={onReanalyze}
       />
 
+      {/* 핵심 요약 (Summary) */}
+      {memo.analysis_status === 'completed' && memo.summary && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="text-xs font-semibold text-amber-800">핵심 요약</span>
+          </div>
+          <p className="text-sm text-amber-900 whitespace-pre-wrap break-all leading-relaxed">
+            {memo.summary}
+          </p>
+        </div>
+      )}
+
+      {/* Context (맥락 분석) */}
+      {memo.analysis_status === 'completed' && memo.context && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="text-xs font-semibold text-blue-800">맥락 분석</span>
+          </div>
+          <p className="text-sm text-blue-900 whitespace-pre-wrap break-all leading-relaxed">
+            {memo.context}
+          </p>
+        </div>
+      )}
+
       {/* 본문 보기 (추출된 콘텐츠 확인 + 하이라이트) */}
       {memo.analysis_status === 'completed' && hasDisplayContent && (
         <div className="border-t border-gray-100 pt-2">
