@@ -40,15 +40,9 @@ export function HighlightedText({ text, highlights }: HighlightedTextProps) {
     elements.push(
       <span
         key={`highlight-${idx}`}
-        className="bg-yellow-200 cursor-help relative group"
-        title={highlight.reason || ''}
+        className="bg-yellow-200"
       >
         {text.slice(highlight.start, highlight.end)}
-        {highlight.reason && (
-          <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-[10px] bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity max-w-[200px] break-words text-center pointer-events-none z-10">
-            {highlight.reason}
-          </span>
-        )}
       </span>
     );
 
