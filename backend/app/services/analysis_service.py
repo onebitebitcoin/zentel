@@ -138,7 +138,10 @@ class AnalysisService:
 
         if not memo:
             logger.error(f"[AnalysisService] 메모를 찾을 수 없음 (3회 재시도 후): memo_id={memo_id}")
-            logger.error(f"[AnalysisService] DB 세션 상태: {db.is_active}, autocommit={db.autocommit}")
+            logger.error(f"[AnalysisService] DB 세션 상태: is_active={db.is_active}")
+            # 디버깅: 메모 ID 존재 여부 확인
+            count = db.query(TempMemo).count()
+            logger.error(f"[AnalysisService] DB의 전체 메모 수: {count}")
             return
 
         memo.analysis_status = "analyzing"
