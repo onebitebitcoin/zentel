@@ -108,6 +108,7 @@ export function useTempMemos() {
                 display_content: updated.display_content,
                 translated_content: updated.translated_content,
                 highlights: updated.highlights,
+                summary: updated.summary,
                 updated_at: updated.updated_at,
                 comment_count: updated.comment_count,
                 latest_comment: updated.latest_comment,
