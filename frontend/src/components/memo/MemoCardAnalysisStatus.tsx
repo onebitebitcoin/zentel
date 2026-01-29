@@ -24,7 +24,8 @@ export function MemoCardAnalysisStatus({
   analysisLogs,
   onReanalyze,
 }: MemoCardAnalysisStatusProps) {
-  const [logsExpanded, setLogsExpanded] = useState(false);
+  // 분석 중일 때 기본으로 로그 펼치기
+  const [logsExpanded, setLogsExpanded] = useState(true);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [analysisTimedOut, setAnalysisTimedOut] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
