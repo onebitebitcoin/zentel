@@ -93,6 +93,10 @@ export function MemoCard({
   };
 
   const isExternalSource = memo.memo_type === 'EXTERNAL_SOURCE';
+  const summaryText =
+    memo.analysis_status === 'completed'
+      ? memo.summary || (!isExternalSource ? memo.content : null)
+      : null;
 
   // 선택 모드에서 카드 클릭 시 선택 토글
   const handleCardClick = () => {
@@ -191,9 +195,9 @@ export function MemoCard({
       </h3>
 
       {/* 요약 (summary) */}
-      {memo.analysis_status === 'completed' && memo.summary && (
+      {summaryText && (
         <p className="text-sm text-gray-600 whitespace-pre-wrap break-all leading-relaxed">
-          {memo.summary}
+          {summaryText}
         </p>
       )}
 
