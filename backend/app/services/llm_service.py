@@ -175,11 +175,15 @@ async def extract_context_and_interests(
 
     Returns:
         (context, matched_interests, summary) 튜플
+        - summary는 EXTERNAL_SOURCE 타입에만 생성됨
     """
     client = get_openai_client()
     if not client:
         logger.warning("OpenAI API key not configured")
         return None, [], None
+
+    # 외부 자료만 summary 생성
+    should_generate_summary = memo_type == "EXTERNAL_SOURCE"
 
     # 텍스트 길이 제한
     max_chars = 6000
@@ -187,17 +191,19 @@ async def extract_context_and_interests(
         text = text[:max_chars] + "..."
         logger.info(f"[LLM] 텍스트 truncate: {max_chars}자")
 
-    # 관심사가 없으면 context와 summary만 추출
+    # 관심사가 없으면 context (+ summary) 추출
     if not user_interests:
-        context, summary = await _extract_context_and_summary(text, memo_type)
+        context, summary = await _extract_context_and_summary(
+            text, memo_type, should_generate_summary
+        )
         return context, [], summary
 
     try:
         interests_str = ", ".join(user_interests)
 
-        response = client.responses.create(
-            model=settings.OPENAI_MODEL,
-            instructions=(
+        # 외부 자료(EXTERNAL_SOURCE)만 summary 생성
+        if should_generate_summary:
+            instructions = (
                 "주어진 메모 내용을 분석하여 다음 세 가지를 JSON 형식으로 응답하세요:\n\n"
                 "1. context: 10단어 이내의 핵심 맥락 요약 (한국어)\n"
                 "2. interests: 관련된 관심사 배열 (제공된 목록에서만 선택)\n"
@@ -211,12 +217,30 @@ async def extract_context_and_interests(
                 "- summary는 원글의 핵심 정보와 중요한 팩트를 포함하여 최대 3문단으로 요약\n"
                 "- summary는 문단 사이 빈 줄로 구분\n"
                 "- JSON 외 다른 텍스트 없이 응답"
-            ),
+            )
+        else:
+            # 일반 메모는 summary 생성 안함
+            instructions = (
+                "주어진 메모 내용을 분석하여 다음 두 가지를 JSON 형식으로 응답하세요:\n\n"
+                "1. context: 10단어 이내의 핵심 맥락 요약 (한국어)\n"
+                "2. interests: 관련된 관심사 배열 (제공된 목록에서만 선택)\n\n"
+                "응답 형식:\n"
+                '{"context": "핵심 맥락", "interests": ["관심사1", "관심사2"]}\n\n'
+                "규칙:\n"
+                "- context는 반드시 10단어 이내\n"
+                "- interests는 제공된 관심사 목록에서만 선택\n"
+                "- 관련된 관심사가 없으면 빈 배열 []\n"
+                "- JSON 외 다른 텍스트 없이 응답"
+            )
+
+        response = client.responses.create(
+            model=settings.OPENAI_MODEL,
+            instructions=instructions,
             input=(
                 f"관심사 목록: {interests_str}\n\n"
                 f"메모 내용:\n{text}"
             ),
-            max_output_tokens=2000,
+            max_output_tokens=2000 if should_generate_summary else 500,
         )
 
         raw = response.output_text or ""
@@ -231,7 +255,8 @@ async def extract_context_and_interests(
 
         context = result.get("context", "").strip() or None
         raw_interests = result.get("interests", [])
-        summary = result.get("summary", "").strip() or None
+        # 외부 자료만 summary 추출
+        summary = result.get("summary", "").strip() or None if should_generate_summary else None
 
         # LLM 환각 방지: 실제 관심사 목록에 있는 것만 필터링
         user_interests_lower = {i.lower(): i for i in user_interests}
@@ -243,7 +268,8 @@ async def extract_context_and_interests(
                     matched.append(user_interests_lower[interest_lower])
 
         logger.info(
-            f"[LLM] context+관심사+summary 통합 추출: context={len(context) if context else 0}자, "
+            f"[LLM] context+관심사 추출 (summary={'포함' if should_generate_summary else '제외'}): "
+            f"context={len(context) if context else 0}자, "
             f"interests={matched}, summary={len(summary) if summary else 0}자"
         )
         return context, matched, summary
@@ -263,13 +289,15 @@ async def extract_context_and_interests(
 async def _extract_context_and_summary(
     text: str,
     memo_type: str,
+    should_generate_summary: bool = True,
 ) -> tuple[Optional[str], Optional[str]]:
     """
-    텍스트에서 context와 summary만 추출 (관심사 없는 경우용)
+    텍스트에서 context (+ summary) 추출 (관심사 없는 경우용)
 
     Args:
         text: 분석할 텍스트
         memo_type: 메모 타입
+        should_generate_summary: summary 생성 여부 (EXTERNAL_SOURCE만 True)
 
     Returns:
         (context, summary) 튜플
@@ -279,9 +307,8 @@ async def _extract_context_and_summary(
         return None, None
 
     try:
-        response = client.responses.create(
-            model=settings.OPENAI_MODEL,
-            instructions=(
+        if should_generate_summary:
+            instructions = (
                 "주어진 메모 내용을 분석하여 다음 두 가지를 JSON 형식으로 응답하세요:\n\n"
                 "1. context: 10단어 이내의 핵심 맥락 요약 (한국어)\n"
                 "2. summary: 원글의 핵심 정보와 팩트를 최대 3문단으로 요약 (한국어)\n\n"
@@ -292,9 +319,26 @@ async def _extract_context_and_summary(
                 "- summary는 원글의 핵심 정보와 중요한 팩트를 포함하여 최대 3문단으로 요약\n"
                 "- summary는 문단 사이 빈 줄로 구분\n"
                 "- JSON 외 다른 텍스트 없이 응답"
-            ),
+            )
+            max_tokens = 2000
+        else:
+            # 일반 메모는 context만 추출
+            instructions = (
+                "주어진 메모 내용을 분석하여 JSON 형식으로 응답하세요:\n\n"
+                "- context: 10단어 이내의 핵심 맥락 요약 (한국어)\n\n"
+                "응답 형식:\n"
+                '{"context": "핵심 맥락"}\n\n'
+                "규칙:\n"
+                "- context는 반드시 10단어 이내\n"
+                "- JSON 외 다른 텍스트 없이 응답"
+            )
+            max_tokens = 200
+
+        response = client.responses.create(
+            model=settings.OPENAI_MODEL,
+            instructions=instructions,
             input=f"메모 내용:\n{text}",
-            max_output_tokens=2000,
+            max_output_tokens=max_tokens,
         )
 
         raw = response.output_text or ""
@@ -308,16 +352,17 @@ async def _extract_context_and_summary(
         result = json.loads(raw)
 
         context = result.get("context", "").strip() or None
-        summary = result.get("summary", "").strip() or None
+        summary = result.get("summary", "").strip() or None if should_generate_summary else None
 
         logger.info(
-            f"[LLM] context+summary 추출: context={len(context) if context else 0}자, "
+            f"[LLM] context 추출 (summary={'포함' if should_generate_summary else '제외'}): "
+            f"context={len(context) if context else 0}자, "
             f"summary={len(summary) if summary else 0}자"
         )
         return context, summary
 
     except json.JSONDecodeError as e:
-        logger.warning(f"[LLM] context+summary 추출 JSON 파싱 실패: {e}")
+        logger.warning(f"[LLM] context 추출 JSON 파싱 실패: {e}")
         context = await extract_context(text, memo_type)
         return context, None
     except Exception as e:
