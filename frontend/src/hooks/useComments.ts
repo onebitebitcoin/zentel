@@ -33,8 +33,10 @@ export function useComments(memoId: string) {
       const newComment = await commentApi.create(memoId, data);
       setComments((prev) => [newComment, ...prev]);
       setTotal((prev) => prev + 1);
-      // AI 응답 대기 중으로 표시
-      setPendingAIResponses((prev) => new Set(prev).add(newComment.id));
+      // @태그가 있는 댓글만 AI 응답 대기 중으로 표시 (response_status가 pending일 때)
+      if (newComment.response_status === 'pending') {
+        setPendingAIResponses((prev) => new Set(prev).add(newComment.id));
+      }
       return newComment;
     },
     [memoId]

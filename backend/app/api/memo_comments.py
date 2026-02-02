@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -103,18 +104,27 @@ async def create_comment(
     # 메모 존재 확인
     get_memo_or_404(memo_id, db)
 
+    # @태그 존재 여부 확인 (예: @전문가, @비판가)
+    has_mention = bool(re.search(r"@\S+", comment.content))
+
     db_comment = MemoComment(
         memo_id=memo_id,
         content=comment.content,
-        response_status="pending",  # AI 응답 대기 상태
+        # @태그가 있을 때만 AI 응답 대기 상태로 설정
+        response_status="pending" if has_mention else None,
     )
     db_comment = comment_repository.create(db, db_comment)
 
-    logger.info(f"Created comment: id={db_comment.id}")
+    logger.info(
+        f"Created comment: id={db_comment.id}, has_mention={has_mention}"
+    )
 
-    # 백그라운드에서 AI 응답 생성 (user_id 전달)
-    user_id = current_user.id if current_user else None
-    background_tasks.add_task(_run_ai_response_task, db_comment.id, memo_id, user_id)
+    # @태그가 있을 때만 백그라운드에서 AI 응답 생성
+    if has_mention:
+        user_id = current_user.id if current_user else None
+        background_tasks.add_task(
+            _run_ai_response_task, db_comment.id, memo_id, user_id
+        )
 
     return db_comment
 
