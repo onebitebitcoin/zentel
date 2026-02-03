@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ExternalLink, FileText, ChevronDown, ChevronUp, Check, RefreshCw, Tag } from 'lucide-react';
+import { ExternalLink, FileText, ChevronDown, ChevronUp, Check, RefreshCw, Tag, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TempMemoListItem } from '../../types/memo';
 import { getMemoTypeInfo } from '../../types/memo';
@@ -248,6 +248,16 @@ export function MemoCard({
             </p>
           </div>
         </a>
+      )}
+
+      {/* URL 콘텐츠 추출 실패 경고 */}
+      {memo.fetch_failed && memo.fetch_message && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+          <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-800 leading-relaxed">
+            {memo.fetch_message}
+          </p>
+        </div>
       )}
 
       {/* 다시 분석 버튼 (분석 완료 시 항상 표시) */}

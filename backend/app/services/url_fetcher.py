@@ -743,6 +743,21 @@ async def _fetch_html_content(
             status_code = response.status_code
             html = response.text
 
+            # 리디렉션 추적 로깅
+            if response.history:
+                redirect_chain = " -> ".join(
+                    [str(r.url) for r in response.history] + [str(response.url)]
+                )
+                logger.info(f"[Redirect] 리디렉션 체인: {redirect_chain}")
+
+                # 최종 URL이 원래 URL과 다른 도메인이면 알림
+                original_domain = urlparse(url).netloc.lower()
+                final_domain = urlparse(str(response.url)).netloc.lower()
+                if original_domain != final_domain:
+                    logger.info(
+                        f"[Redirect] 도메인 변경: {original_domain} -> {final_domain}"
+                    )
+
         # Cloudflare 차단 감지
         if is_cloudflare_blocked(html, status_code):
             cloudflare_detected = True
@@ -855,6 +870,31 @@ async def _fetch_html_content(
                     # 렌더링된 HTML에서 OG 재추출
                     og_metadata = extract_og_metadata(rendered_html, url) or og_metadata
 
+        # 콘텐츠가 없거나 너무 짧은 경우
+        if not content or len(content) < MIN_CONTENT_LENGTH:
+            logger.warning(
+                f"URL 콘텐츠 추출 실패 (본문 없음): {url}, "
+                f"length={len(content) if content else 0}"
+            )
+            # OG 메타데이터는 있을 수 있으므로 유지하면서 에러 메시지 추가
+            if og_metadata:
+                og_metadata.fetch_failed = True
+                og_metadata.fetch_message = (
+                    "본문 내용을 추출하지 못했습니다. "
+                    "JavaScript로 렌더링되는 페이지이거나 접근이 제한된 사이트입니다. "
+                    "기사 내용을 직접 복사해서 메모에 붙여넣어 주세요."
+                )
+            else:
+                og_metadata = OGMetadata(
+                    fetch_failed=True,
+                    fetch_message=(
+                        "본문 내용을 추출하지 못했습니다. "
+                        "JavaScript로 렌더링되는 페이지이거나 접근이 제한된 사이트입니다. "
+                        "기사 내용을 직접 복사해서 메모에 붙여넣어 주세요."
+                    ),
+                )
+            return content, og_metadata
+
         # 콘텐츠 길이 제한
         if content and len(content) > max_length:
             content = content[:max_length] + "..."
@@ -889,9 +929,11 @@ async def _fetch_html_content(
                 logger.info(f"[ScraperAPI] HTTP 에러 우회 성공: {url}")
                 return content, og_metadata
 
-        # Cloudflare 403인 경우 Playwright 우회 시도
+        # 403 에러 처리
         if e.response.status_code == 403:
             html = e.response.text
+
+            # Cloudflare인 경우
             if is_cloudflare_blocked(html, 403):
                 logger.warning(f"[Cloudflare] HTTP 403 + Bot Fight Mode 감지: {url}")
                 await notify(
@@ -919,9 +961,57 @@ async def _fetch_html_content(
                             "기사 내용을 직접 복사해서 메모에 붙여넣어 주세요."
                         ),
                     )
+            else:
+                # 일반 403 에러 (봇 차단, 접근 거부 등)
+                logger.warning(f"HTTP 403 접근 거부: {url}")
+                return None, OGMetadata(
+                    fetch_failed=True,
+                    fetch_message=(
+                        "이 사이트는 외부 접근이 차단되어 있습니다. "
+                        "기사 내용을 직접 복사해서 메모에 붙여넣어 주세요."
+                    ),
+                )
 
-        logger.error(f"URL 콘텐츠 가져오기 실패 (HTTP): {url}, error={e}")
-        return None, None
+        # 기타 HTTP 에러 (404, 500 등)
+        logger.error(f"URL 콘텐츠 가져오기 실패 (HTTP {e.response.status_code}): {url}")
+        error_messages = {
+            404: "페이지를 찾을 수 없습니다. URL을 확인해주세요.",
+            500: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+            502: "서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.",
+            503: "서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.",
+        }
+        error_msg = error_messages.get(
+            e.response.status_code,
+            f"콘텐츠를 가져오는데 실패했습니다 (HTTP {e.response.status_code}). "
+            "기사 내용을 직접 복사해서 메모에 붙여넣어 주세요."
+        )
+        return None, OGMetadata(fetch_failed=True, fetch_message=error_msg)
+
+    except httpx.TimeoutException:
+        logger.warning(f"URL 콘텐츠 가져오기 타임아웃: {url}")
+
+        # ScraperAPI가 있으면 fallback 시도
+        if SCRAPER_API_KEY:
+            await notify(
+                "timeout_error",
+                "연결 시간 초과, ScraperAPI로 재시도",
+                "프록시 서버를 통해 접속합니다..."
+            )
+            scraper_html, scraper_success = await fetch_with_scraper_api(
+                url, progress_callback
+            )
+            if scraper_success and scraper_html:
+                og_metadata = extract_og_metadata(scraper_html, url)
+                content = extract_text_from_html(scraper_html)
+                if content and len(content) > max_length:
+                    content = content[:max_length] + "..."
+                logger.info(f"[ScraperAPI] 타임아웃 복구 성공: {url}")
+                return content, og_metadata
+
+        return None, OGMetadata(
+            fetch_failed=True,
+            fetch_message="연결 시간이 초과되었습니다. 사이트가 느리거나 접근이 불가능할 수 있습니다.",
+        )
 
     except Exception as e:
         logger.warning(f"URL 콘텐츠 가져오기 실패: {url}, error={e}")
@@ -945,4 +1035,10 @@ async def _fetch_html_content(
                 return content, og_metadata
 
         logger.error(f"URL 콘텐츠 가져오기 최종 실패: {url}, error={e}")
-        return None, None
+        return None, OGMetadata(
+            fetch_failed=True,
+            fetch_message=(
+                "콘텐츠를 가져오는데 실패했습니다. "
+                "기사 내용을 직접 복사해서 메모에 붙여넣어 주세요."
+            ),
+        )
