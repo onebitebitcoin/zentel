@@ -55,7 +55,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
         >
           <img src={rottenIcon} alt="Rotten Apple 로고" className="w-10 h-10" />
           <div className="text-left">
-            <div className="font-semibold">
+            <div className="font-bold">
               <span className="text-green-900">Rotten</span>{' '}
               <span className="text-red-900">Apple</span>
             </div>

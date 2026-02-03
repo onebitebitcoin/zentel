@@ -24,7 +24,7 @@ export function Header({ className = '' }: HeaderProps) {
         ) : (
           <div className="flex items-center gap-2">
             <img src={rottenIcon} alt="Rotten Apple 로고" className="w-8 h-8" />
-            <div className="text-lg font-semibold leading-none">
+            <div className="text-lg font-bold leading-none">
               <span className="text-green-900">Rotten</span>{' '}
               <span className="text-red-900">Apple</span>
             </div>
