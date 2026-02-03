@@ -85,15 +85,16 @@ export function useTempMemos() {
       const updated = await tempMemoApi.get(id);
       // 캐시에도 저장
       detailCacheRef.current.set(id, updated);
-      // 목록 상태 업데이트 (목록용 필드만 추출)
+      // 목록 상태 업데이트 - 완전히 새 객체로 교체하여 React 리렌더링 보장
       setMemos((prev) =>
         prev.map((m) =>
           m.id === id
             ? {
-                ...m,
+                id: updated.id,
                 memo_type: updated.memo_type,
                 content: updated.content,
                 context: updated.context,
+                summary: updated.summary,
                 interests: updated.interests,
                 source_url: updated.source_url,
                 og_title: updated.og_title,
@@ -105,10 +106,10 @@ export function useTempMemos() {
                 original_language: updated.original_language,
                 is_summary: updated.is_summary,
                 has_display_content: Boolean(updated.display_content),
-                display_content: updated.display_content,
                 translated_content: updated.translated_content,
+                display_content: updated.display_content,
                 highlights: updated.highlights,
-                summary: updated.summary,
+                created_at: updated.created_at,
                 updated_at: updated.updated_at,
                 comment_count: updated.comment_count,
                 latest_comment: updated.latest_comment,
