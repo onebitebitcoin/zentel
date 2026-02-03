@@ -34,8 +34,8 @@ export function Header({ className = '' }: HeaderProps) {
         {isInbox && (
           <h1 className="absolute left-1/2 transform -translate-x-1/2 text-base font-medium text-gray-700">
             <span className="inline-flex items-center gap-2">
-              <img src={rottenIcon} alt="임시 메모 목록" className="w-6 h-6" />
-              임시 메모 목록
+              <img src={rottenIcon} alt="임시 메모" className="w-6 h-6" />
+              임시 메모
             </span>
           </h1>
         )}
