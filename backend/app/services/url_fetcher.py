@@ -723,6 +723,8 @@ async def _fetch_html_content(
 
     og_metadata: Optional[OGMetadata] = None
     cloudflare_detected = False
+    redirect_detected = False
+    final_url = url
 
     try:
         # 1단계: 일반 HTTP 요청
@@ -742,21 +744,46 @@ async def _fetch_html_content(
             )
             status_code = response.status_code
             html = response.text
+            final_url = str(response.url)
 
             # 리디렉션 추적 로깅
             if response.history:
+                redirect_detected = True
                 redirect_chain = " -> ".join(
-                    [str(r.url) for r in response.history] + [str(response.url)]
+                    [str(r.url) for r in response.history] + [final_url]
                 )
                 logger.info(f"[Redirect] 리디렉션 체인: {redirect_chain}")
 
                 # 최종 URL이 원래 URL과 다른 도메인이면 알림
                 original_domain = urlparse(url).netloc.lower()
-                final_domain = urlparse(str(response.url)).netloc.lower()
+                final_domain = urlparse(final_url).netloc.lower()
                 if original_domain != final_domain:
                     logger.info(
                         f"[Redirect] 도메인 변경: {original_domain} -> {final_domain}"
                     )
+
+        # 리디렉션 감지 시 Playwright로 처리 (JS 렌더링 필요한 경우가 많음)
+        if redirect_detected:
+            await notify(
+                "redirect_detected",
+                "리디렉션 감지, 브라우저로 콘텐츠 추출 시도",
+                f"최종 URL: {final_url}"
+            )
+            logger.info(f"[Redirect] Playwright로 리디렉션 URL 처리: {final_url}")
+
+            rendered_html = await fetch_with_playwright(final_url, wait_time=2.0)
+            if rendered_html:
+                # Cloudflare 차단 확인
+                if is_cloudflare_blocked(rendered_html, 403):
+                    logger.warning(f"[Redirect] Playwright 후 Cloudflare 감지: {final_url}")
+                    bypassed_html, success = await fetch_with_cloudflare_bypass(
+                        final_url, progress_callback, max_retries=2
+                    )
+                    if success and bypassed_html:
+                        html = bypassed_html
+                else:
+                    html = rendered_html
+                    logger.info(f"[Redirect] Playwright 렌더링 성공: {len(html):,} bytes")
 
         # Cloudflare 차단 감지
         if is_cloudflare_blocked(html, status_code):
@@ -822,25 +849,25 @@ async def _fetch_html_content(
                         ),
                     )
 
-        # OG 메타데이터 추출
-        og_metadata = extract_og_metadata(html, url)
+        # OG 메타데이터 추출 (리디렉션 시 최종 URL 사용)
+        og_metadata = extract_og_metadata(html, final_url)
 
         # 2단계: 정적 HTML에서 본문 추출 시도
         content = extract_text_from_html(html)
-        used_playwright = False
+        used_playwright = redirect_detected  # 리디렉션으로 이미 Playwright 사용한 경우
 
-        # 3단계: 결과 부실 시 Playwright로 재시도 (Cloudflare 우회 성공한 경우 스킵)
-        if not cloudflare_detected and (not content or len(content) < MIN_CONTENT_LENGTH):
+        # 3단계: 결과 부실 시 Playwright로 재시도 (Cloudflare 우회 또는 리디렉션 Playwright 사용한 경우 스킵)
+        if not cloudflare_detected and not redirect_detected and (not content or len(content) < MIN_CONTENT_LENGTH):
             logger.info(
                 f"정적 추출 부실 ({len(content) if content else 0}자), "
-                f"Playwright 시도: {url}"
+                f"Playwright 시도: {final_url}"
             )
 
-            rendered_html = await fetch_with_playwright(url)
+            rendered_html = await fetch_with_playwright(final_url)
             if rendered_html:
                 # 렌더링 후에도 Cloudflare 차단 확인
                 if is_cloudflare_blocked(rendered_html, 403):
-                    logger.warning(f"[Cloudflare] Playwright 렌더링 후에도 차단 감지: {url}")
+                    logger.warning(f"[Cloudflare] Playwright 렌더링 후에도 차단 감지: {final_url}")
                     await notify(
                         "cloudflare_detected",
                         "Cloudflare Bot Fight Mode 감지",
@@ -849,7 +876,7 @@ async def _fetch_html_content(
 
                     # Cloudflare 우회 시도
                     bypassed_html, success = await fetch_with_cloudflare_bypass(
-                        url, progress_callback, max_retries=3
+                        final_url, progress_callback, max_retries=3
                     )
 
                     if success and bypassed_html:
@@ -868,7 +895,7 @@ async def _fetch_html_content(
                     content = rendered_content
                     used_playwright = True
                     # 렌더링된 HTML에서 OG 재추출
-                    og_metadata = extract_og_metadata(rendered_html, url) or og_metadata
+                    og_metadata = extract_og_metadata(rendered_html, final_url) or og_metadata
 
         # 콘텐츠가 없거나 너무 짧은 경우
         if not content or len(content) < MIN_CONTENT_LENGTH:
