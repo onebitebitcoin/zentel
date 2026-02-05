@@ -4,7 +4,7 @@ MyRottenApple - FastAPI 메인 애플리케이션
 
 import logging
 import sys
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -25,41 +25,48 @@ LOG_FILE = BACKEND_DIR / "debug.log"
 
 
 def setup_logging():
-    """환경에 따른 로깅 설정"""
+    """환경에 따른 로깅 설정 - 모든 로그를 debug.log에 기록"""
     log_level = getattr(logging, settings.LOG_LEVEL)
-    handlers = []
+
+    # 기존 핸들러 모두 제거
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
 
     if settings.ENVIRONMENT == "production":
         # 운영환경: stdout만 (Railway/Docker가 수집)
-        # JSON 형식으로 구조화된 로그 출력
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(
             logging.Formatter(
                 '{"time":"%(asctime)s","level":"%(levelname)s","file":"%(filename)s:%(lineno)d","message":"%(message)s"}'
             )
         )
-        handlers.append(handler)
+        root_logger.addHandler(handler)
     else:
         # 개발환경: 파일 + stdout
         # 기존 로그 파일 초기화 (핫리로드 시)
-        if LOG_FILE.exists():
-            LOG_FILE.unlink()
+        with suppress(PermissionError):
+            if LOG_FILE.exists():
+                LOG_FILE.unlink()
+
+        log_format = "[%(asctime)s] [%(levelname)s] [%(name)s:%(filename)s:%(lineno)d] %(message)s"
 
         # 파일 핸들러
         file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
-        file_handler.setFormatter(
-            logging.Formatter("[%(asctime)s] [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s")
-        )
-        handlers.append(file_handler)
+        file_handler.setFormatter(logging.Formatter(log_format))
+        root_logger.addHandler(file_handler)
 
         # 콘솔 핸들러
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(
-            logging.Formatter("[%(asctime)s] [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s")
-        )
-        handlers.append(console_handler)
+        console_handler.setFormatter(logging.Formatter(log_format))
+        root_logger.addHandler(console_handler)
 
-    logging.basicConfig(level=log_level, handlers=handlers)
+    root_logger.setLevel(log_level)
+
+    # uvicorn 로거도 같은 핸들러 사용하도록 설정
+    for logger_name in ["uvicorn", "uvicorn.access", "uvicorn.error", "sqlalchemy.engine"]:
+        lib_logger = logging.getLogger(logger_name)
+        lib_logger.handlers.clear()
+        lib_logger.propagate = True  # 루트 로거로 전파
 
 
 # 로깅 설정 적용
