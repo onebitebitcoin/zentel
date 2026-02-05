@@ -1,24 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import {
-  ArrowLeft,
-  Save,
-  Send,
-  Trash2,
-  FileText,
-  Loader2,
-  ChevronDown,
-  ChevronUp,
-  Lightbulb,
-  Target,
-  Pencil,
-  X,
-  Plus,
-  ExternalLink,
-  RefreshCw,
-} from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { permanentNoteApi } from '../api/client';
+import { NoteEditHeader, AnalysisPanel, SourceMemosList } from '../components/note';
 import type { PermanentNote, PermanentNoteDevelopResponse, SourceMemoDetail } from '../types/note';
 
 interface LocationState {
@@ -71,7 +56,6 @@ export function NoteEdit() {
     const textarea = contentRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
-      // 최소 높이 150px, 콘텐츠에 맞게 확장
       const minHeight = 150;
       textarea.style.height = `${Math.max(minHeight, textarea.scrollHeight)}px`;
     }
@@ -93,7 +77,6 @@ export function NoteEdit() {
       setNote(data);
       setTitle(data.title);
       setContent(data.content);
-      // DB에 저장된 분석 결과가 있으면 설정
       if (data.analysis_result && !analysisResult) {
         setAnalysisResult(data.analysis_result);
         setAnalysisExpanded(true);
@@ -146,38 +129,32 @@ export function NoteEdit() {
     }
   };
 
-  // 특정 출처 메모의 summary를 본문에 추가
   const handleLoadSummary = (memo: SourceMemoDetail) => {
     if (!memo.summary) {
       toast.error('이 메모에는 요약이 없습니다.');
       return;
     }
-
     const summaryText = `\n\n### 출처: ${memo.context || memo.og_title || '제목 없음'}\n\n${memo.summary}\n`;
     setContent((prev) => prev + summaryText);
     setIsEditing(true);
     toast.success('요약이 추가되었습니다.');
   };
 
-  // 모든 출처 메모의 summary를 본문에 추가
   const handleLoadAllSummaries = () => {
     if (sourceMemos.length === 0) {
       toast.error('출처 메모가 없습니다.');
       return;
     }
-
     const memosWithSummary = sourceMemos.filter((m) => m.summary);
     if (memosWithSummary.length === 0) {
       toast.error('요약이 있는 출처 메모가 없습니다.');
       return;
     }
-
     let allSummaries = '\n\n';
     memosWithSummary.forEach((memo, index) => {
       const title = memo.context || memo.og_title || `출처 #${index + 1}`;
       allSummaries += `### ${title}\n\n${memo.summary}\n\n`;
     });
-
     setContent((prev) => prev + allSummaries);
     setIsEditing(true);
     toast.success(`${memosWithSummary.length}개 메모의 요약이 추가되었습니다.`);
@@ -188,7 +165,6 @@ export function NoteEdit() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // 변경 감지
   useEffect(() => {
     if (!note) return;
     setHasChanges(title !== note.title || content !== note.content);
@@ -196,7 +172,6 @@ export function NoteEdit() {
 
   const handleSave = async () => {
     if (!id || !hasChanges) return;
-
     setSaving(true);
     try {
       const updated = await permanentNoteApi.update(id, { title, content });
@@ -213,8 +188,6 @@ export function NoteEdit() {
 
   const handlePublish = async () => {
     if (!id) return;
-
-    // 저장되지 않은 변경사항이 있으면 먼저 저장
     if (hasChanges) {
       setSaving(true);
       try {
@@ -228,7 +201,6 @@ export function NoteEdit() {
         setSaving(false);
       }
     }
-
     setPublishing(true);
     try {
       const updated = await permanentNoteApi.update(id, { status: 'published' });
@@ -244,7 +216,6 @@ export function NoteEdit() {
   const handleDelete = async () => {
     if (!id) return;
     if (!window.confirm('정말 삭제하시겠습니까?')) return;
-
     try {
       await permanentNoteApi.delete(id);
       toast.success('삭제되었습니다.');
@@ -256,7 +227,6 @@ export function NoteEdit() {
 
   const handleReanalyze = async () => {
     if (!id || reanalyzing) return;
-
     setReanalyzing(true);
     try {
       const updated = await permanentNoteApi.reanalyze(id);
@@ -275,13 +245,10 @@ export function NoteEdit() {
 
   const handleBack = async () => {
     if (hasChanges || isEditing) {
-      // 저장할지 물어봄
       const shouldSave = window.confirm(
         '저장하지 않은 변경사항이 있습니다.\n\n저장하고 나가시겠습니까?\n\n확인: 저장 후 나가기\n취소: 저장 안하고 선택'
       );
-
       if (shouldSave) {
-        // 저장 후 나가기
         if (!id) return;
         setSaving(true);
         try {
@@ -295,7 +262,6 @@ export function NoteEdit() {
         }
         return;
       } else {
-        // 저장 안하고 나갈지 한번 더 확인
         const confirmLeave = window.confirm(
           '저장하지 않고 나가시겠습니까?\n\n변경사항이 모두 삭제됩니다.'
         );
@@ -305,6 +271,14 @@ export function NoteEdit() {
       }
     }
     navigate('/notes');
+  };
+
+  const handleCancelEditing = () => {
+    if (note) {
+      setTitle(note.title);
+      setContent(note.content);
+    }
+    setIsEditing(false);
   };
 
   if (loading) {
@@ -323,95 +297,20 @@ export function NoteEdit() {
 
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
-      {/* 헤더 - 모바일 최적화 */}
-      <div className="flex-shrink-0 flex items-center justify-between px-2 md:px-4 py-2 md:py-3 border-b border-gray-100 gap-1">
-        {/* 좌측: 뒤로가기 + 상태 */}
-        <div className="flex items-center gap-1 md:gap-2 min-w-0">
-          <button
-            onClick={handleBack}
-            className="p-1.5 md:p-2 text-gray-500 hover:text-gray-700 flex-shrink-0"
-          >
-            <ArrowLeft size={18} className="md:w-5 md:h-5" />
-          </button>
-          <span
-            className={`px-1.5 md:px-2 py-0.5 rounded text-[10px] md:text-xs font-medium flex-shrink-0 ${
-              isPublished
-                ? 'bg-green-100 text-green-700'
-                : 'bg-amber-100 text-amber-700'
-            }`}
-          >
-            {isPublished ? '발행됨' : '편집중'}
-          </span>
-          {note.source_memo_ids && note.source_memo_ids.length > 0 && (
-            <span className="hidden sm:flex items-center gap-1 text-[10px] md:text-xs text-gray-400 flex-shrink-0">
-              <FileText size={10} className="md:w-3 md:h-3" />
-              {note.source_memo_ids.length}개
-            </span>
-          )}
-        </div>
-
-        {/* 우측: 액션 버튼 */}
-        <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
-          <button
-            onClick={handleDelete}
-            className="p-1.5 md:p-2 text-gray-400 hover:text-red-500"
-          >
-            <Trash2 size={16} className="md:w-[18px] md:h-[18px]" />
-          </button>
-          {/* 발행된 메모: 편집/취소 버튼 */}
-          {isPublished && !isEditing && (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:border-gray-300"
-            >
-              <Pencil size={12} className="md:w-[14px] md:h-[14px]" />
-              <span className="hidden sm:inline">편집</span>
-            </button>
-          )}
-          {isPublished && isEditing && (
-            <button
-              onClick={() => {
-                setTitle(note.title);
-                setContent(note.content);
-                setIsEditing(false);
-              }}
-              className="flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:border-gray-300"
-            >
-              <X size={12} className="md:w-[14px] md:h-[14px]" />
-              <span className="hidden sm:inline">취소</span>
-            </button>
-          )}
-          {/* 편집중이거나 미발행 상태: 저장 버튼 */}
-          {(!isPublished || isEditing) && (
-            <button
-              onClick={handleSave}
-              disabled={!hasChanges || saving}
-              className="flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? (
-                <Loader2 size={12} className="md:w-[14px] md:h-[14px] animate-spin" />
-              ) : (
-                <Save size={12} className="md:w-[14px] md:h-[14px]" />
-              )}
-              <span className="hidden sm:inline">저장</span>
-            </button>
-          )}
-          {!isPublished && (
-            <button
-              onClick={handlePublish}
-              disabled={publishing}
-              className="flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-600 disabled:opacity-50"
-            >
-              {publishing ? (
-                <Loader2 size={12} className="md:w-[14px] md:h-[14px] animate-spin" />
-              ) : (
-                <Send size={12} className="md:w-[14px] md:h-[14px]" />
-              )}
-              <span className="hidden sm:inline">발행</span>
-            </button>
-          )}
-        </div>
-      </div>
+      <NoteEditHeader
+        isPublished={isPublished}
+        isEditing={isEditing}
+        hasChanges={hasChanges}
+        saving={saving}
+        publishing={publishing}
+        sourceMemoCount={note.source_memo_ids?.length || 0}
+        onBack={handleBack}
+        onSave={handleSave}
+        onPublish={handlePublish}
+        onDelete={handleDelete}
+        onStartEditing={() => setIsEditing(true)}
+        onCancelEditing={handleCancelEditing}
+      />
 
       {/* 편집 영역 */}
       <div className="flex-1 overflow-auto">
@@ -419,100 +318,14 @@ export function NoteEdit() {
           <div className="w-full max-w-3xl mx-auto space-y-4">
             {/* 분석 결과 패널 */}
             {analysisResult && (
-              <div className="border border-gray-200 rounded-xl overflow-hidden">
-                <button
-                  onClick={() => setAnalysisExpanded(!analysisExpanded)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100"
-                >
-                  <div className="flex items-center gap-2">
-                    <Lightbulb size={16} className="text-amber-500" />
-                    <span className="text-sm font-medium text-gray-700">AI 분석 결과</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {note?.source_memo_ids && note.source_memo_ids.length > 0 && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleReanalyze();
-                        }}
-                        disabled={reanalyzing}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50"
-                        title="출처 메모를 다시 분석합니다"
-                      >
-                        {reanalyzing ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : (
-                          <RefreshCw size={12} />
-                        )}
-                        다시 분석
-                      </button>
-                    )}
-                    {analysisExpanded ? (
-                      <ChevronUp size={16} className="text-gray-400" />
-                    ) : (
-                      <ChevronDown size={16} className="text-gray-400" />
-                    )}
-                  </div>
-                </button>
-                {analysisExpanded && (
-                  <div className="p-4 space-y-4 bg-white">
-                    {/* 종합 분석 */}
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Target size={14} className="text-amber-500" />
-                        <span className="text-xs font-medium text-gray-500">핵심 주장</span>
-                      </div>
-                      <p className="text-sm text-gray-700 bg-amber-50 p-3 rounded-lg">
-                        {analysisResult.synthesis.main_argument}
-                      </p>
-                    </div>
-
-                    {/* 뒷받침 포인트 */}
-                    {analysisResult.synthesis.supporting_points.length > 0 && (
-                      <div>
-                        <span className="text-xs font-medium text-gray-500">뒷받침 포인트</span>
-                        <ul className="mt-1.5 space-y-1">
-                          {analysisResult.synthesis.supporting_points.map((point, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
-                              <span className="text-green-500 mt-0.5">+</span>
-                              {point}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* 고려사항 */}
-                    {analysisResult.synthesis.counter_considerations.length > 0 && (
-                      <div>
-                        <span className="text-xs font-medium text-gray-500">고려사항</span>
-                        <ul className="mt-1.5 space-y-1">
-                          {analysisResult.synthesis.counter_considerations.map((point, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
-                              <span className="text-orange-500 mt-0.5">!</span>
-                              {point}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* 추가 탐구 질문 */}
-                    {analysisResult.suggested_structure.questions_for_development.length > 0 && (
-                      <div className="pt-2 border-t border-gray-100">
-                        <span className="text-xs font-medium text-gray-500">추가 탐구 질문</span>
-                        <ul className="mt-1.5 space-y-1">
-                          {analysisResult.suggested_structure.questions_for_development.map((q, i) => (
-                            <li key={i} className="text-sm text-purple-600">
-                              {q}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <AnalysisPanel
+                analysisResult={analysisResult}
+                expanded={analysisExpanded}
+                reanalyzing={reanalyzing}
+                hasSourceMemos={!!(note?.source_memo_ids && note.source_memo_ids.length > 0)}
+                onToggle={() => setAnalysisExpanded(!analysisExpanded)}
+                onReanalyze={handleReanalyze}
+              />
             )}
 
             {/* 제목 */}
@@ -561,169 +374,19 @@ export function NoteEdit() {
             )}
 
             {/* 출처 메모 섹션 */}
-            {note.source_memo_ids && note.source_memo_ids.length > 0 && (
-              <div className="pt-4 border-t border-gray-100">
-                <div className="border border-gray-200 rounded-xl overflow-hidden">
-                  <button
-                    onClick={handleSourceMemosToggle}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100"
-                  >
-                    <div className="flex items-center gap-2">
-                      <FileText size={16} className="text-gray-500" />
-                      <span className="text-sm font-medium text-gray-700">
-                        출처 메모 {note.source_memo_ids.length}개
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleLoadAllSummaries();
-                        }}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
-                        title="모든 출처 메모의 요약을 본문에 추가"
-                      >
-                        <FileText size={12} />
-                        전체 불러오기
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/notes/${id}/add-memos`);
-                        }}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                      >
-                        <Plus size={12} />
-                        추가
-                      </button>
-                      {sourceMemosLoading ? (
-                        <Loader2 size={16} className="text-gray-400 animate-spin" />
-                      ) : sourceMemosExpanded ? (
-                        <ChevronUp size={16} className="text-gray-400" />
-                      ) : (
-                        <ChevronDown size={16} className="text-gray-400" />
-                      )}
-                    </div>
-                  </button>
-                  {sourceMemosExpanded && (
-                    <div className="p-4 space-y-3 bg-white max-h-96 overflow-y-auto overflow-x-hidden">
-                      {sourceMemosLoading ? (
-                        <div className="flex items-center justify-center py-4">
-                          <Loader2 size={20} className="animate-spin text-gray-400" />
-                        </div>
-                      ) : sourceMemos.length === 0 ? (
-                        <p className="text-sm text-gray-500 text-center py-4">
-                          출처 메모가 없습니다.
-                        </p>
-                      ) : (
-                        sourceMemos.map((memo, index) => (
-                          <div
-                            key={memo.id}
-                            className="p-3 bg-gray-50 rounded-lg space-y-2 overflow-hidden min-w-0"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                {memo.og_title && (
-                                  <p className="text-xs font-medium text-gray-700 truncate mb-1">
-                                    {memo.og_title}
-                                  </p>
-                                )}
-                                {memo.context && (
-                                  <p
-                                    className="text-xs text-primary font-medium mb-1"
-                                    style={{ wordBreak: 'break-all', overflowWrap: 'anywhere' }}
-                                  >
-                                    {memo.context}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1.5 flex-shrink-0">
-                                <span className="text-[10px] text-gray-400">
-                                  #{index + 1}
-                                </span>
-                                {memo.summary && (
-                                  <button
-                                    onClick={() => handleLoadSummary(memo)}
-                                    className="p-1 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors"
-                                    title="이 메모의 요약을 본문에 추가"
-                                  >
-                                    <FileText size={12} />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleRemoveSourceMemo(memo.id)}
-                                  disabled={removingMemoId === memo.id}
-                                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                                  title="출처 메모 제거"
-                                >
-                                  {removingMemoId === memo.id ? (
-                                    <Loader2 size={12} className="animate-spin" />
-                                  ) : (
-                                    <X size={12} />
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                            {/* 요약 또는 본문 */}
-                            <div
-                              className="text-sm text-gray-600 line-clamp-4"
-                              style={{
-                                wordBreak: 'break-all',
-                                overflowWrap: 'anywhere',
-                                whiteSpace: 'pre-wrap',
-                                overflow: 'hidden'
-                              }}
-                            >
-                              {memo.summary || memo.content}
-                            </div>
-                            {/* 메타 정보 */}
-                            <div className="flex items-center gap-2 pt-1">
-                              {memo.source_url && (
-                                <a
-                                  href={memo.source_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-primary"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <ExternalLink size={10} />
-                                  원본
-                                </a>
-                              )}
-                              {memo.interests && memo.interests.length > 0 && (
-                                <div className="flex gap-1 flex-wrap">
-                                  {memo.interests.slice(0, 2).map((interest) => (
-                                    <span
-                                      key={interest}
-                                      className="px-1.5 py-0.5 text-[10px] bg-primary/10 text-primary rounded"
-                                    >
-                                      {interest}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* 출처 메모가 없을 때 추가 버튼 */}
-            {(!note.source_memo_ids || note.source_memo_ids.length === 0) && (
-              <div className="pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => navigate(`/notes/${id}/add-memos`)}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-500 border border-dashed border-gray-300 rounded-lg hover:border-primary hover:text-primary transition-colors w-full justify-center"
-                >
-                  <Plus size={14} />
-                  임시 메모 추가
-                </button>
-              </div>
-            )}
+            <SourceMemosList
+              sourceMemoIds={note.source_memo_ids || []}
+              sourceMemos={sourceMemos}
+              expanded={sourceMemosExpanded}
+              loading={sourceMemosLoading}
+              removingMemoId={removingMemoId}
+              noteId={id || ''}
+              onToggle={handleSourceMemosToggle}
+              onLoadSummary={handleLoadSummary}
+              onLoadAllSummaries={handleLoadAllSummaries}
+              onRemoveMemo={handleRemoveSourceMemo}
+              onAddMemos={() => navigate(`/notes/${id}/add-memos`)}
+            />
           </div>
         </div>
       </div>
