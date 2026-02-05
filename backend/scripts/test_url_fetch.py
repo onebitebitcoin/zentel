@@ -117,7 +117,7 @@ async def main():
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(
                 url,
-                headers={"User-Agent": "Mozilla/5.0 Zentel/1.0"},
+                headers={"User-Agent": "Mozilla/5.0 MyRottenApple/1.0"},
                 follow_redirects=True,
             )
             print(f"    - Status: {response.status_code}")

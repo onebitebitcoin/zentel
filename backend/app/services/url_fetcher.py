@@ -677,7 +677,7 @@ async def _fetch_raw_text(
             # raw 텍스트 가져오기
             response = await client.get(
                 raw_url,
-                headers={"User-Agent": "Mozilla/5.0 Zentel/1.0"},
+                headers={"User-Agent": "Mozilla/5.0 MyRottenApple/1.0"},
                 follow_redirects=True,
             )
             response.raise_for_status()

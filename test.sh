@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Zentel - Test Runner
+# MyRottenApple - Test Runner
 # 린트 및 테스트를 실행합니다
 
 set -e
@@ -124,7 +124,7 @@ run_frontend_build() {
 
 # 메인 로직
 echo "=========================================="
-echo "Zentel - Test Runner"
+echo "MyRottenApple - Test Runner"
 echo "=========================================="
 echo ""
 

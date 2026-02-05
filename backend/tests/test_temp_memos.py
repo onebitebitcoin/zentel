@@ -305,4 +305,4 @@ def test_root(client):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Zentel API" in response.json()["message"]
+    assert "MyRottenApple API" in response.json()["message"]

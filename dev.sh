@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Zentel - Development Server
+# MyRottenApple - Development Server
 # 백엔드와 프론트엔드 개발 서버를 실행합니다
 
 set -e
@@ -164,7 +164,7 @@ start_frontend() {
 
 # 메인 로직
 echo "=========================================="
-echo "Zentel - Development Server"
+echo "MyRottenApple - Development Server"
 echo "=========================================="
 echo ""
 

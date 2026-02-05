@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Zentel - Installation Script
+# MyRottenApple - Installation Script
 # 프로젝트 의존성을 설치하고 환경을 설정합니다
 
 set -e  # 에러 발생 시 즉시 종료
 
 echo "=========================================="
-echo "Zentel - Installation"
+echo "MyRottenApple - Installation"
 echo "=========================================="
 echo ""
 

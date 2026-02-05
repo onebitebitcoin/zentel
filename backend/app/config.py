@@ -18,10 +18,10 @@ class Settings:
     """애플리케이션 설정"""
 
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./zentel.db")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./myrottenapple.db")
 
     # Application
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "zentel-dev-secret-key")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "myrottenapple-dev-secret-key")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG")
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 
@@ -32,7 +32,7 @@ class Settings:
     API_V1_PREFIX: str = "/api/v1"
 
     # JWT
-    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "zentel-jwt-secret-key-dev")
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "myrottenapple-jwt-secret-key-dev")
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))  # 30일 (30 * 24 * 60)
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "90"))  # 90일

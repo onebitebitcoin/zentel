@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
-const ANALYSIS_LOGS_STORAGE_KEY = 'zentel_analysis_logs';
+const ANALYSIS_LOGS_STORAGE_KEY = 'myrottenapple_analysis_logs';
 
 // 재연결 설정
 const RECONNECT_DELAY_MS = 3000;

@@ -6,7 +6,7 @@ import { MemoInput } from '../components/memo/MemoInput';
 import { useTempMemos } from '../hooks/useTempMemos';
 import type { MemoType } from '../types/memo';
 
-const LAST_TYPE_KEY = 'zentel_last_memo_type';
+const LAST_TYPE_KEY = 'myrottenapple_last_memo_type';
 
 export function QuickCapture() {
   const { createMemo } = useTempMemos();

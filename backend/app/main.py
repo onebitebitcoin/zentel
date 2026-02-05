@@ -1,5 +1,5 @@
 """
-Zentel - FastAPI 메인 애플리케이션
+MyRottenApple - FastAPI 메인 애플리케이션
 """
 
 import logging
@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """애플리케이션 시작/종료 시 실행"""
-    logger.info("Zentel 서버 시작")
+    logger.info("MyRottenApple 서버 시작")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
     logger.info(f"Database: {settings.DATABASE_URL}")
 
@@ -80,12 +80,12 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    logger.info("Zentel 서버 종료")
+    logger.info("MyRottenApple 서버 종료")
 
 
 app = FastAPI(
-    title="Zentel API",
-    description="젠텔카스텐 모바일 메모 캡처 API",
+    title="MyRottenApple API",
+    description="MyRottenApple 모바일 메모 캡처 API",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -121,7 +121,7 @@ def root():
     if settings.ENVIRONMENT == "production" and STATIC_DIR.exists():
         return FileResponse(STATIC_DIR / "index.html")
     return {
-        "message": "Zentel API",
+        "message": "MyRottenApple API",
         "version": "0.1.0",
         "docs": "/docs",
     }

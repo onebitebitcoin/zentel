@@ -2,8 +2,8 @@
  * 토큰 저장/조회/삭제 유틸리티
  */
 
-const ACCESS_TOKEN_KEY = 'zentel_access_token';
-const REFRESH_TOKEN_KEY = 'zentel_refresh_token';
+const ACCESS_TOKEN_KEY = 'myrottenapple_access_token';
+const REFRESH_TOKEN_KEY = 'myrottenapple_refresh_token';
 
 export const tokenStorage = {
   /**
