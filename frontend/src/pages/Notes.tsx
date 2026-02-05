@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BookOpen, FileText, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { usePermanentNotes } from '../hooks/usePermanentNotes';
+import appleIcon from '../assets/images/apple.png';
 import type { NoteStatus, PermanentNoteListItem } from '../types/note';
 import { getRelativeTime } from '../utils/date';
 
@@ -126,7 +127,7 @@ export function Notes() {
       <div className="hidden md:flex items-center justify-between px-6 py-5 bg-white border-b border-gray-100">
         <div className="flex items-center gap-3">
           <h1 className="flex items-center gap-2 text-xl font-semibold text-gray-800">
-            <BookOpen size={24} className="text-primary" />
+            <img src={appleIcon} alt="영구 메모" className="w-10 h-10" />
             영구 메모
           </h1>
           <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded">
