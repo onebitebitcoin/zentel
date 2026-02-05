@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth';
+import rottenIcon from '../assets/images/rotten.png';
 import type { UserLogin } from '../types/auth';
 
 export function Login() {
@@ -48,7 +49,8 @@ export function Login() {
     <div className="flex flex-col min-h-full bg-gray-50">
       {/* 헤더 */}
       <div className="flex items-center justify-center px-4 py-8 md:py-12">
-        <h1 className="text-2xl font-bold">
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <img src={rottenIcon} alt="Rotten Apple" className="w-10 h-10" />
           <span className="text-green-900">Rotten</span>{' '}
           <span className="text-red-900">Apple</span>
         </h1>
