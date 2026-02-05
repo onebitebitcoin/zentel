@@ -67,6 +67,24 @@
   5) **PASS면 반드시 `git add` → `git commit` 수행 (절대 누락 금지)**
   6) `git push`는 사용자가 명시적으로 요청할 때만 수행
 
+### 기능 추가 시 테스트 자동 작성 (CRITICAL)
+**새로운 기능을 추가하면 반드시 해당 기능의 테스트 코드도 함께 작성해야 한다.**
+
+1. **Backend 기능 추가 시**:
+   - `backend/tests/` 폴더에 테스트 추가
+   - 해당 API 엔드포인트의 성공/실패 케이스 테스트
+   - 엣지 케이스 및 유효성 검증 테스트
+
+2. **Frontend 기능 추가 시**:
+   - `frontend/src/**/*.test.ts` 파일에 테스트 추가
+   - 컴포넌트/훅/유틸리티 함수 테스트
+
+3. **테스트 시나리오 예시**:
+   - 정상 동작 케이스 (Happy Path)
+   - 에러 케이스 (잘못된 입력, 권한 없음 등)
+   - 엣지 케이스 (빈 값, 경계값 등)
+   - 필터/검색 등 조합 케이스
+
 ### Commit 필수 (CRITICAL)
 **테스트 통과 후 commit을 절대 잊지 말 것!**
 - 작업 완료 + 테스트 PASS → 반드시 commit
@@ -108,6 +126,37 @@ ruff check . --fix
 # 포맷팅
 ruff format .
 ```
+
+### 테스트 실행 명령
+
+사용자가 "테스트 실행해줘", "frontend 테스트", "backend 테스트" 등을 요청하면 아래 명령을 실행한다.
+
+**Frontend 테스트**:
+```bash
+cd frontend && npm test
+# 또는 vitest 사용 시
+cd frontend && npm run test
+```
+
+**Backend 테스트**:
+```bash
+cd backend && python3 -m pytest tests/ -v --tb=short
+```
+
+**전체 테스트**:
+```bash
+# Frontend + Backend 모두 실행
+cd frontend && npm run lint && npm test
+cd backend && python3 -m pytest tests/ -v --tb=short
+```
+
+### 테스트 파일 위치
+
+| 구분 | 위치 | 패턴 |
+|------|------|------|
+| Backend | `backend/tests/` | `test_*.py` |
+| Frontend | `frontend/src/**/*.test.ts` | `*.test.ts`, `*.spec.ts` |
+| Frontend | `frontend/src/**/*.test.tsx` | `*.test.tsx`, `*.spec.tsx` |
 
 ## Database & API Synchronization (CRITICAL)
 **스키마와 API는 항상 함께 업데이트되어야 한다.**
