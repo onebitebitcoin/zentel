@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session
 
 from app.models.memo_comment import MemoComment
@@ -41,6 +41,7 @@ class MemoRepository:
         db: Session,
         user_id: str,
         memo_type: Optional[str] = None,
+        search: Optional[str] = None,
         limit: int = 10,
         offset: int = 0,
     ) -> tuple[list[TempMemo], int]:
@@ -49,6 +50,16 @@ class MemoRepository:
 
         if memo_type:
             query = query.filter(TempMemo.memo_type == memo_type)
+
+        # 검색 조건 추가 (context, summary만)
+        if search:
+            pattern = f"%{search}%"
+            query = query.filter(
+                or_(
+                    TempMemo.context.ilike(pattern),
+                    TempMemo.summary.ilike(pattern),
+                )
+            )
 
         total = query.count()
         items = query.order_by(desc(TempMemo.created_at)).offset(offset).limit(limit).all()

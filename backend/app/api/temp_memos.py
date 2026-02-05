@@ -220,6 +220,7 @@ async def create_temp_memo(
 @router.get("", response_model=TempMemoListResponse)
 async def list_temp_memos(
     type: Optional[MemoType] = Query(default=None, description="메모 타입 필터"),
+    search: Optional[str] = Query(default=None, description="검색어 (context, summary)"),
     limit: int = Query(default=10, ge=1, le=100, description="가져올 개수"),
     offset: int = Query(default=0, ge=0, description="시작 위치"),
     db: Session = Depends(get_db),
@@ -228,13 +229,13 @@ async def list_temp_memos(
     """임시 메모 목록 조회 (최신순, 본인 메모만)"""
     logger.info(
         f"Listing temp memos: user_id={current_user.id}, type={type}, "
-        f"limit={limit}, offset={offset}"
+        f"search={search}, limit={limit}, offset={offset}"
     )
 
     # Repository를 통해 조회
     memo_type_value = type.value if type else None
     db_items, total = memo_repository.list_user_memos(
-        db, current_user.id, memo_type_value, limit, offset
+        db, current_user.id, memo_type_value, search, limit, offset
     )
 
     next_offset = offset + limit if offset + limit < total else None

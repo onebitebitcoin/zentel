@@ -23,7 +23,7 @@ export function useTempMemos() {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchMemos = useCallback(
-    async (type?: MemoType, limit = 10, offset = 0) => {
+    async (type?: MemoType, search?: string, limit = 10, offset = 0) => {
       // 이전 요청이 있으면 취소
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -36,7 +36,7 @@ export function useTempMemos() {
       setLoading(true);
       setError(null);
       try {
-        const response = await tempMemoApi.list({ type, limit, offset }, controller.signal);
+        const response = await tempMemoApi.list({ type, search, limit, offset }, controller.signal);
         if (offset === 0) {
           setMemos(response.items);
         } else {

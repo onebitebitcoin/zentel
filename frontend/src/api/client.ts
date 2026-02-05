@@ -38,6 +38,7 @@ export const tempMemoApi = {
   list: async (
     params?: {
       type?: MemoType;
+      search?: string;
       limit?: number;
       offset?: number;
     },

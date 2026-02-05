@@ -23,6 +23,10 @@ export function Inbox() {
   const limit = 20;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // 검색 상태
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
   // 선택 모드 상태
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -74,15 +78,24 @@ export function Inbox() {
     });
   }, [memos, analysisLogs, clearLogs]);
 
+  // 검색어 디바운스 처리 (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   useEffect(() => {
     const type = filter === 'ALL' ? undefined : filter;
+    const search = debouncedSearch || undefined;
     setOffset(0);
     clearMemos(); // 필터 변경 시 메모 목록 초기화 (로딩 스피너 표시용)
-    fetchMemos(type, limit, 0);
+    fetchMemos(type, search, limit, 0);
     // 필터 변경 시 스크롤 복원 플래그 리셋 (새 목록이므로)
     scrollRestoredRef.current = false;
     sessionStorage.removeItem(SCROLL_POSITION_KEY);
-  }, [filter, fetchMemos, clearMemos]);
+  }, [filter, debouncedSearch, fetchMemos, clearMemos]);
 
   useEffect(() => {
     if (error) {
@@ -162,7 +175,8 @@ export function Inbox() {
     setLoadingMore(true);
     try {
       const type = filter === 'ALL' ? undefined : filter;
-      await fetchMemos(type, limit, nextOffset);
+      const search = debouncedSearch || undefined;
+      await fetchMemos(type, search, limit, nextOffset);
       setOffset(nextOffset);
     } finally {
       setLoadingMore(false);
@@ -287,8 +301,9 @@ export function Inbox() {
                 <input
                   type="text"
                   placeholder="메모 검색..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-64 pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary"
-                  disabled
                 />
               </div>
             </div>
@@ -314,9 +329,26 @@ export function Inbox() {
         </div>
       )}
 
-      {/* 모바일: 필터 탭 + 선택 버튼 */}
+      {/* 모바일: 검색 + 필터 탭 + 선택 버튼 */}
       {!selectionMode && (
         <div className="md:hidden bg-white border-b border-gray-100">
+          {/* 검색창 */}
+          <div className="px-2 pt-2">
+            <div className="relative">
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+              <input
+                type="text"
+                placeholder="메모 검색..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+          {/* 필터 탭 */}
           <div className="flex items-center px-2 py-2 gap-2">
             <div className="flex-1 flex overflow-x-auto gap-2 scrollbar-hide">
               {filters.map((f) => (
