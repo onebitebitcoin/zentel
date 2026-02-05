@@ -1,8 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { PenLine, Settings } from 'lucide-react';
-import rottenIcon from '../../assets/images/rotten.png';
-import appleIcon from '../../assets/images/apple.png';
-import goldenIcon from '../../assets/images/golden.png';
+import { PenLine, Inbox, BookOpen, Package, Settings } from 'lucide-react';
 
 interface NavItem {
   path: string;
@@ -12,9 +9,9 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: '/', label: '작성', icon: <PenLine size={20} /> },
-  { path: '/inbox', label: '임시 메모', icon: <img src={rottenIcon} alt="임시 메모" className="w-5 h-5" /> },
-  { path: '/notes', label: '영구 메모', icon: <img src={appleIcon} alt="영구 메모" className="w-5 h-5" /> },
-  { path: '/outputs', label: '결과물', icon: <img src={goldenIcon} alt="결과물" className="w-5 h-5" /> },
+  { path: '/inbox', label: '임시 메모', icon: <Inbox size={20} /> },
+  { path: '/notes', label: '영구 메모', icon: <BookOpen size={20} /> },
+  { path: '/outputs', label: '결과물', icon: <Package size={20} /> },
   { path: '/settings', label: '설정', icon: <Settings size={20} /> },
 ];
 
