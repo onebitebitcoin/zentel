@@ -2,6 +2,8 @@
 임시 메모 API 테스트
 """
 
+from app.models.temp_memo import TempMemo
+
 
 def test_create_temp_memo(authenticated_client):
     """임시 메모 생성 테스트"""
@@ -306,3 +308,184 @@ def test_root(client):
 
     assert response.status_code == 200
     assert "MyRottenApple API" in response.json()["message"]
+
+
+# === 검색 기능 테스트 ===
+
+
+def test_search_by_context(authenticated_client, db_session):
+    """context 필드 검색 테스트"""
+    # 메모 생성
+    response = authenticated_client.post(
+        "/api/v1/temp-memos",
+        json={"memo_type": "NEW_IDEA", "content": "테스트 내용"},
+    )
+    memo_id = response.json()["id"]
+
+    # DB에서 직접 context 업데이트
+    memo = db_session.query(TempMemo).filter(TempMemo.id == memo_id).first()
+    memo.context = "인공지능 기술에 대한 생각"
+    db_session.commit()
+
+    # context에서 검색
+    search_response = authenticated_client.get("/api/v1/temp-memos?search=인공지능")
+    data = search_response.json()
+
+    assert search_response.status_code == 200
+    assert data["total"] == 1
+    assert data["items"][0]["id"] == memo_id
+
+
+def test_search_by_summary(authenticated_client, db_session):
+    """summary 필드 검색 테스트"""
+    # 메모 생성
+    response = authenticated_client.post(
+        "/api/v1/temp-memos",
+        json={"memo_type": "CURIOSITY", "content": "테스트 내용"},
+    )
+    memo_id = response.json()["id"]
+
+    # DB에서 직접 summary 업데이트
+    memo = db_session.query(TempMemo).filter(TempMemo.id == memo_id).first()
+    memo.summary = "머신러닝 모델 학습 방법"
+    db_session.commit()
+
+    # summary에서 검색
+    search_response = authenticated_client.get("/api/v1/temp-memos?search=머신러닝")
+    data = search_response.json()
+
+    assert search_response.status_code == 200
+    assert data["total"] == 1
+    assert data["items"][0]["id"] == memo_id
+
+
+def test_search_not_in_content(authenticated_client, db_session):
+    """content 필드는 검색 대상이 아님"""
+    # 메모 생성 (content에만 키워드 존재)
+    response = authenticated_client.post(
+        "/api/v1/temp-memos",
+        json={"memo_type": "NEW_IDEA", "content": "블록체인 기술 연구"},
+    )
+    memo_id = response.json()["id"]
+
+    # context, summary는 비어있음 (또는 다른 내용)
+    memo = db_session.query(TempMemo).filter(TempMemo.id == memo_id).first()
+    memo.context = "일반적인 맥락"
+    memo.summary = "일반적인 요약"
+    db_session.commit()
+
+    # content에만 있는 키워드로 검색 -> 결과 없음
+    search_response = authenticated_client.get("/api/v1/temp-memos?search=블록체인")
+    data = search_response.json()
+
+    assert search_response.status_code == 200
+    assert data["total"] == 0
+
+
+def test_search_case_insensitive(authenticated_client, db_session):
+    """대소문자 무시 검색 테스트"""
+    # 메모 생성
+    response = authenticated_client.post(
+        "/api/v1/temp-memos",
+        json={"memo_type": "NEW_IDEA", "content": "테스트"},
+    )
+    memo_id = response.json()["id"]
+
+    # DB에서 직접 context 업데이트 (대문자 포함)
+    memo = db_session.query(TempMemo).filter(TempMemo.id == memo_id).first()
+    memo.context = "PYTHON Programming Guide"
+    db_session.commit()
+
+    # 소문자로 검색
+    search_response = authenticated_client.get("/api/v1/temp-memos?search=python")
+    data = search_response.json()
+
+    assert search_response.status_code == 200
+    assert data["total"] == 1
+
+    # 대문자로 검색
+    search_response2 = authenticated_client.get("/api/v1/temp-memos?search=PROGRAMMING")
+    data2 = search_response2.json()
+
+    assert data2["total"] == 1
+
+
+def test_search_with_type_filter(authenticated_client, db_session):
+    """타입 필터 + 검색 동시 사용 테스트"""
+    # NEW_IDEA 타입 메모 생성
+    response1 = authenticated_client.post(
+        "/api/v1/temp-memos",
+        json={"memo_type": "NEW_IDEA", "content": "테스트1"},
+    )
+    memo1_id = response1.json()["id"]
+
+    # CURIOSITY 타입 메모 생성
+    response2 = authenticated_client.post(
+        "/api/v1/temp-memos",
+        json={"memo_type": "CURIOSITY", "content": "테스트2"},
+    )
+    memo2_id = response2.json()["id"]
+
+    # 두 메모 모두 같은 키워드로 context 설정
+    memo1 = db_session.query(TempMemo).filter(TempMemo.id == memo1_id).first()
+    memo1.context = "딥러닝 관련 아이디어"
+    memo2 = db_session.query(TempMemo).filter(TempMemo.id == memo2_id).first()
+    memo2.context = "딥러닝 궁금한 점"
+    db_session.commit()
+
+    # 키워드만 검색 -> 2개
+    search_all = authenticated_client.get("/api/v1/temp-memos?search=딥러닝")
+    assert search_all.json()["total"] == 2
+
+    # 타입 필터 + 검색 -> 1개
+    search_filtered = authenticated_client.get(
+        "/api/v1/temp-memos?type=NEW_IDEA&search=딥러닝"
+    )
+    data = search_filtered.json()
+
+    assert data["total"] == 1
+    assert data["items"][0]["memo_type"] == "NEW_IDEA"
+
+
+def test_search_no_results(authenticated_client, db_session):
+    """검색 결과 없음 테스트"""
+    # 메모 생성
+    response = authenticated_client.post(
+        "/api/v1/temp-memos",
+        json={"memo_type": "NEW_IDEA", "content": "테스트"},
+    )
+    memo_id = response.json()["id"]
+
+    memo = db_session.query(TempMemo).filter(TempMemo.id == memo_id).first()
+    memo.context = "일반적인 내용"
+    memo.summary = "요약 내용"
+    db_session.commit()
+
+    # 존재하지 않는 키워드로 검색
+    search_response = authenticated_client.get("/api/v1/temp-memos?search=존재하지않는키워드xyz")
+    data = search_response.json()
+
+    assert search_response.status_code == 200
+    assert data["total"] == 0
+    assert len(data["items"]) == 0
+
+
+def test_search_partial_match(authenticated_client, db_session):
+    """부분 일치 검색 테스트"""
+    # 메모 생성
+    response = authenticated_client.post(
+        "/api/v1/temp-memos",
+        json={"memo_type": "NEW_IDEA", "content": "테스트"},
+    )
+    memo_id = response.json()["id"]
+
+    memo = db_session.query(TempMemo).filter(TempMemo.id == memo_id).first()
+    memo.context = "자연어처리 기술 연구"
+    db_session.commit()
+
+    # 부분 문자열로 검색
+    search_response = authenticated_client.get("/api/v1/temp-memos?search=자연어")
+    assert search_response.json()["total"] == 1
+
+    search_response2 = authenticated_client.get("/api/v1/temp-memos?search=처리")
+    assert search_response2.json()["total"] == 1

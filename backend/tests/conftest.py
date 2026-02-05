@@ -46,6 +46,16 @@ def client():
 
 
 @pytest.fixture
+def db_session():
+    """테스트용 DB 세션 (직접 DB 조작 필요 시 사용)"""
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture
 def authenticated_client(client):
     """인증된 테스트 클라이언트 (테스트 사용자 생성 및 로그인 포함)"""
     # 테스트 사용자 생성
