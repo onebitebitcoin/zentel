@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, SlidersHorizontal, CheckSquare, X, ArrowUpRight, WifiOff, RefreshCw } from 'lucide-react';
+import { Search, CheckSquare, X, ArrowUpRight, WifiOff, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MemoCard } from '../components/memo/MemoCard';
 import rottenIcon from '../assets/images/rotten.png';
@@ -259,43 +259,56 @@ export function Inbox() {
 
       {/* PC: 상단 헤더 */}
       {!selectionMode && (
-        <div className="hidden md:flex items-center justify-between px-6 py-5 bg-white border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <h1 className="flex items-center gap-2 text-xl font-semibold text-gray-800">
-              <img src={rottenIcon} alt="임시 메모 목록" className="w-10 h-10" />
-              임시 메모 목록
-            </h1>
-            <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded">
-              총 {total}개
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleToggleSelectionMode}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-primary hover:text-primary transition-colors"
-            >
-              <CheckSquare size={16} />
-              선택
-            </button>
-            <div className="relative">
-              <Search
-                size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-              <input
-                type="text"
-                placeholder="메모 검색..."
-                className="w-64 pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary"
-                disabled
-              />
+        <div className="hidden md:block bg-white border-b border-gray-100">
+          <div className="flex items-center justify-between px-6 py-5">
+            <div className="flex items-center gap-3">
+              <h1 className="flex items-center gap-2 text-xl font-semibold text-gray-800">
+                <img src={rottenIcon} alt="임시 메모 목록" className="w-10 h-10" />
+                임시 메모 목록
+              </h1>
+              <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-medium rounded">
+                총 {total}개
+              </span>
             </div>
-            <button
-              disabled
-              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-400"
-            >
-              <SlidersHorizontal size={16} />
-              필터
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleToggleSelectionMode}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-primary hover:text-primary transition-colors"
+              >
+                <CheckSquare size={16} />
+                선택
+              </button>
+              <div className="relative">
+                <Search
+                  size={18}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  type="text"
+                  placeholder="메모 검색..."
+                  className="w-64 pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary"
+                  disabled
+                />
+              </div>
+            </div>
+          </div>
+          {/* PC: 필터 탭 */}
+          <div className="flex items-center gap-2 px-6 pb-4">
+            {filters.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  filter === f.value
+                    ? f.info
+                      ? `${f.info.bgColor} ${f.info.color}`
+                      : 'bg-primary text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
         </div>
       )}
