@@ -18,12 +18,24 @@ export function useTempMemos() {
   // 상세 정보 캐시 (본문 데이터)
   const detailCacheRef = useRef<Map<string, TempMemo>>(new Map());
 
+  // 현재 진행 중인 요청의 AbortController
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const fetchMemos = useCallback(
     async (type?: MemoType, limit = 10, offset = 0) => {
+      // 이전 요청이 있으면 취소
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      // 새 AbortController 생성
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       setLoading(true);
       setError(null);
       try {
-        const response = await tempMemoApi.list({ type, limit, offset });
+        const response = await tempMemoApi.list({ type, limit, offset }, controller.signal);
         if (offset === 0) {
           setMemos(response.items);
         } else {
@@ -31,10 +43,17 @@ export function useTempMemos() {
         }
         setTotal(response.total);
       } catch (err) {
+        // 요청이 취소된 경우 무시
+        if (err instanceof Error && err.name === 'CanceledError') {
+          return;
+        }
         const message = getErrorMessage(err, '메모를 불러오는데 실패했습니다.');
         setError(message);
       } finally {
-        setLoading(false);
+        // 현재 controller가 완료된 것이면 loading 해제
+        if (abortControllerRef.current === controller) {
+          setLoading(false);
+        }
       }
     },
     []

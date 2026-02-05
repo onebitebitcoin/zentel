@@ -35,13 +35,17 @@ export const tempMemoApi = {
   /**
    * 임시 메모 목록 조회
    */
-  list: async (params?: {
-    type?: MemoType;
-    limit?: number;
-    offset?: number;
-  }): Promise<TempMemoListResponse> => {
+  list: async (
+    params?: {
+      type?: MemoType;
+      limit?: number;
+      offset?: number;
+    },
+    signal?: AbortSignal
+  ): Promise<TempMemoListResponse> => {
     const response = await api.get<TempMemoListResponse>('/temp-memos', {
       params,
+      signal,
     });
     return response.data;
   },
