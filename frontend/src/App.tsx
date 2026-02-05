@@ -13,6 +13,7 @@ import { Notes } from './pages/Notes';
 import { NoteEdit } from './pages/NoteEdit';
 import { AddSourceMemos } from './pages/AddSourceMemos';
 import { DevelopmentPreview } from './pages/DevelopmentPreview';
+import { Outputs } from './pages/Outputs';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
@@ -127,6 +128,16 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <DevelopmentPreview />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/outputs"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <Outputs />
                 </AppLayout>
               </ProtectedRoute>
             }

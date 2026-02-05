@@ -1,20 +1,34 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import rottenIcon from '../../assets/images/rotten.png';
+import appleIcon from '../../assets/images/apple.png';
+import goldenIcon from '../../assets/images/golden.png';
 
 interface HeaderProps {
   className?: string;
 }
 
+interface PageConfig {
+  icon: string;
+  title: string;
+}
+
+const pageConfigs: Record<string, PageConfig> = {
+  '/inbox': { icon: rottenIcon, title: '임시 메모' },
+  '/notes': { icon: appleIcon, title: '영구 메모' },
+  '/outputs': { icon: goldenIcon, title: '결과물' },
+};
+
 export function Header({ className = '' }: HeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const isInbox = location.pathname === '/inbox';
+  const pageConfig = pageConfigs[location.pathname];
+  const showBackAndTitle = !!pageConfig;
 
   return (
     <header className={`sticky top-0 z-10 bg-white border-b border-gray-100 ${className}`}>
       <div className="flex items-center justify-between px-4 h-14">
-        {isInbox ? (
+        {showBackAndTitle ? (
           <button
             onClick={() => navigate('/')}
             className="flex items-center gap-2 text-gray-600"
@@ -31,11 +45,11 @@ export function Header({ className = '' }: HeaderProps) {
           </div>
         )}
 
-        {isInbox && (
+        {showBackAndTitle && (
           <h1 className="absolute left-1/2 transform -translate-x-1/2 text-base font-medium text-gray-700">
             <span className="inline-flex items-center gap-2">
-              <img src={rottenIcon} alt="임시 메모" className="w-6 h-6" />
-              임시 메모
+              <img src={pageConfig.icon} alt={pageConfig.title} className="w-6 h-6" />
+              {pageConfig.title}
             </span>
           </h1>
         )}

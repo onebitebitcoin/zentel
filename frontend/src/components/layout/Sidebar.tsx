@@ -1,12 +1,12 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  FileEdit,
-  BookOpen,
   Settings,
   Trash2,
   Plus,
 } from 'lucide-react';
 import rottenIcon from '../../assets/images/rotten.png';
+import appleIcon from '../../assets/images/apple.png';
+import goldenIcon from '../../assets/images/golden.png';
 
 interface SidebarProps {
   className?: string;
@@ -28,12 +28,17 @@ export function Sidebar({ className = '' }: SidebarProps) {
     {
       path: '/inbox',
       label: '임시 메모',
-      icon: <FileEdit size={18} />,
+      icon: <img src={rottenIcon} alt="임시 메모" className="w-[18px] h-[18px]" />,
     },
     {
       path: '/notes',
       label: '영구 메모',
-      icon: <BookOpen size={18} />,
+      icon: <img src={appleIcon} alt="영구 메모" className="w-[18px] h-[18px]" />,
+    },
+    {
+      path: '/outputs',
+      label: '결과물',
+      icon: <img src={goldenIcon} alt="결과물" className="w-[18px] h-[18px]" />,
     },
   ];
 
