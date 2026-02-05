@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { tempMemoApi } from '../api/client';
 import { getErrorMessage } from '../utils/error';
+import { logger } from '../utils/logger';
 import type {
   TempMemo,
   TempMemoListItem,
@@ -138,7 +139,7 @@ export function useTempMemos() {
       );
       return updated;
     } catch (err) {
-      console.error('메모 새로고침 실패:', err);
+      logger.error('메모 새로고침 실패', err);
       return undefined;
     }
   }, []);
@@ -162,7 +163,7 @@ export function useTempMemos() {
       detailCacheRef.current.set(id, detail);
       return detail;
     } catch (err) {
-      console.error('메모 상세 조회 실패:', err);
+      logger.error('메모 상세 조회 실패', err);
       return undefined;
     }
   }, []);

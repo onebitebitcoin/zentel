@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { permanentNoteApi } from '../api/client';
 import { getErrorMessage } from '../utils/error';
+import { logger } from '../utils/logger';
 import type {
   PermanentNote,
   PermanentNoteListItem,
@@ -119,7 +120,7 @@ export function usePermanentNotes() {
       detailCacheRef.current.set(id, detail);
       return detail;
     } catch (err) {
-      console.error('영구 메모 상세 조회 실패:', err);
+      logger.error('영구 메모 상세 조회 실패', err);
       return undefined;
     }
   }, []);

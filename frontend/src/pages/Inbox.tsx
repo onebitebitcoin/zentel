@@ -6,6 +6,7 @@ import { MemoCard } from '../components/memo/MemoCard';
 import rottenIcon from '../assets/images/rotten.png';
 import { useTempMemos } from '../hooks/useTempMemos';
 import { useAnalysisSSE } from '../hooks/useAnalysisSSE';
+import { logger } from '../utils/logger';
 import type { MemoType, MemoTypeInfo } from '../types/memo';
 import { MEMO_TYPES } from '../types/memo';
 
@@ -35,7 +36,7 @@ export function Inbox() {
       (m) => m.analysis_status === 'pending' || m.analysis_status === 'analyzing'
     );
     if (analyzingMemos.length > 0) {
-      console.log('[Inbox] Refreshing analyzing memos:', analyzingMemos.map((m) => m.id));
+      logger.debug('[Inbox] Refreshing analyzing memos', analyzingMemos.map((m) => m.id));
       for (const memo of analyzingMemos) {
         await refreshMemo(memo.id);
       }
@@ -46,7 +47,7 @@ export function Inbox() {
   const { analysisLogs, clearLogs, connectionStatus, manualReconnect } = useAnalysisSSE(
     useCallback(
       async (memoId: string, status: string) => {
-        console.log('[Inbox] Analysis complete:', memoId, status);
+        logger.debug('[Inbox] Analysis complete', { memoId, status });
         // 해당 메모 새로고침
         await refreshMemo(memoId);
         if (status === 'completed') {

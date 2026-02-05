@@ -71,6 +71,36 @@ def _get_comment_summary(
     return count, latest_summary
 
 
+def _get_memo_common_fields(
+    memo: TempMemo,
+    fetch_failed: bool = False,
+    fetch_message: Optional[str] = None,
+) -> dict:
+    """TempMemo에서 공통 필드 추출 (중복 제거용)"""
+    return {
+        "id": memo.id,
+        "memo_type": memo.memo_type,
+        "content": memo.content,
+        "context": memo.context,
+        "summary": memo.summary,
+        "interests": memo.interests,
+        "source_url": memo.source_url,
+        "og_title": memo.og_title,
+        "og_image": memo.og_image,
+        "fetch_failed": fetch_failed,
+        "fetch_message": fetch_message,
+        "analysis_status": AnalysisStatus(memo.analysis_status),
+        "analysis_error": memo.analysis_error,
+        "original_language": memo.original_language,
+        "is_summary": memo.is_summary,
+        "translated_content": memo.translated_content,
+        "display_content": memo.display_content,
+        "highlights": memo.highlights,
+        "created_at": memo.created_at,
+        "updated_at": memo.updated_at,
+    }
+
+
 def memo_to_list_item(
     memo: TempMemo,
     comment_count: int = 0,
@@ -79,29 +109,10 @@ def memo_to_list_item(
     fetch_message: Optional[str] = None,
 ) -> TempMemoListItem:
     """TempMemo를 TempMemoListItem으로 변환 (본문 데이터 포함)"""
+    fields = _get_memo_common_fields(memo, fetch_failed, fetch_message)
     return TempMemoListItem(
-        id=memo.id,
-        memo_type=memo.memo_type,
-        content=memo.content,
-        context=memo.context,
-        summary=memo.summary,
-        interests=memo.interests,
-        source_url=memo.source_url,
-        og_title=memo.og_title,
-        og_image=memo.og_image,
-        fetch_failed=fetch_failed,
-        fetch_message=fetch_message,
-        analysis_status=AnalysisStatus(memo.analysis_status),
-        analysis_error=memo.analysis_error,
-        original_language=memo.original_language,
-        is_summary=memo.is_summary,
+        **fields,
         has_display_content=bool(memo.display_content),
-        # 본문 데이터 포함 (추가 API 호출 제거)
-        translated_content=memo.translated_content,
-        display_content=memo.display_content,
-        highlights=memo.highlights,
-        created_at=memo.created_at,
-        updated_at=memo.updated_at,
         comment_count=comment_count,
         latest_comment=latest_comment,
     )
@@ -115,28 +126,10 @@ def memo_to_out(
 ) -> TempMemoOut:
     """TempMemo를 TempMemoOut으로 변환 (댓글 정보 포함)"""
     count, latest_summary = _get_comment_summary(db, memo.id)
+    fields = _get_memo_common_fields(memo, fetch_failed, fetch_message)
     return TempMemoOut(
-        id=memo.id,
-        memo_type=memo.memo_type,
-        content=memo.content,
-        context=memo.context,
-        summary=memo.summary,
-        interests=memo.interests,
-        source_url=memo.source_url,
-        og_title=memo.og_title,
-        og_image=memo.og_image,
-        fetch_failed=fetch_failed,
-        fetch_message=fetch_message,
-        analysis_status=AnalysisStatus(memo.analysis_status),
-        analysis_error=memo.analysis_error,
-        original_language=memo.original_language,
-        translated_content=memo.translated_content,
+        **fields,
         fetched_content=memo.fetched_content,
-        display_content=memo.display_content,
-        is_summary=memo.is_summary,
-        highlights=memo.highlights,
-        created_at=memo.created_at,
-        updated_at=memo.updated_at,
         comment_count=count,
         latest_comment=latest_summary,
     )

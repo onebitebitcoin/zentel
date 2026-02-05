@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import type { TempMemo, MemoType, TempMemoUpdate } from '../types/memo';
 import { MemoTypeChips } from '../components/memo/MemoTypeChips';
 import { formatDateTime } from '../utils/date';
+import { logger } from '../utils/logger';
 import { useAuth } from '../contexts/AuthContext';
 import { tempMemoApi } from '../api/client';
 import { useAnalysisSSE } from '../hooks/useAnalysisSSE';
@@ -34,7 +35,7 @@ export function MemoEdit() {
   const handleAnalysisComplete = useCallback(
     async (memoId: string, status: string) => {
       if (memoId === id) {
-        console.log('[MemoEdit] Analysis complete:', memoId, status);
+        logger.debug('[MemoEdit] Analysis complete', { memoId, status });
         // 메모 새로고침
         const data = await tempMemoApi.get(memoId);
         setMemo(data);
@@ -52,13 +53,13 @@ export function MemoEdit() {
   // SSE 재연결 시 현재 메모 상태 새로고침
   const handleReconnect = useCallback(async () => {
     if (id && memo && (memo.analysis_status === 'pending' || memo.analysis_status === 'analyzing')) {
-      console.log('[MemoEdit] SSE reconnected - refreshing memo status');
+      logger.debug('[MemoEdit] SSE reconnected - refreshing memo status');
       try {
         const data = await tempMemoApi.get(id);
         setMemo(data);
         setInterests(data.interests || []);
       } catch (err) {
-        console.error('[MemoEdit] Failed to refresh memo:', err);
+        logger.error('[MemoEdit] Failed to refresh memo', err);
       }
     }
   }, [id, memo]);

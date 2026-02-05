@@ -3,6 +3,7 @@
  */
 import { useState, useCallback } from 'react';
 import { commentApi } from '../api/client';
+import { logger } from '../utils/logger';
 import type { MemoComment, MemoCommentCreate, MemoCommentUpdate } from '../types/comment';
 import type { CommentAIResponseEvent } from './useAnalysisSSE';
 
@@ -22,7 +23,7 @@ export function useComments(memoId: string) {
       setTotal(response.total);
     } catch (err) {
       setError('댓글을 불러오는데 실패했습니다.');
-      console.error('Failed to fetch comments:', err);
+      logger.error('Failed to fetch comments', err);
     } finally {
       setLoading(false);
     }

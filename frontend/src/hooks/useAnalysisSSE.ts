@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { logger } from '../utils/logger';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 const ANALYSIS_LOGS_STORAGE_KEY = 'myrottenapple_analysis_logs';
@@ -66,7 +67,7 @@ export function useAnalysisSSE(
         return JSON.parse(stored);
       }
     } catch (error) {
-      console.error('[useAnalysisSSE] Failed to load logs from localStorage:', error);
+      logger.error('[useAnalysisSSE] Failed to load logs from localStorage', error);
     }
     return {};
   });
@@ -76,7 +77,7 @@ export function useAnalysisSSE(
     try {
       localStorage.setItem(ANALYSIS_LOGS_STORAGE_KEY, JSON.stringify(analysisLogs));
     } catch (error) {
-      console.error('[useAnalysisSSE] Failed to save logs to localStorage:', error);
+      logger.error('[useAnalysisSSE] Failed to save logs to localStorage', error);
     }
   }, [analysisLogs]);
 
@@ -120,7 +121,7 @@ export function useAnalysisSSE(
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
-      console.log('[SSE] Disconnected');
+      logger.debug('[SSE] Disconnected');
     }
     setConnectionStatus('disconnected');
   }, [clearReconnectTimeout]);
@@ -149,14 +150,14 @@ export function useAnalysisSSE(
       try {
         const data: AnalysisProgressEvent = JSON.parse(event.data);
         data.timestamp = new Date().toLocaleTimeString('ko-KR');
-        console.log('[SSE] Analysis progress:', data);
+        logger.debug('[SSE] Analysis progress', data);
 
         setAnalysisLogs((prev) => ({
           ...prev,
           [data.memo_id]: [...(prev[data.memo_id] || []), data],
         }));
       } catch (error) {
-        console.error('[SSE] Failed to parse progress event:', error);
+        logger.error('[SSE] Failed to parse progress event', error);
       }
     });
 
@@ -164,7 +165,7 @@ export function useAnalysisSSE(
     eventSource.addEventListener('analysis_complete', (event) => {
       try {
         const data: AnalysisCompleteEvent = JSON.parse(event.data);
-        console.log('[SSE] Analysis complete:', data);
+        logger.debug('[SSE] Analysis complete', data);
         onAnalysisCompleteRef.current(data.memo_id, data.status);
 
         // 분석 완료 시 해당 메모의 로그 정리
@@ -176,7 +177,7 @@ export function useAnalysisSSE(
           });
         }
       } catch (error) {
-        console.error('[SSE] Failed to parse event:', error);
+        logger.error('[SSE] Failed to parse event', error);
       }
     });
 
@@ -184,10 +185,10 @@ export function useAnalysisSSE(
     eventSource.addEventListener('comment_ai_response', (event) => {
       try {
         const data: CommentAIResponseEvent = JSON.parse(event.data);
-        console.log('[SSE] Comment AI response:', data);
+        logger.debug('[SSE] Comment AI response', data);
         onCommentAIResponseRef.current?.(data);
       } catch (error) {
-        console.error('[SSE] Failed to parse comment AI response:', error);
+        logger.error('[SSE] Failed to parse comment AI response', error);
       }
     });
 
@@ -196,7 +197,7 @@ export function useAnalysisSSE(
     });
 
     eventSource.onerror = () => {
-      console.error('[SSE] Connection error');
+      logger.error('[SSE] Connection error');
       eventSource.close();
       eventSourceRef.current = null;
       setConnectionStatus('disconnected');
@@ -205,27 +206,27 @@ export function useAnalysisSSE(
       if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
         reconnectAttemptsRef.current += 1;
         const delay = RECONNECT_DELAY_MS * reconnectAttemptsRef.current; // 점진적 백오프
-        console.log(`[SSE] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
+        logger.debug(`[SSE] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})...`);
 
         setConnectionStatus('reconnecting');
         reconnectTimeoutRef.current = setTimeout(() => {
           connect(true);
         }, delay);
       } else {
-        console.error('[SSE] Max reconnect attempts reached');
+        logger.error('[SSE] Max reconnect attempts reached');
         setConnectionStatus('disconnected');
       }
     };
 
     eventSource.onopen = () => {
-      console.log('[SSE] Connected to analysis events');
+      logger.debug('[SSE] Connected to analysis events');
       setConnectionStatus('connected');
       setLastConnectedAt(new Date());
 
       // 재연결 성공 시 카운터 리셋 및 상태 새로고침
       if (isReconnect || reconnectAttemptsRef.current > 0) {
         reconnectAttemptsRef.current = 0;
-        console.log('[SSE] Reconnected - refreshing analyzing memos status');
+        logger.debug('[SSE] Reconnected - refreshing analyzing memos status');
         // 재연결 시 분석 중인 메모들 상태 새로고침
         onReconnectRef.current?.();
       }
@@ -234,7 +235,7 @@ export function useAnalysisSSE(
 
   // 수동 재연결 (사용자가 버튼 클릭)
   const manualReconnect = useCallback(() => {
-    console.log('[SSE] Manual reconnect requested');
+    logger.debug('[SSE] Manual reconnect requested');
     reconnectAttemptsRef.current = 0; // 수동 재연결 시 카운터 리셋
     disconnect();
     connect(true);
